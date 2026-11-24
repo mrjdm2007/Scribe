@@ -12,6 +12,8 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Global search across titles, note text and tags.
 - Bookmarks, revision-tag filtering, a searchable multiple-choice question bank, mixed practice sessions and offline flashcards with Again / Good / Easy spaced-repetition scheduling.
 - Local study reminders with reboot rescheduling and automatic archival after notification delivery.
+- A foreground focus timer with 15 / 25 / 45 / 60-minute sessions and locally saved session history.
+- Tested spaced-repetition intervals: Again resets, Hard advances gently, Good doubles and Easy triples the interval (capped at one year).
 - Quick capture notes routed into a visible Quick Notes course and Inbox chapter.
 - Formula source pad with symbol keyboard and saved formula collection.
 - Engineering unit conversions for length, electrical quantities, frequency, power, energy, time, speed, charge and inductance.
@@ -48,4 +50,4 @@ gradle :app:assembleDebug
 GitHub Actions publishes a smaller `scribe-release-apk` artifact. It is signed with the temporary debug signing key for testing; create a private release keystore before publishing a Play Store build.
 
 ## Known limitations
-The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF OCR currently works page by page; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting supports a small, explicitly listed set of functions rather than arbitrary expressions. The circuit tool is a component sketch starter, not a full schematic editor or SPICE simulator. Advanced stylus pressure/eraser support, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
+The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF OCR currently works page by page; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting supports a small, explicitly listed set of functions rather than arbitrary expressions. The circuit tool is a component sketch starter, not a full schematic editor or SPICE simulator. Persistent PDF annotations, full-document indexed OCR, arbitrary-expression graphing, a full schematic editor/SPICE simulator, advanced stylus pressure/eraser support, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. The focus timer runs only while the app is open; it does not yet provide background countdown notifications. Audio and video remain out of scope.
