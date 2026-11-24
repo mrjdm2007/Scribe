@@ -136,20 +136,50 @@ struct ScribeMacRoot: View {
     private var editor: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let item = store.selected {
-                Text(item.kind.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
+                Text(item.kind == "topic" ? "TOPIC NOTEBOOK" : item.kind.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
                 TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
+                if item.kind == "topic" {
+                    HStack {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("Find a word inside this topic…", text: $topicSearchQuery).textFieldStyle(.plain)
+                        if !topicSearchQuery.isEmpty { Button { topicSearchQuery = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.buttonStyle(.plain) }
+                    }.padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    let matches = item.body.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(topicSearchQuery) }
+                    if !topicSearchQuery.isEmpty {
+                        Text("\\(matches.count) matching lines").font(.caption).foregroundStyle(.secondary)
+                        ForEach(Array(matches.prefix(5).enumerated()), id: \\.offset) { _, line in
+                            Text(line).font(.caption).lineLimit(2).padding(.horizontal, 8)
+                        }
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            Button("B") { appendMarkup("**text**") }.fontWeight(.bold)
+                            Button("I") { appendMarkup("*text*") }.italic()
+                            Button("U") { appendMarkup("__text__") }
+                            Button("Heading") { appendMarkup("## Heading") }
+                            Button("List") { appendMarkup("- List item") }
+                            Button("Code") { appendMarkup("~~~code~~~") }
+                        }.buttonStyle(.bordered).controlSize(.small)
+                    }
+                    Text("Notes use portable Markdown text, preserving line breaks and formatting markers across Android, Mac and window resizing.").font(.caption).foregroundStyle(.secondary)
+                }
                 if item.tags.contains("type:pdf"), !item.uri.isEmpty {
-                    ScribePDFPreview(url: URL(fileURLWithPath: item.uri)).frame(minHeight: 340).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                    ScribePDFPreview(url: URL(fileURLWithPath: item.uri)).frame(minHeight: 340).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                     HStack {
                         Button { Task { if let text = try? await ScribePDFOCR.extractText(from: URL(fileURLWithPath: item.uri)) { store.update(item, body: text) } } } label: { Label("Extract PDF text", systemImage: "text.viewfinder") }
-                        Text("OCR text is saved in the attachment note body.").font(.caption).foregroundStyle(.secondary)
+                        Text("OCR text is saved in this attachment's note body.").font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
-                    TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                    TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 }
                 HStack { Button { store.update(item,bookmarked:!item.bookmarked) } label: { Label(item.bookmarked ? "Bookmarked" : "Bookmark",systemImage:"bookmark") }; Spacer(); Button(role:.destructive) { store.remove(item) } label: { Label("Move to trash",systemImage:"trash") } }
             } else { VStack(spacing: 10) { Image(systemName: "text.book.closed").font(.system(size: 34)); Text("Select a course, topic or page").font(.headline); Text("Your notes and study material will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity) }
-        }.padding(14).frame(maxWidth:.infinity,maxHeight:.infinity).background(panel,in:RoundedRectangle(cornerRadius:14))
+        }.padding(14).frame(minWidth: 440, maxWidth:.infinity,maxHeight:.infinity).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:14)).overlay(RoundedRectangle(cornerRadius:14).stroke(.white.opacity(0.10),lineWidth:1)).shadow(color:.black.opacity(0.24),radius:16,x:0,y:8)
+    }
+    private func appendMarkup(_ marker: String) {
+        guard let item = store.selected else { return }
+        let separator = item.body.isEmpty || item.body.hasSuffix("\\n") ? "" : "\\n"
+        store.update(item, body: item.body + separator + marker)
     }
     private var flashcards: some View {
         VStack(alignment:.leading,spacing:16) {
