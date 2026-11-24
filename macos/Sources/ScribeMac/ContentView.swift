@@ -18,6 +18,7 @@ struct ScribeMacRoot: View {
     @State private var revealed = false
     @State private var reviewedCardIDs: Set<Int64> = []
     @State private var formulaQuery = ""
+    @State private var topicSearchQuery = ""
     @FocusState private var searchFocused: Bool
 
     private let gold = Color(red: 0.84, green: 0.72, blue: 0.55)
@@ -92,7 +93,7 @@ struct ScribeMacRoot: View {
     }
     private var library: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic → Pages").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import PDF", systemImage: "doc.richtext") }; Button { store.create(kind: "page", title: "Untitled page", parentId: store.selectedID) } label: { Label("New page", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
+            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic → Notebook").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import PDF", systemImage: "doc.richtext") } }
             HStack(spacing: 12) {
                 if store.searchText.isEmpty {
                     hierarchy(parent: nil, title: "Courses")
@@ -121,10 +122,12 @@ struct ScribeMacRoot: View {
                     .contextMenu { Button("Bookmark") { store.update(item, bookmarked: !item.bookmarked) }; Button("Delete", role: .destructive) { store.remove(item) } }
             }.listStyle(.inset)
             HStack {
-                Menu("Add") {
-                    Button("Chapter") { store.create(kind:"chapter",title:"Untitled chapter",parentId:parent) }
-                    Button("Topic") { store.create(kind:"topic",title:"Untitled topic",parentId:parent) }
-                    Button("Page") { store.create(kind:"page",title:"Untitled page",parentId:parent) }
+                if parent == nil {
+                    Button("New course") { store.create(kind: "course", title: "Untitled course") }
+                } else if let parentKind = store.items.first(where: { $0.id == parent })?.kind, parentKind == "course" {
+                    Button("New chapter") { store.create(kind: "chapter", title: "Untitled chapter", parentId: parent) }
+                } else if let parentKind = store.items.first(where: { $0.id == parent })?.kind, parentKind == "chapter" {
+                    Button("New topic") { store.create(kind: "topic", title: "Untitled topic", parentId: parent) }
                 }
                 Spacer()
             }
