@@ -16,6 +16,7 @@ struct ScribeMacRoot: View {
     @State private var converterUnit = "mA"
     @State private var converterTarget = "A"
     @State private var revealed = false
+    @State private var reviewedCardIDs: Set<Int64> = []
     @State private var formulaQuery = ""
 
     private let gold = Color(red: 0.84, green: 0.72, blue: 0.55)
@@ -135,7 +136,8 @@ struct ScribeMacRoot: View {
         VStack(alignment:.leading,spacing:16) {
             HStack { Text("Flashcards").font(.largeTitle.bold()); Spacer(); Button { showingFlashcardComposer = true } label: { Label("Add flashcard", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
             let cards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }
-            if let card = cards.first {
+            Text("\\(reviewedCardIDs.count) of \\(cards.count) reviewed in this session").foregroundStyle(.secondary)
+            if let card = cards.first(where: { !reviewedCardIDs.contains($0.id) }) {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
                 }.padding(30).background(panel,in:RoundedRectangle(cornerRadius:20))
@@ -143,7 +145,7 @@ struct ScribeMacRoot: View {
             Spacer()
         }.padding(24)
     }
-    private func reviewButton(_ title:String,_ rating:Int,_ card:ScribeItem)->some View { Button(title) { store.review(card,rating:rating); revealed=false }.buttonStyle(.bordered) }
+    private func reviewButton(_ title:String,_ rating:Int,_ card:ScribeItem)->some View { Button(title) { store.review(card,rating:rating); reviewedCardIDs.insert(card.id); revealed=false }.buttonStyle(.bordered) }
     private var focus: some View {
         VStack(spacing:20) {
             Text("Focus mode").font(.largeTitle.bold())
