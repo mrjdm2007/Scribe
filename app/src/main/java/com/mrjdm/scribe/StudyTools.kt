@@ -177,7 +177,7 @@ private fun replaceTag(tags: String, key: String, value: String): String {
 @Composable
 fun AcademicToolsHub(vm: ScribeViewModel) {
     var selected by remember { mutableStateOf("Converter") }
-    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Reminders", "Diagrams", "Sketchpad")
+    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Flashcards", "Reminders", "Diagrams", "Sketchpad")
     Column(Modifier.fillMaxSize()) {
         Text("SCRIBE / WORKBENCH", color = ToolGold, fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
@@ -199,6 +199,7 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
             "Formula" -> FormulaLibrary(vm)
             "Questions" -> QuestionBankScreen(vm, practice = false)
             "Practice" -> QuestionBankScreen(vm, practice = true)
+            "Flashcards" -> FlashcardsScreen(vm)
             "Reminders" -> ReminderHub(vm)
             "Sketchpad" -> Sketchpad(vm)
             else -> DiagramStarter(vm)
@@ -300,7 +301,7 @@ private fun UnitConverter() {
     var from by remember { mutableStateOf("m") }
     var to by remember { mutableStateOf("cm") }
     val units = groups[group]!!
-    val result = amount.toDoubleOrNull()?.let { it * factors.getValue(from) / factors.getValue(to) }
+    val result = amount.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { it * factors.getValue(from) / factors.getValue(to) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("ENGINEERING UNIT CONVERTER", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
         groups.keys.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -337,18 +338,20 @@ private fun UnitPicker(units: List<String>, selected: String, onSelect: (String)
 private fun GraphTool(vm: ScribeViewModel) {
     var expression by remember { mutableStateOf("sin(x)") }
     var range by remember { mutableStateOf("6.28") }
-    val maxX = range.toFloatOrNull()?.coerceIn(1f, 30f) ?: 6.28f
+    val maxX = range.toFloatOrNull()?.takeIf { it.isFinite() }?.coerceIn(1f, 30f) ?: 6.28f
+    val supported = expression.trim().lowercase() in setOf("sin(x)", "cos(x)", "tan(x)", "x", "x^2", "1/x", "exp(x)")
     val fn: (Float) -> Float = { x ->
         when(expression.trim().lowercase()) {
             "sin(x)" -> sin(x); "cos(x)" -> cos(x); "tan(x)" -> tan(x).coerceIn(-5f, 5f)
             "x" -> x; "x^2" -> x*x; "1/x" -> if (abs(x) < .05f) Float.NaN else 1f/x
-            "exp(x)" -> exp(x).coerceIn(-10f, 10f); else -> sin(x)
+            "exp(x)" -> exp(x).coerceIn(-10f, 10f); else -> Float.NaN
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("FUNCTION PLOTTER", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
         OutlinedTextField(expression, { expression = it }, label = { Text("Function: sin(x), cos(x), tan(x), x, x^2, 1/x, exp(x)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(range, { range = it }, label = { Text("X range (−range to +range)") }, singleLine = true)
+        if (!supported) Text("Unsupported expression. Choose sin(x), cos(x), tan(x), x, x^2, 1/x or exp(x).", color = Color(0xFFE49A91), fontSize = 11.sp)
         Card(colors = CardDefaults.cardColors(containerColor = ToolPanel), shape = RoundedCornerShape(16.dp)) {
             Canvas(Modifier.fillMaxWidth().height(250.dp).padding(12.dp)) {
                 val cx = size.width/2; val cy = size.height/2
@@ -375,7 +378,7 @@ private fun GraphTool(vm: ScribeViewModel) {
                 drawPath(path, ToolGold, style = Stroke(width = 2.5.dp.toPx()))
             }
         }
-        Button(onClick = {
+        Button(enabled = supported, onClick = {
             vm.add(null, "formula", "y = $expression", body = "y = $expression\nRange: -$range to +$range (radians)", tags = "type:graph-formula")
         }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ToolGold, contentColor = Color(0xFF211B12))) {
             Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("Save graph to formula library")

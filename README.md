@@ -10,7 +10,9 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Content blocks for text, headings, LaTeX source, code, tables, lists, checklists, quotes, questions, flashcards, diagrams, links, images, PDFs and documents.
 - Image, PDF and document imports copied into app-private storage. Audio and video features are intentionally excluded.
 - Global search across titles, note text and tags.
-- Bookmarks, revision-tag filtering, flashcards and an interval-based review queue.
+- Bookmarks, revision-tag filtering, a searchable multiple-choice question bank, mixed practice sessions and offline flashcards with Again / Good / Easy spaced-repetition scheduling.
+- Local study reminders with reboot rescheduling and automatic archival after notification delivery.
+- Quick capture notes routed into a visible Quick Notes course and Inbox chapter.
 - Formula source pad with symbol keyboard and saved formula collection.
 - Engineering unit conversions for length, electrical quantities, frequency, power, energy, time, speed, charge and inductance.
 - Local graph plotting for a small built-in set of functions, with the graph expression saved into the library.
@@ -18,8 +20,9 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Circuit component sketch starter with reference/value notes and a simple schematic preview.
 - Editable scientific tables with adjustable rows and columns, saved as structured tab-separated blocks.
 - Concept-map outline starter.
-- Freehand engineering sketchpad with undo, color and pen-width controls; exports drawings as local PNG attachments.
-- On-device OCR for rendered PDF pages, with in-page text filtering.
+- Freehand engineering sketchpad with undo/redo, color and pen-width controls; saves drawings as PNG attachments directly into a selected notebook page.
+- On-device OCR for rendered PDF pages, with extracted-text filtering on the current page.
+- Markdown-style bold, italic, underline, strikethrough, heading and list controls in the block editor.
 - Soft-delete trash, restore, permanent delete, ordered blocks, duplicate/move actions and version snapshots.
 - JSON backup and restore, including app-local attachment bytes and saved note-version history.
 - Library integrity check for missing attachment files and likely duplicate entries.
@@ -45,4 +48,4 @@ gradle :app:assembleDebug
 GitHub Actions publishes a `scribe-debug-apk` artifact.
 
 ## Known limitations
-The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF attachments have an in-app page viewer and page-level OCR with text filtering; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting currently supports only the explicitly listed built-in expressions and is not a general-purpose expression parser. The diagram tool saves concept-map outlines and circuit component sketches, but is not a freeform circuit editor or SPICE simulator. Advanced stylus pressure/eraser support, persistent PDF ink/highlight annotations, full-document OCR indexing, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
+The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF OCR currently works page by page; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting supports a small, explicitly listed set of functions rather than arbitrary expressions. The circuit tool is a component sketch starter, not a full schematic editor or SPICE simulator. Advanced stylus pressure/eraser support, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
