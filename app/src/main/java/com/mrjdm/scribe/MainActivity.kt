@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import android.util.Base64
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -88,8 +89,6 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 val kind = when {
                     ext.startsWith("image/") -> "image"
                     ext == "application/pdf" -> "pdf"
-                    ext.startsWith("audio/") -> "audio"
-                    ext.startsWith("video/") -> "video"
                     else -> "file"
                 }
                 vm.add(current.id, "block", name, body = "Attached file", uri = target.absolutePath, tags = "type:$kind")
@@ -105,6 +104,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 put("title", item.title); put("body", item.body); put("uri", item.uri); put("tags", item.tags)
                 put("bookmarked", item.bookmarked); put("position", item.position); put("createdAt", item.createdAt); put("updatedAt", item.updatedAt)
                 put("deletedAt", item.deletedAt ?: JSONObject.NULL)
+                if (item.uri.isNotBlank()) {
+                    val attachment = File(item.uri)
+                    if (attachment.isFile) put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
+                }
             }) }
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(array.toString(2)) }
         }
@@ -117,9 +120,16 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 val restored = buildList {
                     for (i in 0 until array.length()) {
                         val o = array.getJSONObject(i)
+                        val encodedAttachment = o.optString("attachmentBase64")
+                        val restoredUri = if (encodedAttachment.isNotBlank()) {
+                            val directory = File(context.filesDir, "attachments").apply { mkdirs() }
+                            val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}")
+                            target.writeBytes(Base64.decode(encodedAttachment, Base64.DEFAULT))
+                            target.absolutePath
+                        } else o.optString("uri")
                         add(ScribeItem(id = o.optLong("id"), parentId = if (o.isNull("parentId")) null else o.optLong("parentId"),
                             kind = o.optString("kind"), title = o.optString("title"), body = o.optString("body"),
-                            uri = o.optString("uri"), tags = o.optString("tags"), bookmarked = o.optBoolean("bookmarked"),
+                            uri = restoredUri, tags = o.optString("tags"), bookmarked = o.optBoolean("bookmarked"),
                             position = o.optInt("position"), createdAt = o.optLong("createdAt"), updatedAt = o.optLong("updatedAt"),
                             deletedAt = if (o.isNull("deletedAt")) null else o.optLong("deletedAt")))
                     }
@@ -153,8 +163,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         },
         bottomBar = {
             NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
-                listOf("Library", "Saved", "Revision", "Formulas", "Settings").forEach { label ->
-                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Formulas" -> Icons.Rounded.Functions; "Revision" -> Icons.Rounded.Replay; else -> Icons.Rounded.Settings }
+                listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
+                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
                         icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
@@ -168,12 +178,12 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 "Library" -> {
                     if (current?.kind == "page") {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
-                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "audio/*", "video/*", "text/*"))
+                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { stack = stack.dropLast(1) }) { Icon(Icons.Rounded.ArrowBack, null) }
-                            Column(Modifier.weight(1)) {
+                            Column(Modifier.weight(1f)) {
                                 Text(current.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                                 Text(current.kind.uppercase(Locale.getDefault()), color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                             }
@@ -187,7 +197,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             Text("YOUR ${current.kind.uppercase()}S", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(10.dp))
                         }
-                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
+                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move)
                         if (children.isEmpty()) EmptyState(if (current.kind == "topic") "No pages yet" else "A quiet space to begin", "Use + to add your first ${if (current.kind == "topic") "page" else "item"}.")
                     } else {
                         Text("SCRIBE", color = Gold, fontSize = 11.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
@@ -229,18 +239,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     ItemList(bookmarks, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
-                "Revision" -> {
-                    val revisionItems by vm.search("revision").collectAsState(initial = emptyList())
-                    ScreenHeading("Revision mode", "Material tagged for revision")
-                    ItemList(revisionItems, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
-                    if (revisionItems.isEmpty()) EmptyState("Nothing queued for revision", "Add the tag revision to any topic, page or note block.")
-                }
-                "Formulas" -> {
-                    ScreenHeading("Formula library", "Equations collected from your notes")
-                    val formulaItems by vm.search("type:equation").collectAsState(initial = emptyList())
-                    ItemList(formulaItems, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
-                    if (formulaItems.isEmpty()) EmptyState("Your formula sheet", "Add an Equation block to any page. It will appear here.")
-                }
+                "Study" -> StudyHub(vm)
+                "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
                     SettingsRow(Icons.Rounded.CloudUpload, "Export full backup", "Save courses, notes and organisation as JSON") { backupLauncher.launch("Scribe-backup.json") }
@@ -309,7 +309,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, null) }
-            Column(Modifier.weight(1)) {
+            Column(Modifier.weight(1f)) {
                 Text("NOTE PAGE", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Text(page.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
@@ -334,12 +334,12 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
                     } else editBlock = block
-                }, onBookmark = { vm.toggleBookmark(block) }, onDelete = { vm.removeTree(block) })
+                }, onBookmark = { vm.toggleBookmark(block) }, onDelete = { vm.removeTree(block) }, onMove = { direction -> vm.move(block, direction) })
             }
-            if (blocks.isEmpty()) item { EmptyState("A blank page", "Add text, equations, diagrams, PDFs, video references and more.") }
+            if (blocks.isEmpty()) item { EmptyState("A blank page", "Add rich text, equations, diagrams, images, PDFs, tables and more.") }
             item {
                 OutlinedButton(onClick = onAttach, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF, audio or file")
+                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF or document")
                 }
             }
         }
@@ -368,10 +368,11 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
 }
 
 @Composable
-private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> Unit, onDelete: () -> Unit) {
+private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> Unit, onDelete: () -> Unit, onMove: (Int) -> Unit = {}) {
     val type = item.tags.substringAfter("type:", "").substringBefore(",")
+    var menuExpanded by remember(item.id) { mutableStateOf(false) }
     val preview = remember(item.uri, type) { if (type == "image" && item.uri.isNotBlank()) runCatching { BitmapFactory.decodeFile(item.uri)?.asImageBitmap() }.getOrNull() else null }
-    val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "video" -> Icons.Rounded.PlayCircle; "audio" -> Icons.Rounded.GraphicEq; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
+    val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -379,7 +380,14 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
                 Spacer(Modifier.width(9.dp))
                 Text(item.title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 IconButton(onClick = onBookmark) { Icon(if (item.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, tint = if (item.bookmarked) Gold else Muted) }
-                IconButton(onClick = onDelete) { Icon(Icons.Rounded.MoreVert, null, tint = Muted) }
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Rounded.MoreVert, null, tint = Muted) }
+                    DropdownMenu(menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(text = { Text("Move up") }, onClick = { onMove(-1); menuExpanded = false })
+                        DropdownMenuItem(text = { Text("Move down") }, onClick = { onMove(1); menuExpanded = false })
+                        DropdownMenuItem(text = { Text("Delete") }, onClick = { onDelete(); menuExpanded = false })
+                    }
+                }
             }
             if (preview != null) Image(bitmap = preview, contentDescription = item.title, modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp))
             if (item.uri.isNotBlank() && preview == null) Text(File(item.uri).name, color = Gold, fontSize = 12.sp)
@@ -391,9 +399,10 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
 }
 
 @Composable
-private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit) {
+private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
         items(items, key = { it.id }) { item ->
+            var menuExpanded by remember(item.id) { mutableStateOf(false) }
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable { onClick(item) }) {
                 Row(Modifier.padding(start = 15.dp, end = 5.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(42.dp).background(Color(0xFF292721), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
@@ -405,8 +414,16 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
                         Text("${item.kind.replaceFirstChar { it.uppercase() }} · ${if (item.body.isNotBlank()) item.body.take(55) else "Open notebook"}", color = Muted, fontSize = 11.sp, maxLines = 1)
                     }
                     IconButton(onClick = { onBookmark(item) }) { Icon(if (item.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, tint = if (item.bookmarked) Gold else Muted) }
-                    IconButton(onClick = { onEdit(item) }) { Icon(Icons.Rounded.Edit, null, tint = Muted) }
-                    IconButton(onClick = { onDelete(item) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Rounded.MoreVert, null, tint = Muted) }
+                        DropdownMenu(menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("Duplicate") }, onClick = { onDuplicate(item); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Move up") }, onClick = { onMove(item, -1); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Move down") }, onClick = { onMove(item, 1); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Rename / edit") }, onClick = { onEdit(item); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Delete") }, onClick = { onDelete(item); menuExpanded = false })
+                        }
+                    }
                 }
             }
         }
@@ -467,7 +484,7 @@ private fun AddBlockDialog(onDismiss: () -> Unit, onAdd: (String, String, String
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var tags by remember { mutableStateOf("") }
-    val types = listOf("text", "heading", "equation", "code", "table", "video", "link", "audio")
+    val types = listOf("text", "heading", "equation", "code", "table", "list", "checklist", "quote", "link", "diagram", "question", "flashcard")
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Add to page") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("CONTENT TYPE", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
@@ -481,7 +498,7 @@ private fun AddBlockDialog(onDismiss: () -> Unit, onAdd: (String, String, String
                 }
             }
             OutlinedTextField(title, { title = it }, label = { Text("Heading / label") }, singleLine = true, colors = fieldColors())
-            OutlinedTextField(body, { body = it }, label = { Text(if (type == "equation") "Equation (LaTeX supported as source)" else if (type == "video" || type == "link") "URL" else "Write your content") },
+            OutlinedTextField(body, { body = it }, label = { Text(if (type == "equation") "Equation (LaTeX source)" else if (type == "link") "URL" else "Write your content") },
                 minLines = 3, maxLines = 7, colors = fieldColors())
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags (optional)") }, singleLine = true, colors = fieldColors())
         }

@@ -60,6 +60,26 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             remove(item.id)
         }
     }
+    fun duplicate(item: ScribeItem) {
+        viewModelScope.launch {
+            val siblings = dao.children(item.parentId).first()
+            dao.insert(item.copy(id = 0, title = item.title + " copy", position = siblings.size,
+                createdAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis(), deletedAt = null))
+        }
+    }
+    fun move(item: ScribeItem, direction: Int) {
+        viewModelScope.launch {
+            val siblings = dao.children(item.parentId).first().sortedBy { it.position }
+            val from = siblings.indexOfFirst { it.id == item.id }
+            val to = (from + direction).coerceIn(0, siblings.lastIndex)
+            if (from >= 0 && to != from) {
+                val moving = siblings[from]
+                val displaced = siblings[to]
+                dao.update(moving.copy(position = displaced.position, updatedAt = System.currentTimeMillis()))
+                dao.update(displaced.copy(position = moving.position, updatedAt = System.currentTimeMillis()))
+            }
+        }
+    }
     fun toggleBookmark(item: ScribeItem) = update(item, bookmarked = !item.bookmarked)
     suspend fun restore(items: List<ScribeItem>) {
         dao.clearItems()
