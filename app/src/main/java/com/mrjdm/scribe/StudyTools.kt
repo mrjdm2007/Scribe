@@ -181,7 +181,7 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
         Spacer(Modifier.height(12.dp))
         when(selected) {
             "Converter" -> UnitConverter()
-            "Graph" -> GraphTool()
+            "Graph" -> GraphTool(vm)
             "Equations" -> EquationComposer(vm)
             "Circuit" -> CircuitWorkbench(vm)
             "Tables" -> ScientificTable(vm)
