@@ -103,7 +103,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val searchResults by vm.search(searchQuery).collectAsState(initial = emptyList())
 
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && current?.kind in listOf("page", "topic")) {
+        if (uri != null && current != null && current.kind in listOf("page", "topic")) {
             scope.launch(Dispatchers.IO) {
                 val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment"
                 val ext = context.contentResolver.getType(uri).orEmpty()
