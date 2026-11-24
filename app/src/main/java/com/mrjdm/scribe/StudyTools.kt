@@ -179,8 +179,8 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
         Spacer(Modifier.height(12.dp))
         when(selected) {
             "Converter" -> UnitConverter()
-            "Graph" -> GraphTool()
-            "Equations" -> EquationComposer()
+            "Graph" -> GraphTool(vm)
+            "Equations" -> EquationComposer(vm)
             else -> DiagramStarter(vm)
         }
     }
@@ -194,7 +194,13 @@ private fun UnitConverter() {
         "Current" to listOf("A", "mA", "µA"),
         "Resistance" to listOf("Ω", "kΩ", "MΩ"),
         "Capacitance" to listOf("F", "mF", "µF", "nF", "pF"),
-        "Frequency" to listOf("Hz", "kHz", "MHz", "GHz")
+        "Frequency" to listOf("Hz", "kHz", "MHz", "GHz"),
+        "Power" to listOf("W", "mW", "kW"),
+        "Energy" to listOf("J", "kJ", "Wh", "kWh"),
+        "Time" to listOf("s", "ms", "min", "h"),
+        "Speed" to listOf("m/s", "km/h"),
+        "Charge" to listOf("C", "mC", "µC"),
+        "Inductance" to listOf("H", "mH", "µH")
     )
     val factors = mapOf(
         "m" to 1.0, "cm" to .01, "mm" to .001, "km" to 1000.0,
@@ -202,7 +208,13 @@ private fun UnitConverter() {
         "A" to 1.0, "mA" to .001, "µA" to .000001,
         "Ω" to 1.0, "kΩ" to 1000.0, "MΩ" to 1000000.0,
         "F" to 1.0, "mF" to .001, "µF" to .000001, "nF" to .000000001, "pF" to .000000000001,
-        "Hz" to 1.0, "kHz" to 1000.0, "MHz" to 1000000.0, "GHz" to 1000000000.0
+        "Hz" to 1.0, "kHz" to 1000.0, "MHz" to 1000000.0, "GHz" to 1000000000.0,
+        "W" to 1.0, "mW" to .001, "kW" to 1000.0,
+        "J" to 1.0, "kJ" to 1000.0, "Wh" to 3600.0, "kWh" to 3600000.0,
+        "s" to 1.0, "ms" to .001, "min" to 60.0, "h" to 3600.0,
+        "m/s" to 1.0, "km/h" to (1.0 / 3.6),
+        "C" to 1.0, "mC" to .001, "µC" to .000001,
+        "H" to 1.0, "mH" to .001, "µH" to .000001
     )
     var group by remember { mutableStateOf("Length") }
     var amount by remember { mutableStateOf("1") }
@@ -243,7 +255,7 @@ private fun UnitPicker(units: List<String>, selected: String, onSelect: (String)
 }
 
 @Composable
-private fun GraphTool() {
+private fun GraphTool(vm: ScribeViewModel) {
     var expression by remember { mutableStateOf("sin(x)") }
     var range by remember { mutableStateOf("6.28") }
     val maxX = range.toFloatOrNull()?.coerceIn(1f, 30f) ?: 6.28f
@@ -284,16 +296,24 @@ private fun GraphTool() {
                 drawPath(path, ToolGold, style = Stroke(width = 2.5.dp.toPx()))
             }
         }
-        Text("Supported functions are evaluated locally. Use radians for trigonometric functions.", color = ToolMuted, fontSize = 11.sp)
+        Button(onClick = {
+            vm.add(null, "formula", "y = $expression", body = "y = $expression\nRange: -$range to +$range (radians)", tags = "type:graph-formula")
+        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ToolGold, contentColor = Color(0xFF211B12))) {
+            Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("Save graph to formula library")
+        }
+        Text("Supported functions are evaluated locally. Use radians for trigonometric functions. Unsupported expressions fall back to sin(x).", color = ToolMuted, fontSize = 11.sp)
     }
 }
 
 @Composable
-private fun EquationComposer() {
+private fun EquationComposer(vm: ScribeViewModel) {
     var latex by remember { mutableStateOf("") }
+    var formulaTitle by remember { mutableStateOf("New formula") }
+    val savedFormulas by vm.kind("formula").collectAsState(initial = emptyList())
     val symbols = listOf("α","β","γ","θ","λ","μ","π","ω","Δ","Σ","∫","∂","∇","√","∞","±","×","÷","≤","≥","≠","→","↔","₀","₁","₂","³","⁴","⁵","²","⁻¹","/","^","_","{","}")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("EQUATION & SYMBOL PAD", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
+        OutlinedTextField(formulaTitle, { formulaTitle = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Formula name") })
         OutlinedTextField(latex, { latex = it }, modifier = Modifier.fillMaxWidth(), minLines = 3, label = { Text("Equation / LaTeX source") })
         Card(colors = CardDefaults.cardColors(containerColor = ToolPanel), shape = RoundedCornerShape(14.dp)) {
             Column(Modifier.padding(14.dp)) {
@@ -309,7 +329,28 @@ private fun EquationComposer() {
                 }
             }
         }
-        Text("This pad preserves LaTeX source and provides a symbol keyboard. Full typeset rendering is a separate renderer integration.", color = ToolMuted, fontSize = 11.sp)
+        Button(onClick = {
+            vm.add(null, "formula", formulaTitle.ifBlank { "New formula" }, body = latex, tags = "type:equation;source:latex")
+            latex = ""
+        }, enabled = latex.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ToolGold, contentColor = Color(0xFF211B12))) {
+            Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("Save formula")
+        }
+        if (savedFormulas.isNotEmpty()) {
+            Text("SAVED FORMULAS", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
+            savedFormulas.take(8).forEach { formula ->
+                Card(colors = CardDefaults.cardColors(containerColor = ToolPanel), shape = RoundedCornerShape(12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(formula.title, fontWeight = FontWeight.SemiBold)
+                            Text(formula.body, color = ToolGold, fontSize = 12.sp, maxLines = 2)
+                        }
+                        IconButton(onClick = { formulaTitle = formula.title; latex = formula.body }) { Icon(Icons.Rounded.Edit, null, tint = ToolMuted) }
+                        IconButton(onClick = { vm.removeTree(formula) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = ToolMuted) }
+                    }
+                }
+            }
+        }
+        Text("This pad stores LaTeX source and provides a symbol keyboard. It does not yet typeset equations visually.", color = ToolMuted, fontSize = 11.sp)
     }
 }
 
