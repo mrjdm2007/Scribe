@@ -125,7 +125,7 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
             }
             return ScribeItem(id: record.id, parentId: record.parentId, kind: record.kind, title: record.title, body: record.body, uri: restoredURI, tags: record.tags, bookmarked: record.bookmarked, position: record.position, createdAt: record.createdAt, updatedAt: record.updatedAt, deletedAt: record.deletedAt)
         }
-        nextID = (items.map(\\.id).max() ?? 0) + 1; persist()
+        nextID = (items.map(\.id).max() ?? 0) + 1; persist()
     }
     func startTimer() {
         guard !isRunning else { isRunning = false; timer?.invalidate(); return }
