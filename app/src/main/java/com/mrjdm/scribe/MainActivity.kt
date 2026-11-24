@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +45,7 @@ import com.mrjdm.scribe.ui.ScribeTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -326,6 +331,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     var showAdd by remember { mutableStateOf(false) }
     var showLinkPicker by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
+    var previewPdf by remember { mutableStateOf<ScribeItem?>(null) }
     var pageTitle by remember(page.id) { mutableStateOf(page.title) }
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -351,7 +357,10 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
             items(blocks, key = { it.id }) { block ->
                 BlockCard(block, onClick = {
-                    if (block.tags.contains("type:crosslink")) {
+                    val blockType = block.tags.substringAfter("type:", "").substringBefore(",")
+                    if (blockType == "pdf") {
+                        previewPdf = block
+                    } else if (block.tags.contains("type:crosslink")) {
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
                     } else editBlock = block
@@ -386,6 +395,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     editBlock?.let { block -> EditDialog(block, onDismiss = { editBlock = null }, onSave = { title, body, tags ->
         vm.update(block, title = title, body = body, tags = tags); editBlock = null
     }) }
+    previewPdf?.let { pdf -> PdfViewerDialog(pdf, onDismiss = { previewPdf = null }) }
 }
 
 @Composable
@@ -552,6 +562,83 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedLabelColor = Gold, cursorColor = Gold,
     focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
 )
+
+private data class PdfHandle(val descriptor: ParcelFileDescriptor, val renderer: PdfRenderer)
+
+@Composable
+private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
+    val handle = remember(item.uri) {
+        runCatching {
+            val descriptor = ParcelFileDescriptor.open(File(item.uri), ParcelFileDescriptor.MODE_READ_ONLY)
+            PdfHandle(descriptor, PdfRenderer(descriptor))
+        }.getOrNull()
+    }
+    DisposableEffect(handle) {
+        onDispose {
+            runCatching { handle?.renderer?.close() }
+            runCatching { handle?.descriptor?.close() }
+        }
+    }
+    var pageIndex by remember(item.id) { mutableIntStateOf(0) }
+    val pageCount = handle?.renderer?.pageCount ?: 0
+    val bitmap by produceState<android.graphics.Bitmap?>(null, handle, pageIndex) {
+        value = null
+        val renderer = handle?.renderer ?: return@produceState
+        if (pageIndex !in 0 until renderer.pageCount) return@produceState
+        value = runCatching {
+            withContext(Dispatchers.IO) {
+                val pdfPage = renderer.openPage(pageIndex)
+                try {
+                    val width = pdfPage.width.coerceAtMost(1400)
+                    val scale = width.toFloat() / pdfPage.width.toFloat()
+                    val height = (pdfPage.height * scale).toInt().coerceAtLeast(1)
+                    android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888).also { image ->
+                        pdfPage.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    }
+                } finally {
+                    pdfPage.close()
+                }
+            }
+        }.getOrNull()
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Card(Modifier.fillMaxWidth().fillMaxHeight(0.92f), shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF17191D))) {
+            Column(Modifier.fillMaxSize().padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(if (pageCount > 0) "PDF · Page ${pageIndex + 1} of $pageCount" else "PDF preview", color = Muted, fontSize = 11.sp)
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Close PDF") }
+                }
+                HorizontalDivider(color = Color(0xFF33363B))
+                if (handle == null || pageCount == 0) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text("This PDF could not be opened.", color = Muted)
+                    }
+                } else if (bitmap != null) {
+                    Image(bitmap!!.asImageBitmap(), contentDescription = "PDF page ${pageIndex + 1}",
+                        modifier = Modifier.weight(1f).fillMaxWidth(), contentScale = ContentScale.Fit)
+                } else {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Gold)
+                    }
+                }
+                HorizontalDivider(color = Color(0xFF33363B))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = { pageIndex = (pageIndex - 1).coerceAtLeast(0) }, enabled = pageIndex > 0) {
+                        Icon(Icons.Rounded.ChevronLeft, null); Text("Previous")
+                    }
+                    Text(if (pageCount > 0) "${pageIndex + 1} / $pageCount" else "—", color = Muted, fontSize = 12.sp)
+                    OutlinedButton(onClick = { pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) }, enabled = pageIndex < pageCount - 1) {
+                        Text("Next"); Icon(Icons.Rounded.ChevronRight, null)
+                    }
+                }
+            }
+        }
+    }
+}
 
 private fun exportPdf(context: Context, uri: Uri, title: String, blocks: List<ScribeItem>) {
     val document = PdfDocument()
