@@ -613,7 +613,7 @@ private fun TextFieldValue.wrapSelection(prefix: String, suffix: String): TextFi
 }
 
 private fun styledBody(value: String): AnnotatedString {
-    val pattern = Regex("""(\\*\\*.+?\\*\\*|__.+?__|~~.+?~~|\\*.+?\\*)""")
+    val pattern = Regex("""(\*\*.+?\*\*|__.+?__|~~.+?~~|\*.+?\*)""")
     return buildAnnotatedString {
         var cursor = 0
         pattern.findAll(value).forEach { match ->
