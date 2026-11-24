@@ -18,6 +18,7 @@ struct ScribeMacRoot: View {
     @State private var revealed = false
     @State private var reviewedCardIDs: Set<Int64> = []
     @State private var formulaQuery = ""
+    @FocusState private var searchFocused: Bool
 
     private let gold = Color(red: 0.84, green: 0.72, blue: 0.55)
     private let panel = Color(nsColor: .controlBackgroundColor)
@@ -30,7 +31,7 @@ struct ScribeMacRoot: View {
                     ForEach(ScribeTool.allCases) { tool in Label(tool.rawValue, systemImage: icon(for: tool)).tag(tool) }
                 }.listStyle(.sidebar)
                 Divider()
-                HStack { Image(systemName: "magnifyingglass"); TextField("Search everything", text: $store.searchText).textFieldStyle(.plain) }.padding(12)
+                HStack { Image(systemName: "magnifyingglass"); TextField("Search everything", text: $store.searchText).textFieldStyle(.plain).focused($searchFocused) }.padding(12)
                 Button { store.create(kind: "course", title: "Untitled course") } label: { Label("New course", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold).padding()
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 310)
@@ -74,6 +75,9 @@ struct ScribeMacRoot: View {
             }.padding(22).frame(width: 420, height: 300)
         }
         .fileExporter(isPresented: $showingExport, document: BackupDocument(data: (try? store.backupData()) ?? Data("[]".utf8)), contentType: .json, defaultFilename: "Scribe-backup") { _ in }
+        .onChange(of: store.focusSearch) { value in
+            if value { searchFocused = true; store.focusSearch = false }
+        }
         .preferredColorScheme(.dark)
     }
     private func icon(for tool: ScribeTool) -> String {
@@ -90,8 +94,20 @@ struct ScribeMacRoot: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic → Pages").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import PDF", systemImage: "doc.richtext") }; Button { store.create(kind: "page", title: "Untitled page", parentId: store.selectedID) } label: { Label("New page", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
             HStack(spacing: 12) {
-                hierarchy(parent: nil, title: "Courses")
-                if let selected = store.selected, ["course","chapter","topic"].contains(selected.kind) { hierarchy(parent: selected.id, title: "Contents") }
+                if store.searchText.isEmpty {
+                    hierarchy(parent: nil, title: "Courses")
+                    if let selected = store.selected, ["course","chapter","topic"].contains(selected.kind) { hierarchy(parent: selected.id, title: "Contents") }
+                } else {
+                    VStack(alignment: .leading) {
+                        Text("SEARCH RESULTS · \(store.visibleItems.count)").font(.caption.bold()).foregroundStyle(.secondary)
+                        List(store.visibleItems, selection: $store.selectedID) { item in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title)
+                                Text("\(item.kind.capitalized) · \(item.body.prefix(80))").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }.tag(item.id)
+                        }.listStyle(.inset).frame(minWidth: 250)
+                    }.padding(12).background(panel, in: RoundedRectangle(cornerRadius: 14))
+                }
                 editor
             }
         }.padding(22)
