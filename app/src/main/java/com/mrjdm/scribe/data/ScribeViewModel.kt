@@ -62,9 +62,19 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun duplicate(item: ScribeItem) {
         viewModelScope.launch {
-            val siblings = dao.children(item.parentId).first()
-            dao.insert(item.copy(id = 0, title = item.title + " copy", position = siblings.size,
-                createdAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis(), deletedAt = null))
+            val all = dao.allItems().filter { it.deletedAt == null }
+            suspend fun clone(source: ScribeItem, newParentId: Long?, isRoot: Boolean): Long {
+                val position = dao.children(newParentId).first().size
+                val newId = dao.insert(source.copy(id = 0, parentId = newParentId,
+                    title = if (isRoot) source.title + " copy" else source.title,
+                    position = position, createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis(), deletedAt = null))
+                all.filter { it.parentId == source.id }.sortedBy { it.position }.forEach { child ->
+                    clone(child, newId, false)
+                }
+                return newId
+            }
+            clone(item, item.parentId, true)
         }
     }
     fun move(item: ScribeItem, direction: Int) {
@@ -81,10 +91,8 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun toggleBookmark(item: ScribeItem) = update(item, bookmarked = !item.bookmarked)
-    suspend fun restore(items: List<ScribeItem>) {
-        dao.clearItems()
-        dao.clearSnapshots()
-        items.forEach { dao.insert(it) }
+    suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {
+        dao.replaceLibrary(items, snapshots)
     }
     companion object {
         fun defaultTitle(kind: String) = when(kind) {

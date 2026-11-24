@@ -53,12 +53,22 @@ interface ScribeDao {
     suspend fun snapshot(snapshot: NoteSnapshot)
     @Query("SELECT * FROM snapshots WHERE itemId = :itemId ORDER BY savedAt DESC")
     fun snapshots(itemId: Long): Flow<List<NoteSnapshot>>
+    @Insert
+    suspend fun insertSnapshots(snapshots: List<NoteSnapshot>)
     @Query("SELECT * FROM scribe_items ORDER BY id")
     suspend fun allItems(): List<ScribeItem>
     @Query("DELETE FROM scribe_items")
     suspend fun clearItems()
     @Query("DELETE FROM snapshots")
     suspend fun clearSnapshots()
+
+    @Transaction
+    suspend fun replaceLibrary(items: List<ScribeItem>, snapshots: List<NoteSnapshot>) {
+        clearItems()
+        clearSnapshots()
+        items.forEach { insert(it) }
+        if (snapshots.isNotEmpty()) insertSnapshots(snapshots)
+    }
 }
 
 @Database(entities = [ScribeItem::class, NoteSnapshot::class], version = 1, exportSchema = true)
