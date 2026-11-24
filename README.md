@@ -30,7 +30,7 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Duplicate a course, chapter or topic together with its complete nested contents.
 - Split a page at its middle content block or merge it with the next page.
 - Paginated page-to-PDF export with word wrapping, plus in-app PDF viewing with page navigation.
-- GitHub Actions debug APK build and artifact publishing.
+- GitHub Actions minified, resource-shrunk release APK build and artifact publishing.
 
 ## Design
 - Dark-only graphite surfaces with champagne highlights.
@@ -45,7 +45,7 @@ Open in Android Studio with JDK 17 and Android SDK 35, sync Gradle and run:
 gradle :app:assembleDebug
 ```
 
-GitHub Actions publishes a `scribe-debug-apk` artifact.
+GitHub Actions publishes a smaller `scribe-release-apk` artifact. It is signed with the temporary debug signing key for testing; create a private release keystore before publishing a Play Store build.
 
 ## Known limitations
 The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF OCR currently works page by page; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting supports a small, explicitly listed set of functions rather than arbitrary expressions. The circuit tool is a component sketch starter, not a full schematic editor or SPICE simulator. Advanced stylus pressure/eraser support, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
