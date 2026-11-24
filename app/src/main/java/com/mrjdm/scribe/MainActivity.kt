@@ -84,7 +84,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 val ext = context.contentResolver.getType(uri).orEmpty()
                 val file = File(context.filesDir, "attachments").apply { mkdirs() }
                 val target = File(file, "${System.currentTimeMillis()}_${name.substringAfterLast(':').replace('/', '_')}")
-                runCatching { context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) } }
+                runCatching { context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { output -> input.copyTo(output) } } }
                 val kind = when {
                     ext.startsWith("image/") -> "image"
                     ext == "application/pdf" -> "pdf"
