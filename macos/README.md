@@ -1,6 +1,6 @@
 # Scribe for macOS
 
-A native SwiftUI macOS companion for the Scribe Android study notebook. Minimum deployment target: macOS 13. The current build targets Apple Silicon Macs (including M1).
+A native SwiftUI macOS companion for the Scribe Android study notebook. Minimum deployment target: macOS 13. The CI records its runner architecture; confirm the resulting artifact architecture before distributing on Apple Silicon or Intel.
 
 ## Build locally
 
