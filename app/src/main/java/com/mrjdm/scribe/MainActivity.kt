@@ -197,7 +197,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             Text("YOUR ${current.kind.uppercase()}S", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(10.dp))
                         }
-                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
+                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move)
                         if (children.isEmpty()) EmptyState(if (current.kind == "topic") "No pages yet" else "A quiet space to begin", "Use + to add your first ${if (current.kind == "topic") "page" else "item"}.")
                     } else {
                         Text("SCRIBE", color = Gold, fontSize = 11.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
@@ -334,7 +334,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
                     } else editBlock = block
-                }, onBookmark = { vm.toggleBookmark(block) }, onDelete = { vm.removeTree(block) })
+                }, onBookmark = { vm.toggleBookmark(block) }, onDelete = { vm.removeTree(block) }, onMove = { direction -> vm.move(block, direction) })
             }
             if (blocks.isEmpty()) item { EmptyState("A blank page", "Add rich text, equations, diagrams, images, PDFs, tables and more.") }
             item {
@@ -368,7 +368,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
 }
 
 @Composable
-private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> Unit, onDelete: () -> Unit) {
+private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> Unit, onDelete: () -> Unit, onMove: (Int) -> Unit = {}) {
     val type = item.tags.substringAfter("type:", "").substringBefore(",")
     val preview = remember(item.uri, type) { if (type == "image" && item.uri.isNotBlank()) runCatching { BitmapFactory.decodeFile(item.uri)?.asImageBitmap() }.getOrNull() else null }
     val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
@@ -378,6 +378,8 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
                 Icon(icon, null, tint = Gold, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(9.dp))
                 Text(item.title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                IconButton(onClick = { onMove(-1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Move up", tint = Muted) }
+                IconButton(onClick = { onMove(1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Move down", tint = Muted) }
                 IconButton(onClick = onBookmark) { Icon(if (item.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, tint = if (item.bookmarked) Gold else Muted) }
                 IconButton(onClick = onDelete) { Icon(Icons.Rounded.MoreVert, null, tint = Muted) }
             }
@@ -391,7 +393,7 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
 }
 
 @Composable
-private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit) {
+private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
         items(items, key = { it.id }) { item ->
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable { onClick(item) }) {
@@ -405,6 +407,9 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
                         Text("${item.kind.replaceFirstChar { it.uppercase() }} · ${if (item.body.isNotBlank()) item.body.take(55) else "Open notebook"}", color = Muted, fontSize = 11.sp, maxLines = 1)
                     }
                     IconButton(onClick = { onBookmark(item) }) { Icon(if (item.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, tint = if (item.bookmarked) Gold else Muted) }
+                    IconButton(onClick = { onDuplicate(item) }) { Icon(Icons.Rounded.ContentCopy, null, tint = Muted) }
+                    IconButton(onClick = { onMove(item, -1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Move up", tint = Muted) }
+                    IconButton(onClick = { onMove(item, 1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Move down", tint = Muted) }
                     IconButton(onClick = { onEdit(item) }) { Icon(Icons.Rounded.Edit, null, tint = Muted) }
                     IconButton(onClick = { onDelete(item) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
                 }
