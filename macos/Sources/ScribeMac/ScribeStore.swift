@@ -1,5 +1,19 @@
 import Foundation
 import SwiftUI
+import Combine
+
+func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
+    let current = max(1, currentDays)
+    let next: Int64
+    switch rating {
+    case 0: next = 1
+    case 1: next = Int64(ceil(Double(current) * 1.2))
+    case 2: next = current * 2
+    case 3: next = current * 3
+    default: next = current
+    }
+    return min(365, max(1, next))
+}
 
 struct ScribeItem: Identifiable, Codable, Hashable {
     var id: Int64
@@ -81,10 +95,9 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
         mark(item.id); persist()
     }
     func review(_ item: ScribeItem, rating: Int) {
-        let current = max(1, item.interval)
-        let next: Int64 = rating == 0 ? 1 : rating == 1 ? Int64(ceil(Double(current) * 1.2)) : rating == 2 ? current * 2 : current * 3
-        let tags = item.tags.replacingOccurrences(of: #"interval:[0-9]+"#, with: "interval:\(min(365, next))", options: .regularExpression)
-        update(item, tags: tags.contains("interval:") ? tags : tags + ";interval:\(min(365, next))")
+        let next = nextReviewIntervalDays(item.interval, rating: rating)
+        let tags = item.tags.replacingOccurrences(of: #"interval:[0-9]+"#, with: "interval:\(next)", options: .regularExpression)
+        update(item, tags: tags.contains("interval:") ? tags : tags + ";interval:\(next)")
     }
     func persist() { if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) } }
     func exportBackup(to url: URL) throws {
@@ -106,7 +119,10 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
                 guard let self else { return }
                 if self.remaining > 0 { self.remaining -= 1 } else {
                     self.isRunning = false; self.timer?.invalidate(); self.completedSessions += 1
-                    self.create(kind: "study_session", title: self.sessionLabel, body: "Completed a \(self.focusMinutes)-minute focus session.")
+                    let session = ScribeItem(id: self.nextID, kind: "study_session", title: self.sessionLabel, body: "Completed a \(self.focusMinutes)-minute focus session.")
+                    self.nextID += 1
+                    self.items.append(session)
+                    self.persist()
                 }
             }
         }
