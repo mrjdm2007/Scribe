@@ -370,6 +370,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
 @Composable
 private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> Unit, onDelete: () -> Unit, onMove: (Int) -> Unit = {}) {
     val type = item.tags.substringAfter("type:", "").substringBefore(",")
+    var menuExpanded by remember(item.id) { mutableStateOf(false) }
     val preview = remember(item.uri, type) { if (type == "image" && item.uri.isNotBlank()) runCatching { BitmapFactory.decodeFile(item.uri)?.asImageBitmap() }.getOrNull() else null }
     val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
@@ -378,10 +379,15 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
                 Icon(icon, null, tint = Gold, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(9.dp))
                 Text(item.title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                IconButton(onClick = { onMove(-1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Move up", tint = Muted) }
-                IconButton(onClick = { onMove(1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Move down", tint = Muted) }
                 IconButton(onClick = onBookmark) { Icon(if (item.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, tint = if (item.bookmarked) Gold else Muted) }
-                IconButton(onClick = onDelete) { Icon(Icons.Rounded.MoreVert, null, tint = Muted) }
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Rounded.MoreVert, null, tint = Muted) }
+                    DropdownMenu(menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(text = { Text("Move up") }, onClick = { onMove(-1); menuExpanded = false })
+                        DropdownMenuItem(text = { Text("Move down") }, onClick = { onMove(1); menuExpanded = false })
+                        DropdownMenuItem(text = { Text("Delete") }, onClick = { onDelete(); menuExpanded = false })
+                    }
+                }
             }
             if (preview != null) Image(bitmap = preview, contentDescription = item.title, modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp))
             if (item.uri.isNotBlank() && preview == null) Text(File(item.uri).name, color = Gold, fontSize = 12.sp)
@@ -396,6 +402,7 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
 private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
         items(items, key = { it.id }) { item ->
+            var menuExpanded by remember(item.id) { mutableStateOf(false) }
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable { onClick(item) }) {
                 Row(Modifier.padding(start = 15.dp, end = 5.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(42.dp).background(Color(0xFF292721), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
@@ -407,11 +414,16 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
                         Text("${item.kind.replaceFirstChar { it.uppercase() }} · ${if (item.body.isNotBlank()) item.body.take(55) else "Open notebook"}", color = Muted, fontSize = 11.sp, maxLines = 1)
                     }
                     IconButton(onClick = { onBookmark(item) }) { Icon(if (item.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, null, tint = if (item.bookmarked) Gold else Muted) }
-                    IconButton(onClick = { onDuplicate(item) }) { Icon(Icons.Rounded.ContentCopy, null, tint = Muted) }
-                    IconButton(onClick = { onMove(item, -1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Move up", tint = Muted) }
-                    IconButton(onClick = { onMove(item, 1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Move down", tint = Muted) }
-                    IconButton(onClick = { onEdit(item) }) { Icon(Icons.Rounded.Edit, null, tint = Muted) }
-                    IconButton(onClick = { onDelete(item) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Rounded.MoreVert, null, tint = Muted) }
+                        DropdownMenu(menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("Duplicate") }, onClick = { onDuplicate(item); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Move up") }, onClick = { onMove(item, -1); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Move down") }, onClick = { onMove(item, 1); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Rename / edit") }, onClick = { onEdit(item); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("Delete") }, onClick = { onDelete(item); menuExpanded = false })
+                        }
+                    }
                 }
             }
         }
