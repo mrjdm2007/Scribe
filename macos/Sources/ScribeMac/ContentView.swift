@@ -45,7 +45,14 @@ struct ScribeMacRoot: View {
         .preferredColorScheme(.dark)
     }
     private func icon(for tool: ScribeTool) -> String {
-        switch tool { case .library:"books.vertical"; case .flashcards:"rectangle.stack"; case .focus:"timer"; case .formulas:"function"; case .converter:"arrow.left.arrow.right"; case .settings:"externaldrive" }
+        switch tool {
+        case .library: return "books.vertical"
+        case .flashcards: return "rectangle.stack"
+        case .focus: return "timer"
+        case .formulas: return "function"
+        case .converter: return "arrow.left.arrow.right"
+        case .settings: return "externaldrive"
+        }
     }
     private var library: some View {
         VStack(alignment: .leading, spacing: 14) {
