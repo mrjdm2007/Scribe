@@ -6,6 +6,10 @@ struct ScribeMacRoot: View {
     @EnvironmentObject private var store: ScribeStore
     @State private var showingImport = false
     @State private var showingExport = false
+    @State private var showingPDFImport = false
+    @State private var showingFlashcardComposer = false
+    @State private var flashcardQuestion = ""
+    @State private var flashcardAnswer = ""
     @State private var draftTitle = ""
     @State private var draftBody = ""
     @State private var converterValue = "1"
@@ -42,6 +46,32 @@ struct ScribeMacRoot: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
         }
         .fileImporter(isPresented: $showingImport, allowedContentTypes: [.json]) { result in if case .success(let url) = result { _ = url.startAccessingSecurityScopedResource(); defer { url.stopAccessingSecurityScopedResource() }; try? store.importBackup(from: url) } }
+        .fileImporter(isPresented: $showingPDFImport, allowedContentTypes: [.pdf]) { result in
+            guard case .success(let source) = result else { return }
+            let access = source.startAccessingSecurityScopedResource()
+            defer { if access { source.stopAccessingSecurityScopedResource() } }
+            let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("Scribe/attachments", isDirectory: true)
+            try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let destination = root.appendingPathComponent(UUID().uuidString + "-" + source.lastPathComponent)
+            if (try? FileManager.default.copyItem(at: source, to: destination)) != nil {
+                store.create(kind: "block", title: source.lastPathComponent, parentId: store.selectedID,
+                    body: "PDF attachment", tags: "type:pdf", uri: destination.path)
+            }
+        }
+        .sheet(isPresented: $showingFlashcardComposer) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("New flashcard").font(.title2.bold())
+                TextField("Question", text: $flashcardQuestion).textFieldStyle(.roundedBorder)
+                TextEditor(text: $flashcardAnswer).frame(minHeight: 120).overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.3)))
+                HStack { Spacer(); Button("Cancel") { showingFlashcardComposer = false }; Button("Save card") {
+                    guard !flashcardQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    store.create(kind: "flashcard", title: flashcardQuestion, body: flashcardAnswer, tags: "interval:1")
+                    store.activeTool = .flashcards
+                    flashcardQuestion = ""; flashcardAnswer = ""; showingFlashcardComposer = false
+                }.buttonStyle(.borderedProminent).tint(gold) }
+            }.padding(22).frame(width: 420, height: 300)
+        }
         .fileExporter(isPresented: $showingExport, document: BackupDocument(data: (try? JSONEncoder().encode(store.items.map { BackupRecord(id:$0.id,parentId:$0.parentId,kind:$0.kind,title:$0.title,body:$0.body,uri:$0.uri,tags:$0.tags,bookmarked:$0.bookmarked,position:$0.position,createdAt:$0.createdAt,updatedAt:$0.updatedAt,deletedAt:$0.deletedAt) })) ?? Data("[]".utf8)), contentType: .json, defaultFilename: "Scribe-backup") { _ in }
         .preferredColorScheme(.dark)
     }
@@ -57,7 +87,7 @@ struct ScribeMacRoot: View {
     }
     private var library: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic → Pages").foregroundStyle(.secondary) }; Spacer(); Button { store.create(kind: "page", title: "Untitled page", parentId: store.selectedID) } label: { Label("New page", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
+            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic → Pages").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import PDF", systemImage: "doc.richtext") }; Button { store.create(kind: "page", title: "Untitled page", parentId: store.selectedID) } label: { Label("New page", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
             HStack(spacing: 12) {
                 hierarchy(parent: nil, title: "Courses")
                 if let selected = store.selected, ["course","chapter","topic"].contains(selected.kind) { hierarchy(parent: selected.id, title: "Contents") }
@@ -88,14 +118,22 @@ struct ScribeMacRoot: View {
             if let item = store.selected {
                 Text(item.kind.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
                 TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
-                TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                if item.tags.contains("type:pdf"), !item.uri.isEmpty {
+                    ScribePDFPreview(url: URL(fileURLWithPath: item.uri)).frame(minHeight: 340).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                    HStack {
+                        Button { Task { if let text = try? await ScribePDFOCR.extractText(from: URL(fileURLWithPath: item.uri)) { store.update(item, body: text) } } } label: { Label("Extract PDF text", systemImage: "text.viewfinder") }
+                        Text("OCR text is saved in the attachment note body.").font(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                }
                 HStack { Button { store.update(item,bookmarked:!item.bookmarked) } label: { Label(item.bookmarked ? "Bookmarked" : "Bookmark",systemImage:"bookmark") }; Spacer(); Button(role:.destructive) { store.remove(item) } label: { Label("Move to trash",systemImage:"trash") } }
             } else { VStack(spacing: 10) { Image(systemName: "text.book.closed").font(.system(size: 34)); Text("Select a course, topic or page").font(.headline); Text("Your notes and study material will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity) }
         }.padding(14).frame(maxWidth:.infinity,maxHeight:.infinity).background(panel,in:RoundedRectangle(cornerRadius:14))
     }
     private var flashcards: some View {
         VStack(alignment:.leading,spacing:16) {
-            Text("Flashcards").font(.largeTitle.bold())
+            HStack { Text("Flashcards").font(.largeTitle.bold()); Spacer(); Button { showingFlashcardComposer = true } label: { Label("Add flashcard", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
             let cards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }
             if let card = cards.first {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
