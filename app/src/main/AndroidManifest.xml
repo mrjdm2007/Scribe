@@ -2,7 +2,8 @@
     <application
         android:allowBackup="true"
         android:label="Scribe"
-        android:icon="@drawable/ic_scribe"
+        android:icon="@mipmap/ic_scribe"
+        android:roundIcon="@mipmap/ic_scribe"
         android:theme="@style/ScribeAppTheme"
         android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true">
