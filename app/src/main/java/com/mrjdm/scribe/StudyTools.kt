@@ -177,7 +177,7 @@ private fun replaceTag(tags: String, key: String, value: String): String {
 @Composable
 fun AcademicToolsHub(vm: ScribeViewModel) {
     var selected by remember { mutableStateOf("Converter") }
-    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Reminders", "Diagrams")
+    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Reminders", "Diagrams", "Sketchpad")
     Column(Modifier.fillMaxSize()) {
         Text("SCRIBE / WORKBENCH", color = ToolGold, fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
@@ -200,6 +200,7 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
             "Questions" -> QuestionBankScreen(vm, practice = false)
             "Practice" -> QuestionBankScreen(vm, practice = true)
             "Reminders" -> ReminderHub(vm)
+            "Sketchpad" -> Sketchpad(vm)
             else -> DiagramStarter(vm)
         }
     }
