@@ -68,7 +68,7 @@ fun Sketchpad(vm: ScribeViewModel) {
         }
         Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F0E9))) {
             Canvas(Modifier.fillMaxSize().onSizeChanged { canvasSize = it }.pointerInput(ink, brush) {
-                detectDragGestures(onDragStart = { active = listOf(it) }, onDrag = { change, _ -> active = active + change.position }, onDragEnd = { if (active.isNotEmpty()) { strokes.add(SketchStroke(active, ink, brush)); active = emptyList() } })
+                detectDragGestures(onDragStart = { active = listOf(it) }, onDrag = { change, _ -> active = active + change.position }, onDragEnd = { if (active.isNotEmpty()) { strokes.add(SketchStroke(active, ink, brush)); redoStrokes.clear(); active = emptyList() } })
             }) {
                 val all = strokes.toList() + listOfNotNull(if (active.isNotEmpty()) SketchStroke(active, ink, brush) else null)
                 all.forEach { stroke ->
@@ -105,9 +105,17 @@ fun Sketchpad(vm: ScribeViewModel) {
             }
             val folder = File(context.filesDir, "attachments").apply { mkdirs() }
             val file = File(folder, "sketch_" + System.currentTimeMillis() + ".png")
-            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
-            vm.add(targetPageId, "block", title.ifBlank { "Engineering sketch" }, body = "Freehand sketch", uri = file.absolutePath, tags = "type:image,source:sketchpad") {
-                message = "Sketch saved to your selected page."
+            val saved = runCatching {
+                file.outputStream().use { output -> check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) }
+            }.getOrDefault(false)
+            bitmap.recycle()
+            if (saved) {
+                vm.add(targetPageId, "block", title.ifBlank { "Engineering sketch" }, body = "Freehand sketch", uri = file.absolutePath, tags = "type:image,source:sketchpad") {
+                    message = "Sketch saved to your selected page."
+                }
+            } else {
+                file.delete()
+                message = "Couldn't save the sketch. Check available storage and try again."
             }
         }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD5B98C), contentColor = Color(0xFF211B12))) {
             Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("Save sketch to library")

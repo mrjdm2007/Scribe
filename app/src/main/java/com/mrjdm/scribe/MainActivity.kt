@@ -673,6 +673,11 @@ private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
     var ocrBusy by remember(item.id) { mutableStateOf(false) }
     var ocrError by remember(item.id) { mutableStateOf("") }
     var ocrQuery by remember(item.id) { mutableStateOf("") }
+    LaunchedEffect(pageIndex) {
+        ocrText = ""
+        ocrError = ""
+        ocrQuery = ""
+    }
     val pageCount = handle?.renderer?.pageCount ?: 0
     val bitmap by produceState<android.graphics.Bitmap?>(null, handle, pageIndex) {
         value = null
