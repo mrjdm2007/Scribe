@@ -32,6 +32,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -86,12 +88,22 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val context = LocalContext.current
     val isWide = LocalConfiguration.current.screenWidthDp >= 600
     val scope = rememberCoroutineScope()
-    var stack by remember { mutableStateOf(listOf<ScribeItem>()) }
+    val navigationStackSaver = remember {
+        listSaver<MutableState<List<ScribeItem>>, String>(
+            save = { state -> state.value.flatMap { listOf(it.id.toString(), it.parentId?.toString() ?: "", it.kind, it.title) } },
+            restore = { saved ->
+                mutableStateOf(saved.chunked(4).map { parts ->
+                    ScribeItem(id = parts[0].toLong(), parentId = parts[1].toLongOrNull(), kind = parts[2], title = parts[3])
+                })
+            }
+        )
+    }
+    var stack by rememberSaveable(stateSaver = navigationStackSaver) { mutableStateOf(listOf<ScribeItem>()) }
     var tab by remember { mutableStateOf("Library") }
     var showCreate by remember { mutableStateOf(false) }
     var createKind by remember { mutableStateOf("course") }
     var editItem by remember { mutableStateOf<ScribeItem?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var quickCapture by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
