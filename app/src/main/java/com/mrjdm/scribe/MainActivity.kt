@@ -59,6 +59,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import android.util.Base64
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -651,6 +654,10 @@ private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
         }
     }
     var pageIndex by remember(item.id) { mutableIntStateOf(0) }
+    var ocrText by remember(item.id) { mutableStateOf("") }
+    var ocrBusy by remember(item.id) { mutableStateOf(false) }
+    var ocrError by remember(item.id) { mutableStateOf("") }
+    var ocrQuery by remember(item.id) { mutableStateOf("") }
     val pageCount = handle?.renderer?.pageCount ?: 0
     val bitmap by produceState<android.graphics.Bitmap?>(null, handle, pageIndex) {
         value = null
@@ -689,6 +696,31 @@ private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
                         modifier = Modifier.weight(1f).fillMaxWidth(), contentScale = ContentScale.Fit)
                 } else {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Gold) }
+                }
+                HorizontalDivider(color = Color(0xFF33363B))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(enabled = bitmap != null && !ocrBusy, onClick = {
+                        val currentBitmap = bitmap ?: return@OutlinedButton
+                        ocrBusy = true
+                        ocrError = ""
+                        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                        recognizer.process(InputImage.fromBitmap(currentBitmap, 0))
+                            .addOnSuccessListener { result -> ocrText = result.text; ocrBusy = false }
+                            .addOnFailureListener { error -> ocrError = error.localizedMessage ?: "Text extraction failed."; ocrBusy = false }
+                            .addOnCompleteListener { recognizer.close() }
+                    }) {
+                        if (ocrBusy) CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.DocumentScanner, null)
+                        Spacer(Modifier.width(6.dp)); Text(if (ocrBusy) "Reading..." else "Extract text")
+                    }
+                    if (ocrText.isNotBlank()) Text(ocrText.length.toString() + " characters", color = Muted, fontSize = 11.sp)
+                }
+                if (ocrError.isNotBlank()) Text(ocrError, color = Color(0xFFE49A91), fontSize = 11.sp)
+                if (ocrText.isNotBlank()) {
+                    OutlinedTextField(ocrQuery, { ocrQuery = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Find in extracted text") })
+                    Card(Modifier.fillMaxWidth().heightIn(max = 140.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF202125))) {
+                        val visibleText = if (ocrQuery.isBlank()) ocrText else ocrText.split(" ").filter { it.contains(ocrQuery, true) }.joinToString(" ").ifBlank { "No matching text on this page." }
+                        Text(visibleText, Modifier.verticalScroll(rememberScrollState()).padding(10.dp), color = Color(0xFFE0DDD6), fontSize = 12.sp)
+                    }
                 }
                 HorizontalDivider(color = Color(0xFF33363B))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
