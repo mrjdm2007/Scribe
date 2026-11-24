@@ -15,7 +15,7 @@ final class ReviewScheduleTests: XCTestCase {
         """.data(using: .utf8)!
         let records = try JSONDecoder().decode([BackupRecord].self, from: json)
         XCTAssertEqual(records.first?.title, "ECE")
-        XCTAssertEqual(records.first?.body, "## Notes\\n**Voltage** = IR")
+        XCTAssertEqual(records.first?.body, "## Notes\n**Voltage** = IR")
         XCTAssertEqual(records.first?.history?.first?.body, "Earlier version")
         XCTAssertNil(records.first?.parentId)
         let encoded = try JSONEncoder().encode(records)
