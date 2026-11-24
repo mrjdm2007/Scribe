@@ -1,5 +1,5 @@
 import XCTest
-@testable import ScribeMac
+@testable import ScribeCore
 
 final class ReviewScheduleTests: XCTestCase {
     func testAgainResetsToOneDay() { XCTAssertEqual(nextReviewIntervalDays(30, rating: 0), 1) }
