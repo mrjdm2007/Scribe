@@ -146,8 +146,8 @@ struct ScribeMacRoot: View {
                     }.padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     let matches = item.body.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(topicSearchQuery) }
                     if !topicSearchQuery.isEmpty {
-                        Text("\\(matches.count) matching lines").font(.caption).foregroundStyle(.secondary)
-                        ForEach(Array(matches.prefix(5).enumerated()), id: \\.offset) { _, line in
+                        Text("\(matches.count) matching lines").font(.caption).foregroundStyle(.secondary)
+                        ForEach(Array(matches.prefix(5).enumerated()), id: \.offset) { _, line in
                             Text(line).font(.caption).lineLimit(2).padding(.horizontal, 8)
                         }
                     }
@@ -178,7 +178,7 @@ struct ScribeMacRoot: View {
     }
     private func appendMarkup(_ marker: String) {
         guard let item = store.selected else { return }
-        let separator = item.body.isEmpty || item.body.hasSuffix("\\n") ? "" : "\\n"
+        let separator = item.body.isEmpty || item.body.hasSuffix("\n") ? "" : "\n"
         store.update(item, body: item.body + separator + marker)
     }
     private var flashcards: some View {
