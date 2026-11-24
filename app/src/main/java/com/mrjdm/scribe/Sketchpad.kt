@@ -19,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -60,10 +61,9 @@ fun Sketchpad(vm: ScribeViewModel) {
             Slider(brush, { brush = it }, valueRange = 1f..12f, modifier = Modifier.weight(1f))
         }
         Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F0E9))) {
-            Canvas(Modifier.fillMaxSize().pointerInput(ink, brush) {
+            Canvas(Modifier.fillMaxSize().onSizeChanged { canvasSize = it }.pointerInput(ink, brush) {
                 detectDragGestures(onDragStart = { active = listOf(it) }, onDrag = { change, _ -> active = active + change.position }, onDragEnd = { if (active.isNotEmpty()) { strokes.add(SketchStroke(active, ink, brush)); active = emptyList() } })
-            }.also { }) {
-                canvasSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
+            }) {
                 val all = strokes.toList() + listOfNotNull(if (active.isNotEmpty()) SketchStroke(active, ink, brush) else null)
                 all.forEach { stroke ->
                     stroke.points.zipWithNext().forEach { (a, b) -> drawLine(stroke.color, a, b, stroke.width.dp.toPx(), cap = StrokeCap.Round) }
