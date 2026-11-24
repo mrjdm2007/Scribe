@@ -471,7 +471,7 @@ private fun TopicNotebook(
                     ListItem(
                         headlineContent = { Text(line, maxLines = 2) },
                         supportingContent = { Text("Notebook · line ${lineIndex + 1}", color = Muted) },
-                        leadingContent = { Icon(Icons.Rounded.FindInPage, null, tint = Gold) },
+                        leadingContent = { Icon(Icons.Rounded.Search, null, tint = Gold) },
                         modifier = Modifier.clickable {
                             val start = noteValue.text.indexOf(line).coerceAtLeast(0)
                             noteValue = TextFieldValue(noteValue.text, TextRange(start, (start + line.length).coerceAtMost(noteValue.text.length)))
@@ -664,7 +664,7 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
     var menuExpanded by remember(item.id) { mutableStateOf(false) }
     val preview = remember(item.uri, type) { if (type == "image" && item.uri.isNotBlank()) runCatching { BitmapFactory.decodeFile(item.uri)?.asImageBitmap() }.getOrNull() else null }
     val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF202329)), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(defaultElevation = 6.dp, pressedElevation = 9.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, tint = Gold, modifier = Modifier.size(19.dp))
@@ -684,7 +684,7 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
             if (item.uri.isNotBlank() && preview == null) Text(File(item.uri).name, color = Gold, fontSize = 12.sp)
             if (item.body.isNotBlank()) {
                 if (type == "equation" || type == "code") {
-                    Text(item.body, color = Color(0xFFE0CDAA), fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
+                    Row(Modifier.horizontalScroll(rememberScrollState())) { Text(item.body, color = Color(0xFFE0CDAA), fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8, softWrap = false) }
                 } else {
                     Text(styledBody(item.body), color = Muted, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
                 }
@@ -698,7 +698,7 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
     LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
         items(items, key = { it.id }) { item ->
             var menuExpanded by remember(item.id) { mutableStateOf(false) }
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable { onClick(item) }) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF202329)), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(defaultElevation = 6.dp, pressedElevation = 9.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), modifier = Modifier.fillMaxWidth().clickable { onClick(item) }) {
                 Row(Modifier.padding(start = 15.dp, end = 5.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(42.dp).background(Color(0xFF292721), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
                         Icon(when(item.kind) { "course" -> Icons.Rounded.MenuBook; "chapter" -> Icons.Rounded.Folder; "topic" -> Icons.Rounded.Description; "page" -> Icons.Rounded.Article; else -> Icons.Rounded.Notes }, null, tint = Gold)
