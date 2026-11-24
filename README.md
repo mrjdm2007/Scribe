@@ -20,7 +20,7 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Circuit component sketch starter with reference/value notes and a simple schematic preview.
 - Editable scientific tables with adjustable rows and columns, saved as structured tab-separated blocks.
 - Concept-map outline starter.
-- Freehand engineering sketchpad with undo/redo, color and pen-width controls; saves drawings as PNG attachments directly into a selected notebook page.
+- Text-first engineering tools for equations, formula collections, circuit concepts, graphing, scientific tables and unit conversion.
 - On-device OCR for rendered PDF pages, with extracted-text filtering on the current page.
 - Markdown-style bold, italic, underline, strikethrough, heading and list controls in the block editor.
 - Soft-delete trash, restore, permanent delete, ordered blocks, duplicate/move actions and version snapshots.
