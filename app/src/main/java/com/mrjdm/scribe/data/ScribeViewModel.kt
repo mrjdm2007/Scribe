@@ -55,6 +55,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             val all = dao.allItems()
             suspend fun remove(id: Long) {
                 all.filter { it.parentId == id }.forEach { remove(it.id) }
+                dao.deleteSnapshotsForItem(id)
                 dao.deleteId(id)
             }
             remove(item.id)
@@ -80,9 +81,11 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun move(item: ScribeItem, direction: Int) {
         viewModelScope.launch {
             val siblings = dao.children(item.parentId).first().sortedBy { it.position }
+            if (siblings.isEmpty()) return@launch
             val from = siblings.indexOfFirst { it.id == item.id }
+            if (from < 0) return@launch
             val to = (from + direction).coerceIn(0, siblings.lastIndex)
-            if (from >= 0 && to != from) {
+            if (to != from) {
                 val moving = siblings[from]
                 val displaced = siblings[to]
                 dao.update(moving.copy(position = displaced.position, updatedAt = System.currentTimeMillis()))

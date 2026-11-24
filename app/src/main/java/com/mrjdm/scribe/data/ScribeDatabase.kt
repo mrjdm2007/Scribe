@@ -49,6 +49,8 @@ interface ScribeDao {
     suspend fun update(item: ScribeItem)
     @Query("DELETE FROM scribe_items WHERE id = :id")
     suspend fun deleteId(id: Long)
+    @Query("DELETE FROM snapshots WHERE itemId = :itemId")
+    suspend fun deleteSnapshotsForItem(itemId: Long)
     @Insert
     suspend fun snapshot(snapshot: NoteSnapshot)
     @Query("SELECT * FROM snapshots WHERE itemId = :itemId ORDER BY savedAt DESC")
