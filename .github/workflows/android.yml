@@ -23,10 +23,11 @@ jobs:
           packages: ""
       - name: Install Android SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - name: Build debug APK
-        run: gradle :app:assembleDebug
+      - name: Build optimized release APK
+        run: gradle :app:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
-          name: scribe-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: scribe-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+          retention-days: 30
