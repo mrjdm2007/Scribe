@@ -68,6 +68,17 @@ class StudyReminderReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
         NotificationManagerCompat.from(context).notify(id.toInt(), notification)
+        val completion = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val dao = ScribeDatabase.get(context).dao()
+                dao.byId(id)?.let { item ->
+                    if (item.deletedAt == null) dao.update(item.copy(deletedAt = System.currentTimeMillis()))
+                }
+            } finally {
+                completion.finish()
+            }
+        }
     }
 }
 

@@ -318,7 +318,21 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         showCreate = false
     }
     if (quickCapture) CreateDialog("topic", onDismiss = { quickCapture = false }, title = "Quick capture") { name, body ->
-        vm.add(null, "topic", name, body = body, tags = "quick-capture")
+        val existingCourse = children.firstOrNull { it.kind == "course" && it.title == "Quick Notes" }
+        fun addToInbox(courseId: Long) {
+            scope.launch {
+                val inbox = vm.children(courseId).first().firstOrNull { it.kind == "chapter" && it.title == "Inbox" }
+                if (inbox != null) {
+                    vm.add(inbox.id, "topic", name, body = body, tags = "quick-capture")
+                } else {
+                    vm.add(courseId, "chapter", "Inbox") { chapterId ->
+                        vm.add(chapterId, "topic", name, body = body, tags = "quick-capture")
+                    }
+                }
+            }
+        }
+        if (existingCourse != null) addToInbox(existingCourse.id)
+        else vm.add(null, "course", "Quick Notes") { courseId -> addToInbox(courseId) }
         quickCapture = false
     }
     editItem?.let { item ->
