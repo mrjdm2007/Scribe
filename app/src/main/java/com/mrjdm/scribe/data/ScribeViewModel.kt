@@ -92,10 +92,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun toggleBookmark(item: ScribeItem) = update(item, bookmarked = !item.bookmarked)
     suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {
-        dao.clearItems()
-        dao.clearSnapshots()
-        items.forEach { dao.insert(it) }
-        if (snapshots.isNotEmpty()) dao.insertSnapshots(snapshots)
+        dao.replaceLibrary(items, snapshots)
     }
     companion object {
         fun defaultTitle(kind: String) = when(kind) {

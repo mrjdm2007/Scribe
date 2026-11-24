@@ -61,6 +61,14 @@ interface ScribeDao {
     suspend fun clearItems()
     @Query("DELETE FROM snapshots")
     suspend fun clearSnapshots()
+
+    @Transaction
+    suspend fun replaceLibrary(items: List<ScribeItem>, snapshots: List<NoteSnapshot>) {
+        clearItems()
+        clearSnapshots()
+        items.forEach { insert(it) }
+        if (snapshots.isNotEmpty()) insertSnapshots(snapshots)
+    }
 }
 
 @Database(entities = [ScribeItem::class, NoteSnapshot::class], version = 1, exportSchema = true)
