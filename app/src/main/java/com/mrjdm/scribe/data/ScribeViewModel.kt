@@ -105,6 +105,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val siblings = dao.children(page.parentId).first().sortedBy { it.position }
             val index = siblings.indexOfFirst { it.id == page.id }
+            if (index < 0) return@launch
             val next = siblings.getOrNull(index + 1) ?: return@launch
             val existing = dao.children(page.id).first()
             val incoming = dao.children(next.id).first()
