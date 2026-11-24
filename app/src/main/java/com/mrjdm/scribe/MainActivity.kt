@@ -429,7 +429,8 @@ private fun TopicNotebook(
     onOpenPage: (ScribeItem) -> Unit,
     onAttach: () -> Unit
 ) {
-    val liveTopic by vm.observe(topic.id).collectAsState(initial = topic)
+    val observedTopic by vm.observe(topic.id).collectAsState(initial = topic)
+    val liveTopic = observedTopic ?: topic
     val childItems by vm.children(topic.id).collectAsState(initial = emptyList())
     val pages = childItems.filter { it.kind == "page" }
     val blocks = childItems.filter { it.kind == "block" }
