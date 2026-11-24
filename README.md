@@ -18,12 +18,15 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Circuit component sketch starter with reference/value notes and a simple schematic preview.
 - Editable scientific tables with adjustable rows and columns, saved as structured tab-separated blocks.
 - Concept-map outline starter.
+- Freehand engineering sketchpad with undo, color and pen-width controls; exports drawings as local PNG attachments.
+- On-device OCR for rendered PDF pages, with in-page text filtering.
 - Soft-delete trash, restore, permanent delete, ordered blocks, duplicate/move actions and version snapshots.
 - JSON backup and restore, including app-local attachment bytes and saved note-version history.
 - Library integrity check for missing attachment files and likely duplicate entries.
 - Adaptive launcher icon with a restrained open-notebook mark.
 - Duplicate a course, chapter or topic together with its complete nested contents.
-- Basic page-to-PDF export.
+- Split a page at its middle content block or merge it with the next page.
+- Paginated page-to-PDF export with word wrapping, plus in-app PDF viewing with page navigation.
 - GitHub Actions debug APK build and artifact publishing.
 
 ## Design
@@ -42,4 +45,4 @@ gradle :app:assembleDebug
 GitHub Actions publishes a `scribe-debug-apk` artifact.
 
 ## Known limitations
-The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF import is currently an attachment rather than an in-app annotated PDF reader; OCR, PDF text search and highlights are not yet implemented. Graph plotting currently supports only the explicitly listed built-in expressions and is not a general-purpose expression parser. The diagram tool saves concept-map outlines and circuit component sketches, but is not a freeform circuit editor or SPICE simulator. Handwriting/stylus canvas, full rich-text styling, reminders/calendar, practice tests/question banks, page merge/split, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
+The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF attachments have an in-app page viewer and page-level OCR with text filtering; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting currently supports only the explicitly listed built-in expressions and is not a general-purpose expression parser. The diagram tool saves concept-map outlines and circuit component sketches, but is not a freeform circuit editor or SPICE simulator. Advanced stylus pressure/eraser support, persistent PDF ink/highlight annotations, full-document OCR indexing, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.

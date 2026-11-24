@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,6 +18,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,9 +34,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,10 +55,14 @@ import com.mrjdm.scribe.ui.ScribeTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import android.util.Base64
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -220,7 +238,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             Text("YOUR ${current.kind.uppercase()}S", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(10.dp))
                         }
-                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move)
+                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move, onMergePage = vm::mergePageWithNext, onSplitPage = vm::splitPage)
                         if (children.isEmpty()) EmptyState(if (current.kind == "topic") "No pages yet" else "A quiet space to begin", "Use + to add your first ${if (current.kind == "topic") "page" else "item"}.")
                     } else {
                         Text("SCRIBE", color = Gold, fontSize = 11.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
@@ -345,6 +363,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     var showAdd by remember { mutableStateOf(false) }
     var showLinkPicker by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
+    var previewPdf by remember { mutableStateOf<ScribeItem?>(null) }
     var pageTitle by remember(page.id) { mutableStateOf(page.title) }
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -370,7 +389,10 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
             items(blocks, key = { it.id }) { block ->
                 BlockCard(block, onClick = {
-                    if (block.tags.contains("type:crosslink")) {
+                    val blockType = block.tags.substringAfter("type:", "").substringBefore(",")
+                    if (blockType == "pdf") {
+                        previewPdf = block
+                    } else if (block.tags.contains("type:crosslink")) {
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
                     } else editBlock = block
@@ -405,6 +427,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     editBlock?.let { block -> EditDialog(block, onDismiss = { editBlock = null }, onSave = { title, body, tags ->
         vm.update(block, title = title, body = body, tags = tags); editBlock = null
     }) }
+    previewPdf?.let { pdf -> PdfViewerDialog(pdf, onDismiss = { previewPdf = null }) }
 }
 
 @Composable
@@ -431,15 +454,19 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
             }
             if (preview != null) Image(bitmap = preview, contentDescription = item.title, modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp))
             if (item.uri.isNotBlank() && preview == null) Text(File(item.uri).name, color = Gold, fontSize = 12.sp)
-            if (item.body.isNotBlank()) Text(item.body, color = if (type == "equation" || type == "code") Color(0xFFE0CDAA) else Muted,
-                fontFamily = if (type == "equation" || type == "code") FontFamily.Monospace else FontFamily.Default,
-                fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
+            if (item.body.isNotBlank()) {
+                if (type == "equation" || type == "code") {
+                    Text(item.body, color = Color(0xFFE0CDAA), fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
+                } else {
+                    Text(styledBody(item.body), color = Muted, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }) {
+private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }, onMergePage: (ScribeItem) -> Unit = {}, onSplitPage: (ScribeItem) -> Unit = {}) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
         items(items, key = { it.id }) { item ->
             var menuExpanded by remember(item.id) { mutableStateOf(false) }
@@ -461,6 +488,10 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
                             DropdownMenuItem(text = { Text("Move up") }, onClick = { onMove(item, -1); menuExpanded = false })
                             DropdownMenuItem(text = { Text("Move down") }, onClick = { onMove(item, 1); menuExpanded = false })
                             DropdownMenuItem(text = { Text("Rename / edit") }, onClick = { onEdit(item); menuExpanded = false })
+                            if (item.kind == "page") {
+                                DropdownMenuItem(text = { Text("Split after middle block") }, onClick = { onSplitPage(item); menuExpanded = false })
+                                DropdownMenuItem(text = { Text("Merge with next page") }, onClick = { onMergePage(item); menuExpanded = false })
+                            }
                             DropdownMenuItem(text = { Text("Delete") }, onClick = { onDelete(item); menuExpanded = false })
                         }
                     }
@@ -549,16 +580,55 @@ private fun AddBlockDialog(onDismiss: () -> Unit, onAdd: (String, String, String
 @Composable
 private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
     var title by remember(item.id) { mutableStateOf(item.title) }
-    var body by remember(item.id) { mutableStateOf(item.body) }
+    var bodyValue by remember(item.id) { mutableStateOf(TextFieldValue(item.body)) }
     var tags by remember(item.id) { mutableStateOf(item.tags) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit ${item.kind}") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             OutlinedTextField(title, { title = it }, label = { Text("Title") }, colors = fieldColors())
-            OutlinedTextField(body, { body = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("**", "**") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("B", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("*", "*") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("I", fontStyle = FontStyle.Italic) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("__", "__") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("U", textDecoration = TextDecoration.Underline) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~", "~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("S", textDecoration = TextDecoration.LineThrough) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("## ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("H2") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("- ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("List") }
+            }
+            OutlinedTextField(bodyValue, { bodyValue = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags") }, colors = fieldColors())
         }
-    }, confirmButton = { TextButton(onClick = { onSave(title, body, tags) }) { Text("Save", color = Gold) } },
+    }, confirmButton = { TextButton(onClick = { onSave(title, bodyValue.text, tags) }) { Text("Save", color = Gold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }, containerColor = Color(0xFF202125))
+}
+
+private fun TextFieldValue.wrapSelection(prefix: String, suffix: String): TextFieldValue {
+    val start = selection.min.coerceIn(0, text.length)
+    val end = selection.max.coerceIn(start, text.length)
+    val selected = text.substring(start, end)
+    val placeholder = if (selected.isEmpty()) "text" else selected
+    val replacement = prefix + placeholder + suffix
+    val updated = text.replaceRange(start, end, replacement)
+    val newSelection = if (selected.isEmpty()) TextRange(start + prefix.length, start + prefix.length + placeholder.length)
+        else TextRange(start + replacement.length)
+    return TextFieldValue(updated, newSelection)
+}
+
+private fun styledBody(value: String): AnnotatedString {
+    val pattern = Regex("""(\\*\\*.+?\\*\\*|__.+?__|~~.+?~~|\\*.+?\\*)""")
+    return buildAnnotatedString {
+        var cursor = 0
+        pattern.findAll(value).forEach { match ->
+            append(value.substring(cursor, match.range.first))
+            val token = match.value
+            when {
+                token.startsWith("**") -> { pushStyle(SpanStyle(fontWeight = FontWeight.Bold)); append(token.removeSurrounding("**")); pop() }
+                token.startsWith("__") -> { pushStyle(SpanStyle(textDecoration = TextDecoration.Underline)); append(token.removeSurrounding("__")); pop() }
+                token.startsWith("~~") -> { pushStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)); append(token.removeSurrounding("~~")); pop() }
+                else -> { pushStyle(SpanStyle(fontStyle = FontStyle.Italic)); append(token.removeSurrounding("*")); pop() }
+            }
+            cursor = match.range.last + 1
+        }
+        append(value.substring(cursor))
+    }
 }
 
 @Composable
@@ -567,6 +637,106 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedLabelColor = Gold, cursorColor = Gold,
     focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
 )
+
+private data class PdfHandle(val descriptor: ParcelFileDescriptor, val renderer: PdfRenderer)
+
+@Composable
+private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
+    val handle = remember(item.uri) {
+        runCatching {
+            val descriptor = ParcelFileDescriptor.open(File(item.uri), ParcelFileDescriptor.MODE_READ_ONLY)
+            PdfHandle(descriptor, PdfRenderer(descriptor))
+        }.getOrNull()
+    }
+    DisposableEffect(handle) {
+        onDispose {
+            runCatching { handle?.renderer?.close() }
+            runCatching { handle?.descriptor?.close() }
+        }
+    }
+    var pageIndex by remember(item.id) { mutableIntStateOf(0) }
+    var ocrText by remember(item.id) { mutableStateOf("") }
+    var ocrBusy by remember(item.id) { mutableStateOf(false) }
+    var ocrError by remember(item.id) { mutableStateOf("") }
+    var ocrQuery by remember(item.id) { mutableStateOf("") }
+    val pageCount = handle?.renderer?.pageCount ?: 0
+    val bitmap by produceState<android.graphics.Bitmap?>(null, handle, pageIndex) {
+        value = null
+        val renderer = handle?.renderer ?: return@produceState
+        if (pageIndex !in 0 until renderer.pageCount) return@produceState
+        value = runCatching {
+            withContext(Dispatchers.IO) {
+                val pdfPage = renderer.openPage(pageIndex)
+                try {
+                    val width = pdfPage.width.coerceAtMost(1400)
+                    val scale = width.toFloat() / pdfPage.width.toFloat()
+                    val height = (pdfPage.height * scale).toInt().coerceAtLeast(1)
+                    android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888).also { image ->
+                        pdfPage.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    }
+                } finally { pdfPage.close() }
+            }
+        }.getOrNull()
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Card(Modifier.fillMaxWidth().fillMaxHeight(0.92f), shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF17191D))) {
+            Column(Modifier.fillMaxSize().padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(if (pageCount > 0) "PDF · Page ${pageIndex + 1} of $pageCount" else "PDF preview", color = Muted, fontSize = 11.sp)
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Close PDF") }
+                }
+                HorizontalDivider(color = Color(0xFF33363B))
+                if (handle == null || pageCount == 0) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text("This PDF could not be opened.", color = Muted) }
+                } else if (bitmap != null) {
+                    Image(bitmap!!.asImageBitmap(), contentDescription = "PDF page ${pageIndex + 1}",
+                        modifier = Modifier.weight(1f).fillMaxWidth(), contentScale = ContentScale.Fit)
+                } else {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Gold) }
+                }
+                HorizontalDivider(color = Color(0xFF33363B))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(enabled = bitmap != null && !ocrBusy, onClick = {
+                        val currentBitmap = bitmap ?: return@OutlinedButton
+                        ocrBusy = true
+                        ocrError = ""
+                        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                        recognizer.process(InputImage.fromBitmap(currentBitmap, 0))
+                            .addOnSuccessListener { result -> ocrText = result.text; ocrBusy = false }
+                            .addOnFailureListener { error -> ocrError = error.localizedMessage ?: "Text extraction failed."; ocrBusy = false }
+                            .addOnCompleteListener { recognizer.close() }
+                    }) {
+                        if (ocrBusy) CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.DocumentScanner, null)
+                        Spacer(Modifier.width(6.dp)); Text(if (ocrBusy) "Reading..." else "Extract text")
+                    }
+                    if (ocrText.isNotBlank()) Text(ocrText.length.toString() + " characters", color = Muted, fontSize = 11.sp)
+                }
+                if (ocrError.isNotBlank()) Text(ocrError, color = Color(0xFFE49A91), fontSize = 11.sp)
+                if (ocrText.isNotBlank()) {
+                    OutlinedTextField(ocrQuery, { ocrQuery = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Find in extracted text") })
+                    Card(Modifier.fillMaxWidth().heightIn(max = 140.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF202125))) {
+                        val visibleText = if (ocrQuery.isBlank()) ocrText else ocrText.split(" ").filter { it.contains(ocrQuery, true) }.joinToString(" ").ifBlank { "No matching text on this page." }
+                        Text(visibleText, Modifier.verticalScroll(rememberScrollState()).padding(10.dp), color = Color(0xFFE0DDD6), fontSize = 12.sp)
+                    }
+                }
+                HorizontalDivider(color = Color(0xFF33363B))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = { pageIndex = (pageIndex - 1).coerceAtLeast(0) }, enabled = pageIndex > 0) {
+                        Icon(Icons.Rounded.ChevronLeft, null); Text("Previous")
+                    }
+                    Text(if (pageCount > 0) "${pageIndex + 1} / $pageCount" else "—", color = Muted, fontSize = 12.sp)
+                    OutlinedButton(onClick = { pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) }, enabled = pageIndex < pageCount - 1) {
+                        Text("Next"); Icon(Icons.Rounded.ChevronRight, null)
+                    }
+                }
+            }
+        }
+    }
+}
 
 private fun exportPdf(context: Context, uri: Uri, title: String, blocks: List<ScribeItem>) {
     val document = PdfDocument()

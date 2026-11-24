@@ -1,13 +1,15 @@
 package com.mrjdm.scribe.data
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class ScribeViewModel(app: Application) : AndroidViewModel(app) {
-    private val dao = ScribeDatabase.get(app).dao()
+    private val database = ScribeDatabase.get(app)
+    private val dao = database.dao()
     fun children(parentId: Long?) = dao.children(parentId)
     fun kind(kind: String) = dao.byKind(kind)
     val bookmarks = dao.bookmarks()
@@ -55,6 +57,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             val all = dao.allItems()
             suspend fun remove(id: Long) {
                 all.filter { it.parentId == id }.forEach { remove(it.id) }
+                dao.deleteSnapshotsForItem(id)
                 dao.deleteId(id)
             }
             remove(item.id)
@@ -80,9 +83,11 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun move(item: ScribeItem, direction: Int) {
         viewModelScope.launch {
             val siblings = dao.children(item.parentId).first().sortedBy { it.position }
+            if (siblings.isEmpty()) return@launch
             val from = siblings.indexOfFirst { it.id == item.id }
+            if (from < 0) return@launch
             val to = (from + direction).coerceIn(0, siblings.lastIndex)
-            if (from >= 0 && to != from) {
+            if (to != from) {
                 val moving = siblings[from]
                 val displaced = siblings[to]
                 dao.update(moving.copy(position = displaced.position, updatedAt = System.currentTimeMillis()))
@@ -90,6 +95,45 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+    fun mergePageWithNext(page: ScribeItem) {
+        if (page.kind != "page") return
+        viewModelScope.launch {
+            val siblings = dao.children(page.parentId).first().sortedBy { it.position }
+            val index = siblings.indexOfFirst { it.id == page.id }
+            if (index < 0) return@launch
+            val next = siblings.getOrNull(index + 1) ?: return@launch
+            val existing = dao.children(page.id).first()
+            val incoming = dao.children(next.id).first()
+            database.withTransaction {
+                var position = existing.size
+                incoming.forEach { block ->
+                    dao.update(block.copy(parentId = page.id, position = position++, updatedAt = System.currentTimeMillis()))
+                }
+                dao.update(next.copy(deletedAt = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    fun splitPage(page: ScribeItem) {
+        if (page.kind != "page") return
+        viewModelScope.launch {
+            val blocks = dao.children(page.id).first().sortedBy { it.position }
+            if (blocks.size < 2) return@launch
+            val siblings = dao.children(page.parentId).first()
+            database.withTransaction {
+                val now = System.currentTimeMillis()
+                val newPageId = dao.insert(page.copy(
+                    id = 0, title = page.title + " · Part 2", body = "",
+                    position = siblings.size, bookmarked = false,
+                    createdAt = now, updatedAt = now, deletedAt = null
+                ))
+                blocks.drop((blocks.size + 1) / 2).forEachIndexed { index, block ->
+                    dao.update(block.copy(parentId = newPageId, position = index, updatedAt = now))
+                }
+            }
+        }
+    }
+
     fun toggleBookmark(item: ScribeItem) = update(item, bookmarked = !item.bookmarked)
     suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {
         dao.replaceLibrary(items, snapshots)
