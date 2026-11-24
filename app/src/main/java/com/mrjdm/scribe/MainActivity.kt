@@ -15,6 +15,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
@@ -77,9 +79,11 @@ class MainActivity : ComponentActivity() {
 private val Gold = Color(0xFFD5B98C)
 private val Muted = Color(0xFF96938D)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val context = LocalContext.current
+    val isWide = LocalConfiguration.current.screenWidthDp >= 600
     val scope = rememberCoroutineScope()
     var stack by remember { mutableStateOf(listOf<ScribeItem>()) }
     var tab by remember { mutableStateOf("Library") }
@@ -186,12 +190,30 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         }
     }
 
-    BackHandler(enabled = stack.isNotEmpty() || tab != "Library") {
-        if (stack.isNotEmpty()) stack = stack.dropLast(1) else tab = "Library"
+    BackHandler(enabled = true) {
+        when {
+            stack.isNotEmpty() -> stack = stack.dropLast(1)
+            tab != "Library" -> tab = "Library"
+            searchQuery.isNotBlank() -> searchQuery = ""
+            else -> Unit
+        }
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            if (tab != "Library" || current != null) {
+                TopAppBar(
+                    title = { Text(current?.title ?: tab, fontWeight = FontWeight.SemiBold) },
+                    actions = {
+                        IconButton(onClick = { tab = "Library"; stack = emptyList() }) {
+                            Icon(Icons.Rounded.Search, contentDescription = "Search all notes")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                )
+            }
+        },
         floatingActionButton = {
             if (tab == "Library" && current?.kind != "page") {
                 FloatingActionButton(onClick = {
@@ -203,7 +225,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
+            if (!isWide) NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
                 listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
                     val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
@@ -213,7 +235,17 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
+        Row(Modifier.fillMaxSize().padding(padding).animateContentSize()) {
+            if (isWide) {
+                NavigationRail(containerColor = Color(0xFF17181B), contentColor = Gold) {
+                    Spacer(Modifier.height(12.dp))
+                    listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
+                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                        NavigationRailItem(selected = tab == label, onClick = { tab = label; stack = emptyList() }, icon = { Icon(icon, null) }, label = { Text(label, fontSize = 10.sp) })
+                    }
+                }
+            }
+            Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp).animateContentSize()) {
             Spacer(Modifier.height(18.dp))
             when (tab) {
                 "Library" -> {
@@ -280,7 +312,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     ItemList(bookmarks, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
-                "Study" -> StudyHub(vm)
+                "Study" -> FlashcardsScreen(vm)
                 "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
@@ -301,6 +333,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     Text("All notes are stored locally on this device. Keep regular backups to protect your work.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 18.dp))
                 }
             }
+            }
         }
     }
 
@@ -318,7 +351,21 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         showCreate = false
     }
     if (quickCapture) CreateDialog("topic", onDismiss = { quickCapture = false }, title = "Quick capture") { name, body ->
-        vm.add(null, "topic", name, body = body, tags = "quick-capture")
+        val existingCourse = children.firstOrNull { it.kind == "course" && it.title == "Quick Notes" }
+        fun addToInbox(courseId: Long) {
+            scope.launch {
+                val inbox = vm.children(courseId).first().firstOrNull { it.kind == "chapter" && it.title == "Inbox" }
+                if (inbox != null) {
+                    vm.add(inbox.id, "topic", name, body = body, tags = "quick-capture")
+                } else {
+                    vm.add(courseId, "chapter", "Inbox") { chapterId ->
+                        vm.add(chapterId, "topic", name, body = body, tags = "quick-capture")
+                    }
+                }
+            }
+        }
+        if (existingCourse != null) addToInbox(existingCourse.id)
+        else vm.add(null, "course", "Quick Notes") { courseId -> addToInbox(courseId) }
         quickCapture = false
     }
     editItem?.let { item ->
@@ -613,7 +660,7 @@ private fun TextFieldValue.wrapSelection(prefix: String, suffix: String): TextFi
 }
 
 private fun styledBody(value: String): AnnotatedString {
-    val pattern = Regex("""(\\*\\*.+?\\*\\*|__.+?__|~~.+?~~|\\*.+?\\*)""")
+    val pattern = Regex("""(\*\*.+?\*\*|__.+?__|~~.+?~~|\*.+?\*)""")
     return buildAnnotatedString {
         var cursor = 0
         pattern.findAll(value).forEach { match ->
@@ -659,6 +706,11 @@ private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
     var ocrBusy by remember(item.id) { mutableStateOf(false) }
     var ocrError by remember(item.id) { mutableStateOf("") }
     var ocrQuery by remember(item.id) { mutableStateOf("") }
+    LaunchedEffect(pageIndex) {
+        ocrText = ""
+        ocrError = ""
+        ocrQuery = ""
+    }
     val pageCount = handle?.renderer?.pageCount ?: 0
     val bitmap by produceState<android.graphics.Bitmap?>(null, handle, pageIndex) {
         value = null
