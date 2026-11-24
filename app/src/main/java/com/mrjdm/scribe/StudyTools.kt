@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -164,14 +166,14 @@ private fun replaceTag(tags: String, key: String, value: String): String {
 @Composable
 fun AcademicToolsHub(vm: ScribeViewModel) {
     var selected by remember { mutableStateOf("Converter") }
-    val sections = listOf("Converter", "Graph", "Equations", "Diagrams")
+    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Diagrams")
     Column(Modifier.fillMaxSize()) {
         Text("SCRIBE / WORKBENCH", color = ToolGold, fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
         Text("Academic workbench", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
         Text("Offline tools for calculations, notation and visual thinking.", color = ToolMuted, fontSize = 13.sp)
         Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             sections.forEach { section ->
                 FilterChip(selected == section, onClick = { selected = section }, label = { Text(section, fontSize = 11.sp) })
             }
@@ -181,6 +183,9 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
             "Converter" -> UnitConverter()
             "Graph" -> GraphTool(vm)
             "Equations" -> EquationComposer(vm)
+            "Circuit" -> CircuitWorkbench(vm)
+            "Tables" -> ScientificTable(vm)
+            "Formula" -> FormulaLibrary(vm)
             else -> DiagramStarter(vm)
         }
     }
