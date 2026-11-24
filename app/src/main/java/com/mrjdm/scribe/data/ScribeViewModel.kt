@@ -100,6 +100,50 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+    fun mergePageWithNext(page: ScribeItem) {
+        if (page.kind != "page") return
+        viewModelScope.launch {
+            val siblings = dao.children(page.parentId).first().sortedBy { it.position }
+            val index = siblings.indexOfFirst { it.id == page.id }
+            val next = siblings.getOrNull(index + 1) ?: return@launch
+            val existing = dao.children(page.id).first()
+            val incoming = dao.children(next.id).first()
+            database.withTransaction {
+                var position = existing.size
+                incoming.forEach { block ->
+                    dao.update(block.copy(parentId = page.id, position = position++, updatedAt = System.currentTimeMillis()))
+                }
+                dao.update(next.copy(deletedAt = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    /** Split a page at its midpoint, moving the latter half of its content blocks to a new sibling page. */
+    fun splitPage(page: ScribeItem) {
+        if (page.kind != "page") return
+        viewModelScope.launch {
+            val blocks = dao.children(page.id).first().sortedBy { it.position }
+            if (blocks.size < 2) return@launch
+            val siblings = dao.children(page.parentId).first()
+            database.withTransaction {
+                val now = System.currentTimeMillis()
+                val newPageId = dao.insert(page.copy(
+                    id = 0,
+                    title = page.title + " · Part 2",
+                    body = "",
+                    position = siblings.size,
+                    bookmarked = false,
+                    createdAt = now,
+                    updatedAt = now,
+                    deletedAt = null
+                ))
+                blocks.drop((blocks.size + 1) / 2).forEachIndexed { index, block ->
+                    dao.update(block.copy(parentId = newPageId, position = index, updatedAt = now))
+                }
+            }
+        }
+    }
+
     fun toggleBookmark(item: ScribeItem) = update(item, bookmarked = !item.bookmarked)
     /** Replace the library and its version history atomically so interrupted restores cannot leave a half-empty notebook. */
     suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {

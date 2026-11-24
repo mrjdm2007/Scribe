@@ -218,7 +218,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             Text("YOUR ${current.kind.uppercase()}S", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(10.dp))
                         }
-                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move)
+                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move, onMergePage = vm::mergePageWithNext, onSplitPage = vm::splitPage)
                         if (children.isEmpty()) EmptyState(if (current.kind == "topic") "No pages yet" else "A quiet space to begin", "Use + to add your first ${if (current.kind == "topic") "page" else "item"}.")
                     } else {
                         Text("SCRIBE", color = Gold, fontSize = 11.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
@@ -420,7 +420,7 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
 }
 
 @Composable
-private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }) {
+private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }, onMergePage: (ScribeItem) -> Unit = {}, onSplitPage: (ScribeItem) -> Unit = {}) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
         items(items, key = { it.id }) { item ->
             var menuExpanded by remember(item.id) { mutableStateOf(false) }
@@ -442,6 +442,10 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
                             DropdownMenuItem(text = { Text("Move up") }, onClick = { onMove(item, -1); menuExpanded = false })
                             DropdownMenuItem(text = { Text("Move down") }, onClick = { onMove(item, 1); menuExpanded = false })
                             DropdownMenuItem(text = { Text("Rename / edit") }, onClick = { onEdit(item); menuExpanded = false })
+                            if (item.kind == "page") {
+                                DropdownMenuItem(text = { Text("Split after middle block") }, onClick = { onSplitPage(item); menuExpanded = false })
+                                DropdownMenuItem(text = { Text("Merge with next page") }, onClick = { onMergePage(item); menuExpanded = false })
+                            }
                             DropdownMenuItem(text = { Text("Delete") }, onClick = { onDelete(item); menuExpanded = false })
                         }
                     }

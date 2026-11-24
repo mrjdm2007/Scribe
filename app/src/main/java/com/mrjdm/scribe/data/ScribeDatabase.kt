@@ -47,6 +47,8 @@ interface ScribeDao {
     suspend fun insert(item: ScribeItem): Long
     @Update
     suspend fun update(item: ScribeItem)
+    @Query("UPDATE scribe_items SET parentId = :newParentId, position = :position WHERE id = :itemId")
+    suspend fun reparent(itemId: Long, newParentId: Long, position: Int)
     @Query("DELETE FROM scribe_items WHERE id = :id")
     suspend fun deleteId(id: Long)
     @Insert
