@@ -102,7 +102,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         }
     }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) scope.launch {
+        if (uri != null) scope.launch(Dispatchers.IO) {
             val all = vm.all()
             val array = JSONArray()
             all.forEach { item -> array.put(JSONObject().apply {
@@ -128,7 +128,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
+        if (uri != null) scope.launch(Dispatchers.IO) {
             runCatching {
                 val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "[]"
                 val array = JSONArray(raw)
@@ -162,7 +162,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         }
     }
     val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
-        if (uri != null && current != null) scope.launch {
+        if (uri != null && current != null) scope.launch(Dispatchers.IO) {
             val pageItems = vm.children(current.id).first()
             exportPdf(context, uri, current.title, pageItems)
         }
