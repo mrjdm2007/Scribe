@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -164,14 +166,14 @@ private fun replaceTag(tags: String, key: String, value: String): String {
 @Composable
 fun AcademicToolsHub(vm: ScribeViewModel) {
     var selected by remember { mutableStateOf("Converter") }
-    val sections = listOf("Converter", "Graph", "Equations", "Diagrams")
+    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Diagrams")
     Column(Modifier.fillMaxSize()) {
         Text("SCRIBE / WORKBENCH", color = ToolGold, fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
         Text("Academic workbench", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
         Text("Offline tools for calculations, notation and visual thinking.", color = ToolMuted, fontSize = 13.sp)
         Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             sections.forEach { section ->
                 FilterChip(selected == section, onClick = { selected = section }, label = { Text(section, fontSize = 11.sp) })
             }
@@ -180,7 +182,10 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
         when(selected) {
             "Converter" -> UnitConverter()
             "Graph" -> GraphTool()
-            "Equations" -> EquationComposer()
+            "Equations" -> EquationComposer(vm)
+            "Circuit" -> CircuitWorkbench(vm)
+            "Tables" -> ScientificTable(vm)
+            "Formula" -> FormulaLibrary(vm)
             else -> DiagramStarter(vm)
         }
     }
@@ -243,7 +248,7 @@ private fun UnitPicker(units: List<String>, selected: String, onSelect: (String)
 }
 
 @Composable
-private fun GraphTool() {
+private fun GraphTool(vm: ScribeViewModel) {
     var expression by remember { mutableStateOf("sin(x)") }
     var range by remember { mutableStateOf("6.28") }
     val maxX = range.toFloatOrNull()?.coerceIn(1f, 30f) ?: 6.28f
@@ -284,12 +289,13 @@ private fun GraphTool() {
                 drawPath(path, ToolGold, style = Stroke(width = 2.5.dp.toPx()))
             }
         }
+        Button(onClick = { vm.add(null, "graph", "Plot: $expression", body = "y = $expression\nRange: −$maxX to +$maxX", tags = "type:graph") }, colors = ButtonDefaults.buttonColors(containerColor = ToolGold, contentColor = Color(0xFF211B12)), modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("Save graph to library") }
         Text("Supported functions are evaluated locally. Use radians for trigonometric functions.", color = ToolMuted, fontSize = 11.sp)
     }
 }
 
 @Composable
-private fun EquationComposer() {
+private fun EquationComposer(vm: ScribeViewModel) {
     var latex by remember { mutableStateOf("") }
     val symbols = listOf("α","β","γ","θ","λ","μ","π","ω","Δ","Σ","∫","∂","∇","√","∞","±","×","÷","≤","≥","≠","→","↔","₀","₁","₂","³","⁴","⁵","²","⁻¹","/","^","_","{","}")
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -309,7 +315,8 @@ private fun EquationComposer() {
                 }
             }
         }
-        Text("This pad preserves LaTeX source and provides a symbol keyboard. Full typeset rendering is a separate renderer integration.", color = ToolMuted, fontSize = 11.sp)
+        Button(onClick = { if (latex.isNotBlank()) vm.add(null, "formula", latex.take(60), body = latex, tags = "source:equation-composer") }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ToolGold, contentColor = Color(0xFF211B12))) { Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("Save to formula library") }
+        Text("The source is stored exactly as entered; a true mathematical typesetter is still not integrated.", color = ToolMuted, fontSize = 11.sp)
     }
 }
 
