@@ -188,8 +188,13 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         }
     }
 
-    BackHandler(enabled = stack.isNotEmpty() || tab != "Library") {
-        if (stack.isNotEmpty()) stack = stack.dropLast(1) else tab = "Library"
+    BackHandler(enabled = true) {
+        when {
+            stack.isNotEmpty() -> stack = stack.dropLast(1)
+            tab != "Library" -> tab = "Library"
+            searchQuery.isNotBlank() -> searchQuery = ""
+            else -> Unit
+        }
     }
 
     Scaffold(
@@ -292,7 +297,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     ItemList(bookmarks, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
-                "Study" -> StudyHub(vm)
+                "Study" -> FlashcardsScreen(vm)
                 "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
