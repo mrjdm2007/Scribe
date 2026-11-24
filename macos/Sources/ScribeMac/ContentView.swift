@@ -72,7 +72,7 @@ struct ScribeMacRoot: View {
                 }.buttonStyle(.borderedProminent).tint(gold) }
             }.padding(22).frame(width: 420, height: 300)
         }
-        .fileExporter(isPresented: $showingExport, document: BackupDocument(data: (try? JSONEncoder().encode(store.items.map { BackupRecord(id:$0.id,parentId:$0.parentId,kind:$0.kind,title:$0.title,body:$0.body,uri:$0.uri,tags:$0.tags,bookmarked:$0.bookmarked,position:$0.position,createdAt:$0.createdAt,updatedAt:$0.updatedAt,deletedAt:$0.deletedAt) })) ?? Data("[]".utf8)), contentType: .json, defaultFilename: "Scribe-backup") { _ in }
+        .fileExporter(isPresented: $showingExport, document: BackupDocument(data: (try? store.backupData()) ?? Data("[]".utf8)), contentType: .json, defaultFilename: "Scribe-backup") { _ in }
         .preferredColorScheme(.dark)
     }
     private func icon(for tool: ScribeTool) -> String {
