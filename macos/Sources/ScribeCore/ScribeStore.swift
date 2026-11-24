@@ -38,7 +38,7 @@ struct ScribeItem: Identifiable, Codable, Hashable {
 
 struct BackupRecord: Codable {
     var id: Int64; var parentId: Int64?; var kind: String; var title: String; var body: String; var uri: String; var tags: String
-    var bookmarked: Bool; var position: Int; var createdAt: Int64; var updatedAt: Int64; var deletedAt: Int64?; var history: [[String: CodableValue]] = []
+    var bookmarked: Bool; var position: Int; var createdAt: Int64; var updatedAt: Int64; var deletedAt: Int64?; var history: [[String: CodableValue]] = []; var attachmentBase64: String? = nil
 }
 enum CodableValue: Codable { case string(String), integer(Int64), bool(Bool), null
     init(from decoder: Decoder) throws { let c = try decoder.singleValueContainer(); if c.decodeNil() { self = .null } else if let v = try? c.decode(Bool.self) { self = .bool(v) } else if let v = try? c.decode(Int64.self) { self = .integer(v) } else { self = .string(try c.decode(String.self)) } }
@@ -100,16 +100,32 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
         update(item, tags: tags.contains("interval:") ? tags : tags + ";interval:\(next)")
     }
     func persist() { if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) } }
-    func exportBackup(to url: URL) throws {
-        let records = items.map { item in
-            BackupRecord(id: item.id, parentId: item.parentId, kind: item.kind, title: item.title, body: item.body, uri: item.uri, tags: item.tags, bookmarked: item.bookmarked, position: item.position, createdAt: item.createdAt, updatedAt: item.updatedAt, deletedAt: item.deletedAt)
+    func backupData() throws -> Data {
+        let records = items.map { item -> BackupRecord in
+            var record = BackupRecord(id: item.id, parentId: item.parentId, kind: item.kind, title: item.title, body: item.body, uri: item.uri, tags: item.tags, bookmarked: item.bookmarked, position: item.position, createdAt: item.createdAt, updatedAt: item.updatedAt, deletedAt: item.deletedAt)
+            if !item.uri.isEmpty, let attachment = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
+                record.attachmentBase64 = attachment.base64EncodedString()
+            }
+            return record
         }
-        let data = try JSONEncoder().encode(records); try data.write(to: url, options: .atomic)
+        return try JSONEncoder().encode(records)
+    }
+    func exportBackup(to url: URL) throws {
+        try backupData().write(to: url, options: .atomic)
     }
     func importBackup(from url: URL) throws {
         let records = try JSONDecoder().decode([BackupRecord].self, from: Data(contentsOf: url))
-        items = records.map { ScribeItem(id: $0.id, parentId: $0.parentId, kind: $0.kind, title: $0.title, body: $0.body, uri: $0.uri, tags: $0.tags, bookmarked: $0.bookmarked, position: $0.position, createdAt: $0.createdAt, updatedAt: $0.updatedAt, deletedAt: $0.deletedAt) }
-        nextID = (items.map(\.id).max() ?? 0) + 1; persist()
+        let attachments = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
+        try FileManager.default.createDirectory(at: attachments, withIntermediateDirectories: true)
+        items = records.map { record in
+            var restoredURI = record.uri
+            if let encoded = record.attachmentBase64, let bytes = Data(base64Encoded: encoded) {
+                let destination = attachments.appendingPathComponent(UUID().uuidString)
+                if (try? bytes.write(to: destination, options: .atomic)) != nil { restoredURI = destination.path }
+            }
+            return ScribeItem(id: record.id, parentId: record.parentId, kind: record.kind, title: record.title, body: record.body, uri: restoredURI, tags: record.tags, bookmarked: record.bookmarked, position: record.position, createdAt: record.createdAt, updatedAt: record.updatedAt, deletedAt: record.deletedAt)
+        }
+        nextID = (items.map(\\.id).max() ?? 0) + 1; persist()
     }
     func startTimer() {
         guard !isRunning else { isRunning = false; timer?.invalidate(); return }
