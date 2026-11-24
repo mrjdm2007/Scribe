@@ -82,7 +82,7 @@ struct ScribeMacRoot: View {
                 TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
                 TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(panel, in: RoundedRectangle(cornerRadius: 12))
                 HStack { Button { store.update(item,bookmarked:!item.bookmarked) } label: { Label(item.bookmarked ? "Bookmarked" : "Bookmark",systemImage:"bookmark") }; Spacer(); Button(role:.destructive) { store.remove(item) } label: { Label("Move to trash",systemImage:"trash") } }
-            } else { ContentUnavailableView("Select a course, topic or page", systemImage:"text.book.closed", description:Text("Your notes and study material will appear here.")) }
+            } else { VStack(spacing: 10) { Image(systemName: "text.book.closed").font(.system(size: 34)); Text("Select a course, topic or page").font(.headline); Text("Your notes and study material will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity) }
         }.padding(14).frame(maxWidth:.infinity,maxHeight:.infinity).background(panel,in:RoundedRectangle(cornerRadius:14))
     }
     private var flashcards: some View {
@@ -93,7 +93,7 @@ struct ScribeMacRoot: View {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
                 }.padding(30).background(panel,in:RoundedRectangle(cornerRadius:20))
-            } else { ContentUnavailableView("No flashcards yet",systemImage:"rectangle.stack",description:Text("Create flashcards in your study notes and they will appear here.")) }
+            } else { VStack(spacing: 10) { Image(systemName: "rectangle.stack").font(.system(size: 34)); Text("No flashcards yet").font(.headline); Text("Create flashcards in your study notes and they will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 180) }
             Spacer()
         }.padding(24)
     }
@@ -113,8 +113,20 @@ struct ScribeMacRoot: View {
         VStack(alignment:.leading,spacing:12) {
             Text("Engineering formula shelf").font(.largeTitle.bold())
             TextField("Search formulas",text:$formulaQuery).textFieldStyle(.roundedBorder)
-            let formulas = [("Ohm’s law","V = IR"),("Power","P = VI = I²R"),("Capacitive reactance","Xc = 1 / 2πfC"),("Inductive reactance","XL = 2πfL"),("Resonance","f₀ = 1 / 2π√LC"),("RC time constant","τ = RC"),("Voltage divider","Vout = Vin × R₂ / (R₁ + R₂)"),("Non-inverting op-amp","Av = 1 + Rf/Rin")]
-            ForEach(formulas.filter { formulaQuery.isEmpty || $0.0.localizedCaseInsensitiveContains(formulaQuery) || $0.1.localizedCaseInsensitiveContains(formulaQuery) },id:\.0) { f in HStack { VStack(alignment:.leading) { Text(f.0).font(.headline); Text(f.1).font(.title3.monospaced()).foregroundStyle(gold) }; Spacer(); Button("Save") { store.create(kind:"formula",title:f.0,body:f.1,tags:"subject:engineering") } } .padding(12).background(panel,in:RoundedRectangle(cornerRadius:12)) }
+            let formulas: [FormulaPreset] = [
+                FormulaPreset(name:"Ohm’s law",expression:"V = IR"),
+                FormulaPreset(name:"Power",expression:"P = VI = I²R"),
+                FormulaPreset(name:"Capacitive reactance",expression:"Xc = 1 / 2πfC"),
+                FormulaPreset(name:"Inductive reactance",expression:"XL = 2πfL"),
+                FormulaPreset(name:"Resonance",expression:"f₀ = 1 / 2π√LC"),
+                FormulaPreset(name:"RC time constant",expression:"τ = RC"),
+                FormulaPreset(name:"Voltage divider",expression:"Vout = Vin × R₂ / (R₁ + R₂)"),
+                FormulaPreset(name:"Non-inverting op-amp",expression:"Av = 1 + Rf/Rin")
+            ]
+            ForEach(formulas.filter { formulaQuery.isEmpty || $0.name.localizedCaseInsensitiveContains(formulaQuery) || $0.expression.localizedCaseInsensitiveContains(formulaQuery) }) { f in
+                HStack { VStack(alignment:.leading) { Text(f.name).font(.headline); Text(f.expression).font(.title3.monospaced()).foregroundStyle(gold) }; Spacer(); Button("Save") { store.create(kind:"formula",title:f.name,body:f.expression,tags:"subject:engineering") } }
+                    .padding(12).background(panel,in:RoundedRectangle(cornerRadius:12))
+            }
             Spacer()
         }.padding(24)
     }
@@ -145,6 +157,8 @@ struct ScribeMacRoot: View {
         }.padding(24)
     }
 }
+
+private struct FormulaPreset: Identifiable { let name: String; let expression: String; var id: String { name } }
 
 struct BackupDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
