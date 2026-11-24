@@ -1,13 +1,15 @@
 package com.mrjdm.scribe.data
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class ScribeViewModel(app: Application) : AndroidViewModel(app) {
-    private val dao = ScribeDatabase.get(app).dao()
+    private val database = ScribeDatabase.get(app)
+    private val dao = database.dao()
     fun children(parentId: Long?) = dao.children(parentId)
     fun kind(kind: String) = dao.byKind(kind)
     val bookmarks = dao.bookmarks()
