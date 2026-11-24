@@ -106,7 +106,7 @@ fun Sketchpad(vm: ScribeViewModel) {
             val folder = File(context.filesDir, "attachments").apply { mkdirs() }
             val file = File(folder, "sketch_" + System.currentTimeMillis() + ".png")
             val saved = runCatching {
-                file.outputStream().use { output -> check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) }
+                file.outputStream().use { output -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, output) }
             }.getOrDefault(false)
             bitmap.recycle()
             if (saved) {
