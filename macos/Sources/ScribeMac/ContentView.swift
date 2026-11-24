@@ -1,4 +1,5 @@
 import SwiftUI
+import ScribeCore
 import UniformTypeIdentifiers
 
 struct ScribeMacRoot: View {
