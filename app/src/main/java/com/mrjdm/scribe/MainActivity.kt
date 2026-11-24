@@ -15,6 +15,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -78,6 +79,7 @@ class MainActivity : ComponentActivity() {
 private val Gold = Color(0xFFD5B98C)
 private val Muted = Color(0xFF96938D)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val context = LocalContext.current
@@ -199,6 +201,19 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            if (tab != "Library" || current != null) {
+                TopAppBar(
+                    title = { Text(current?.title ?: tab, fontWeight = FontWeight.SemiBold) },
+                    actions = {
+                        IconButton(onClick = { tab = "Library"; stack = emptyList() }) {
+                            Icon(Icons.Rounded.Search, contentDescription = "Search all notes")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                )
+            }
+        },
         floatingActionButton = {
             if (tab == "Library" && current?.kind != "page") {
                 FloatingActionButton(onClick = {
@@ -220,7 +235,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        Row(Modifier.fillMaxSize().padding(padding)) {
+        Row(Modifier.fillMaxSize().padding(padding).animateContentSize()) {
             if (isWide) {
                 NavigationRail(containerColor = Color(0xFF17181B), contentColor = Gold) {
                     Spacer(Modifier.height(12.dp))
@@ -230,7 +245,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     }
                 }
             }
-            Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp).animateContentSize()) {
             Spacer(Modifier.height(18.dp))
             when (tab) {
                 "Library" -> {
