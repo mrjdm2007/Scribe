@@ -5,5 +5,5 @@ let package = Package(
     name: "ScribeMac",
     platforms: [.macOS(.v13)],
     products: [.executable(name: "ScribeMac", targets: ["ScribeMac"])],
-    targets: [.executableTarget(name: "ScribeMac")]
+    targets: [.executableTarget(name: "ScribeMac"), .testTarget(name: "ScribeMacTests", dependencies: ["ScribeMac"])]
 )
