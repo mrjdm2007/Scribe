@@ -1,4 +1,5 @@
 import SwiftUI
+import ScribeCore
 
 @main
 struct ScribeMacApp: App {
