@@ -11,13 +11,16 @@ final class ReviewScheduleTests: XCTestCase {
 
     func testAndroidBackupRecordShapeRoundTrips() throws {
         let json = """
-        [{"id":1,"parentId":null,"kind":"course","title":"ECE","body":"","uri":"","tags":"","bookmarked":false,"position":0,"createdAt":1,"updatedAt":1,"deletedAt":null,"history":[]}]
+        [{"id":1,"parentId":null,"kind":"topic","title":"ECE","body":"## Notes\\n**Voltage** = IR","uri":"","tags":"","bookmarked":false,"position":0,"createdAt":1,"updatedAt":1,"deletedAt":null,"history":[{"title":"Old","body":"Earlier version","savedAt":123}]}]
         """.data(using: .utf8)!
         let records = try JSONDecoder().decode([BackupRecord].self, from: json)
         XCTAssertEqual(records.first?.title, "ECE")
+        XCTAssertEqual(records.first?.body, "## Notes\\n**Voltage** = IR")
+        XCTAssertEqual(records.first?.history?.first?.body, "Earlier version")
         XCTAssertNil(records.first?.parentId)
         let encoded = try JSONEncoder().encode(records)
         let roundTrip = try JSONDecoder().decode([BackupRecord].self, from: encoded)
-        XCTAssertEqual(roundTrip.first?.kind, "course")
+        XCTAssertEqual(roundTrip.first?.kind, "topic")
+        XCTAssertEqual(roundTrip.first?.history?.first?.savedAt, 123)
     }
 }
