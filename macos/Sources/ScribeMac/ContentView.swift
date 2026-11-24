@@ -147,8 +147,8 @@ struct ScribeMacRoot: View {
                     let matches = item.body.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(topicSearchQuery) }
                     if !topicSearchQuery.isEmpty {
                         Text("\(matches.count) matching lines").font(.caption).foregroundStyle(.secondary)
-                        ForEach(Array(matches.prefix(5).enumerated()), id: \.offset) { _, line in
-                            Text(line).font(.caption).lineLimit(2).padding(.horizontal, 8)
+                        ForEach(Array(matches.prefix(5).enumerated()), id: \.offset) { entry in
+                            Text(entry.element).font(.caption).lineLimit(2).padding(.horizontal, 8)
                         }
                     }
                     ScrollView(.horizontal, showsIndicators: false) {
