@@ -88,8 +88,6 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 val kind = when {
                     ext.startsWith("image/") -> "image"
                     ext == "application/pdf" -> "pdf"
-                    ext.startsWith("audio/") -> "audio"
-                    ext.startsWith("video/") -> "video"
                     else -> "file"
                 }
                 vm.add(current.id, "block", name, body = "Attached file", uri = target.absolutePath, tags = "type:$kind")
@@ -153,8 +151,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         },
         bottomBar = {
             NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
-                listOf("Library", "Saved", "Revision", "Formulas", "Settings").forEach { label ->
-                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Formulas" -> Icons.Rounded.Functions; "Revision" -> Icons.Rounded.Replay; else -> Icons.Rounded.Settings }
+                listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
+                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
                         icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
@@ -168,12 +166,12 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 "Library" -> {
                     if (current?.kind == "page") {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
-                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "audio/*", "video/*", "text/*"))
+                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { stack = stack.dropLast(1) }) { Icon(Icons.Rounded.ArrowBack, null) }
-                            Column(Modifier.weight(1)) {
+                            Column(Modifier.weight(1f)) {
                                 Text(current.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                                 Text(current.kind.uppercase(Locale.getDefault()), color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                             }
@@ -229,18 +227,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     ItemList(bookmarks, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
-                "Revision" -> {
-                    val revisionItems by vm.search("revision").collectAsState(initial = emptyList())
-                    ScreenHeading("Revision mode", "Material tagged for revision")
-                    ItemList(revisionItems, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
-                    if (revisionItems.isEmpty()) EmptyState("Nothing queued for revision", "Add the tag revision to any topic, page or note block.")
-                }
-                "Formulas" -> {
-                    ScreenHeading("Formula library", "Equations collected from your notes")
-                    val formulaItems by vm.search("type:equation").collectAsState(initial = emptyList())
-                    ItemList(formulaItems, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
-                    if (formulaItems.isEmpty()) EmptyState("Your formula sheet", "Add an Equation block to any page. It will appear here.")
-                }
+                "Study" -> StudyHub(vm)
+                "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
                     SettingsRow(Icons.Rounded.CloudUpload, "Export full backup", "Save courses, notes and organisation as JSON") { backupLauncher.launch("Scribe-backup.json") }
@@ -309,7 +297,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, null) }
-            Column(Modifier.weight(1)) {
+            Column(Modifier.weight(1f)) {
                 Text("NOTE PAGE", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Text(page.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
@@ -336,10 +324,10 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                     } else editBlock = block
                 }, onBookmark = { vm.toggleBookmark(block) }, onDelete = { vm.removeTree(block) })
             }
-            if (blocks.isEmpty()) item { EmptyState("A blank page", "Add text, equations, diagrams, PDFs, video references and more.") }
+            if (blocks.isEmpty()) item { EmptyState("A blank page", "Add rich text, equations, diagrams, images, PDFs, tables and more.") }
             item {
                 OutlinedButton(onClick = onAttach, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF, audio or file")
+                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF or document")
                 }
             }
         }
@@ -467,7 +455,7 @@ private fun AddBlockDialog(onDismiss: () -> Unit, onAdd: (String, String, String
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var tags by remember { mutableStateOf("") }
-    val types = listOf("text", "heading", "equation", "code", "table", "video", "link", "audio")
+    val types = listOf("text", "heading", "equation", "code", "table", "list", "checklist", "quote", "link", "diagram", "question", "flashcard")
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Add to page") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("CONTENT TYPE", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
@@ -481,7 +469,7 @@ private fun AddBlockDialog(onDismiss: () -> Unit, onAdd: (String, String, String
                 }
             }
             OutlinedTextField(title, { title = it }, label = { Text("Heading / label") }, singleLine = true, colors = fieldColors())
-            OutlinedTextField(body, { body = it }, label = { Text(if (type == "equation") "Equation (LaTeX supported as source)" else if (type == "video" || type == "link") "URL" else "Write your content") },
+            OutlinedTextField(body, { body = it }, label = { Text(if (type == "equation") "Equation (LaTeX source)" else if (type == "link") "URL" else "Write your content") },
                 minLines = 3, maxLines = 7, colors = fieldColors())
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags (optional)") }, singleLine = true, colors = fieldColors())
         }
