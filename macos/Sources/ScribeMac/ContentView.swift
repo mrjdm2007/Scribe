@@ -131,7 +131,7 @@ struct ScribeMacRoot: View {
                 }
                 Spacer()
             }
-        }.padding(12).frame(minWidth: 200).background(panel, in: RoundedRectangle(cornerRadius: 14))
+        }.padding(12).frame(minWidth: 200).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.08), lineWidth: 1)).shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 6)
     }
     private var editor: some View {
         VStack(alignment: .leading, spacing: 12) {
