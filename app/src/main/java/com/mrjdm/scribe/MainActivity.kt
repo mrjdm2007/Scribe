@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import android.util.Base64
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -103,6 +104,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 put("title", item.title); put("body", item.body); put("uri", item.uri); put("tags", item.tags)
                 put("bookmarked", item.bookmarked); put("position", item.position); put("createdAt", item.createdAt); put("updatedAt", item.updatedAt)
                 put("deletedAt", item.deletedAt ?: JSONObject.NULL)
+                if (item.uri.isNotBlank()) {
+                    val attachment = File(item.uri)
+                    if (attachment.isFile) put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
+                }
             }) }
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(array.toString(2)) }
         }
@@ -115,9 +120,16 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 val restored = buildList {
                     for (i in 0 until array.length()) {
                         val o = array.getJSONObject(i)
+                        val encodedAttachment = o.optString("attachmentBase64")
+                        val restoredUri = if (encodedAttachment.isNotBlank()) {
+                            val directory = File(context.filesDir, "attachments").apply { mkdirs() }
+                            val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}")
+                            target.writeBytes(Base64.decode(encodedAttachment, Base64.DEFAULT))
+                            target.absolutePath
+                        } else o.optString("uri")
                         add(ScribeItem(id = o.optLong("id"), parentId = if (o.isNull("parentId")) null else o.optLong("parentId"),
                             kind = o.optString("kind"), title = o.optString("title"), body = o.optString("body"),
-                            uri = o.optString("uri"), tags = o.optString("tags"), bookmarked = o.optBoolean("bookmarked"),
+                            uri = restoredUri, tags = o.optString("tags"), bookmarked = o.optBoolean("bookmarked"),
                             position = o.optInt("position"), createdAt = o.optLong("createdAt"), updatedAt = o.optLong("updatedAt"),
                             deletedAt = if (o.isNull("deletedAt")) null else o.optLong("deletedAt")))
                     }
@@ -359,7 +371,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
 private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> Unit, onDelete: () -> Unit) {
     val type = item.tags.substringAfter("type:", "").substringBefore(",")
     val preview = remember(item.uri, type) { if (type == "image" && item.uri.isNotBlank()) runCatching { BitmapFactory.decodeFile(item.uri)?.asImageBitmap() }.getOrNull() else null }
-    val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "video" -> Icons.Rounded.PlayCircle; "audio" -> Icons.Rounded.GraphicEq; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
+    val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
