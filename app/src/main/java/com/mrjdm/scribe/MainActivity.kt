@@ -18,6 +18,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +38,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -441,9 +450,13 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
             }
             if (preview != null) Image(bitmap = preview, contentDescription = item.title, modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp))
             if (item.uri.isNotBlank() && preview == null) Text(File(item.uri).name, color = Gold, fontSize = 12.sp)
-            if (item.body.isNotBlank()) Text(item.body, color = if (type == "equation" || type == "code") Color(0xFFE0CDAA) else Muted,
-                fontFamily = if (type == "equation" || type == "code") FontFamily.Monospace else FontFamily.Default,
-                fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
+            if (item.body.isNotBlank()) {
+                if (type == "equation" || type == "code") {
+                    Text(item.body, color = Color(0xFFE0CDAA), fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
+                } else {
+                    Text(styledBody(item.body), color = Muted, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
+                }
+            }
         }
     }
 }
@@ -563,16 +576,55 @@ private fun AddBlockDialog(onDismiss: () -> Unit, onAdd: (String, String, String
 @Composable
 private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
     var title by remember(item.id) { mutableStateOf(item.title) }
-    var body by remember(item.id) { mutableStateOf(item.body) }
+    var bodyValue by remember(item.id) { mutableStateOf(TextFieldValue(item.body)) }
     var tags by remember(item.id) { mutableStateOf(item.tags) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit ${item.kind}") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             OutlinedTextField(title, { title = it }, label = { Text("Title") }, colors = fieldColors())
-            OutlinedTextField(body, { body = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("**", "**") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("B", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("*", "*") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("I", fontStyle = FontStyle.Italic) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("__", "__") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("U", textDecoration = TextDecoration.Underline) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~", "~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("S", textDecoration = TextDecoration.LineThrough) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("## ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("H2") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("- ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("List") }
+            }
+            OutlinedTextField(bodyValue, { bodyValue = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags") }, colors = fieldColors())
         }
-    }, confirmButton = { TextButton(onClick = { onSave(title, body, tags) }) { Text("Save", color = Gold) } },
+    }, confirmButton = { TextButton(onClick = { onSave(title, bodyValue.text, tags) }) { Text("Save", color = Gold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }, containerColor = Color(0xFF202125))
+}
+
+private fun TextFieldValue.wrapSelection(prefix: String, suffix: String): TextFieldValue {
+    val start = selection.min.coerceIn(0, text.length)
+    val end = selection.max.coerceIn(start, text.length)
+    val selected = text.substring(start, end)
+    val placeholder = if (selected.isEmpty()) "text" else selected
+    val replacement = prefix + placeholder + suffix
+    val updated = text.replaceRange(start, end, replacement)
+    val newSelection = if (selected.isEmpty()) TextRange(start + prefix.length, start + prefix.length + placeholder.length)
+        else TextRange(start + replacement.length)
+    return TextFieldValue(updated, newSelection)
+}
+
+private fun styledBody(value: String): AnnotatedString {
+    val pattern = Regex("""(\\*\\*.+?\\*\\*|__.+?__|~~.+?~~|\\*.+?\\*)""")
+    return buildAnnotatedString {
+        var cursor = 0
+        pattern.findAll(value).forEach { match ->
+            append(value.substring(cursor, match.range.first))
+            val token = match.value
+            when {
+                token.startsWith("**") -> { pushStyle(SpanStyle(fontWeight = FontWeight.Bold)); append(token.removeSurrounding("**")); pop() }
+                token.startsWith("__") -> { pushStyle(SpanStyle(textDecoration = TextDecoration.Underline)); append(token.removeSurrounding("__")); pop() }
+                token.startsWith("~~") -> { pushStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)); append(token.removeSurrounding("~~")); pop() }
+                else -> { pushStyle(SpanStyle(fontStyle = FontStyle.Italic)); append(token.removeSurrounding("*")); pop() }
+            }
+            cursor = match.range.last + 1
+        }
+        append(value.substring(cursor))
+    }
 }
 
 @Composable
