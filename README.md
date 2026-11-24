@@ -17,6 +17,7 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Engineering formula shelf with common electronics equations and a personal saved collection.
 - Circuit component sketch starter with reference/value notes and a simple schematic preview.
 - Editable scientific tables with adjustable rows and columns, saved as structured tab-separated blocks.
+- A searchable question bank with four-option multiple-choice questions, explanations and offline practice sessions with scoring.
 - Concept-map outline starter.
 - Soft-delete trash, restore, permanent delete, ordered blocks, full subtree duplication, move actions and version snapshots.
 - JSON backup and restore, including app-local attachment bytes and version-history snapshots (legacy v1 backups remain supported).

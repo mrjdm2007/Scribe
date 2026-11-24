@@ -61,6 +61,8 @@ interface ScribeDao {
     suspend fun allItems(): List<ScribeItem>
     @Query("DELETE FROM scribe_items")
     suspend fun clearItems()
+    @Query("DELETE FROM snapshots WHERE itemId = :itemId")
+    suspend fun deleteSnapshotsForItem(itemId: Long)
     @Query("DELETE FROM snapshots")
     suspend fun clearSnapshots()
 }
