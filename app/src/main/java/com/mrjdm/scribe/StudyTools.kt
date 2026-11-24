@@ -86,9 +86,17 @@ fun StudyHub(vm: ScribeViewModel) {
                             listOf("Again" to 0, "Hard" to 1, "Good" to 2, "Easy" to 3).forEach { (label, rating) ->
                                 OutlinedButton(onClick = {
                                     val old = tagLong(card.tags, "interval").coerceAtLeast(1)
-                                    val next = when(rating) { 0 -> 1L; 1 -> max(1L, old); 2 -> max(2L, old * 2); else -> max(4L, old * 3) }
-                                    val dueAt = System.currentTimeMillis() + next * 24L * 60L * 60L * 1000L
-                                    vm.update(card, tags = replaceTag(replaceTag(card.tags, "interval", next.toString()), "due", dueAt.toString()))
+                                    val next = nextReviewIntervalDays(old, rating)
+                                    val reviewedAt = System.currentTimeMillis()
+                                    val dueAt = reviewedAt + next * 24L * 60L * 60L * 1000L
+                                    val updatedTags = replaceTag(
+                                        replaceTag(
+                                            replaceTag(card.tags, "interval", next.toString()),
+                                            "due", dueAt.toString()
+                                        ),
+                                        "reviewedAt", reviewedAt.toString()
+                                    )
+                                    vm.update(card, tags = updatedTags)
                                     active = null; reveal = false
                                 }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, fontSize = 10.sp) }
                             }
@@ -177,7 +185,7 @@ private fun replaceTag(tags: String, key: String, value: String): String {
 @Composable
 fun AcademicToolsHub(vm: ScribeViewModel) {
     var selected by remember { mutableStateOf("Converter") }
-    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Reminders", "Diagrams")
+    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Reminders", "Focus", "Diagrams")
     Column(Modifier.fillMaxSize()) {
         Text("SCRIBE / WORKBENCH", color = ToolGold, fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
@@ -200,6 +208,7 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
             "Questions" -> QuestionBankScreen(vm, practice = false)
             "Practice" -> QuestionBankScreen(vm, practice = true)
             "Reminders" -> ReminderHub(vm)
+            "Focus" -> FocusTimer(vm)
             else -> DiagramStarter(vm)
         }
     }
