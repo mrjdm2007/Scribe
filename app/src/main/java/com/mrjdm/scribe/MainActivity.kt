@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
@@ -80,6 +81,7 @@ private val Muted = Color(0xFF96938D)
 @Composable
 private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val context = LocalContext.current
+    val isWide = LocalConfiguration.current.screenWidthDp >= 600
     val scope = rememberCoroutineScope()
     var stack by remember { mutableStateOf(listOf<ScribeItem>()) }
     var tab by remember { mutableStateOf("Library") }
@@ -203,7 +205,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
+            if (!isWide) NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
                 listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
                     val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
@@ -213,7 +215,17 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
+        Row(Modifier.fillMaxSize().padding(padding)) {
+            if (isWide) {
+                NavigationRail(containerColor = Color(0xFF17181B), contentColor = Gold) {
+                    Spacer(Modifier.height(12.dp))
+                    listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
+                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                        NavigationRailItem(selected = tab == label, onClick = { tab = label; stack = emptyList() }, icon = { Icon(icon, null) }, label = { Text(label, fontSize = 10.sp) })
+                    }
+                }
+            }
+            Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp)) {
             Spacer(Modifier.height(18.dp))
             when (tab) {
                 "Library" -> {
@@ -300,6 +312,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     SettingsRow(Icons.Rounded.Info, "About Scribe", "Offline-first academic notebook · v1.1") {}
                     Text("All notes are stored locally on this device. Keep regular backups to protect your work.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 18.dp))
                 }
+            }
             }
         }
     }
