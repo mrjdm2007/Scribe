@@ -137,7 +137,7 @@ fun ScientificTable(vm: ScribeViewModel) {
         OutlinedTextField(title, { title = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Table title") }, singleLine = true)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = { if (cells.size < 12) cells = cells + List(cells.first().size) { "" } }) { Icon(Icons.Rounded.Add, null); Text("Add row") }
-            OutlinedButton(onClick = { if (cells.first().size < 8) cells = cells.map { it + "" } }) { Icon(Icons.Rounded.ViewColumn, null); Text("Add column") }
+            OutlinedButton(onClick = { if (cells.first().size < 8) cells = cells.map { row -> row + listOf("") } }) { Icon(Icons.Rounded.ViewColumn, null); Text("Add column") }
             OutlinedButton(onClick = { cells = List(4) { List(3) { "" } } }) { Icon(Icons.Rounded.Refresh, null); Text("Reset") }
         }
         Card(colors = CardDefaults.cardColors(containerColor = WorkPanel), shape = RoundedCornerShape(14.dp)) {
