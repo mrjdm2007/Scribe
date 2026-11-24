@@ -17,6 +17,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun search(query: String) = dao.search(query)
     fun snapshots(id: Long) = dao.snapshots(id)
     suspend fun get(id: Long) = dao.byId(id)
+    fun observe(id: Long) = dao.observeById(id)
     suspend fun all() = dao.allItems()
 
     fun add(parentId: Long?, kind: String, title: String, body: String = "", uri: String = "", tags: String = "", done: (Long) -> Unit = {}) {
