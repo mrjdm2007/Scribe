@@ -145,10 +145,17 @@ struct ScribeMacRoot: View {
                         if !topicSearchQuery.isEmpty { Button { topicSearchQuery = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.buttonStyle(.plain) }
                     }.padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     let matches = item.body.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(topicSearchQuery) }
+                    let matchingBlocks = store.children(of: item.id).filter { $0.title.localizedCaseInsensitiveContains(topicSearchQuery) || $0.body.localizedCaseInsensitiveContains(topicSearchQuery) }
                     if !topicSearchQuery.isEmpty {
-                        Text("\(matches.count) matching lines").font(.caption).foregroundStyle(.secondary)
+                        Text("\(matches.count + matchingBlocks.count) matching lines and note elements").font(.caption).foregroundStyle(.secondary)
                         ForEach(Array(matches.prefix(5).enumerated()), id: \.offset) { entry in
                             Text(entry.element).font(.caption).lineLimit(2).padding(.horizontal, 8)
+                        }
+                        ForEach(matchingBlocks.prefix(5)) { block in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(block.title).font(.caption.bold())
+                                Text(block.body).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            }.padding(.horizontal, 8)
                         }
                     }
                     ScrollView(.horizontal, showsIndicators: false) {
