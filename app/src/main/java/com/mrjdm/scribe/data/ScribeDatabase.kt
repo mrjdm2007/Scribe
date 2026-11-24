@@ -53,6 +53,10 @@ interface ScribeDao {
     suspend fun snapshot(snapshot: NoteSnapshot)
     @Query("SELECT * FROM snapshots WHERE itemId = :itemId ORDER BY savedAt DESC")
     fun snapshots(itemId: Long): Flow<List<NoteSnapshot>>
+    @Query("SELECT * FROM snapshots ORDER BY savedAt DESC")
+    suspend fun allSnapshots(): List<NoteSnapshot>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSnapshots(snapshots: List<NoteSnapshot>)
     @Query("SELECT * FROM scribe_items ORDER BY id")
     suspend fun allItems(): List<ScribeItem>
     @Query("DELETE FROM scribe_items")

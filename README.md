@@ -18,9 +18,9 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Circuit component sketch starter with reference/value notes and a simple schematic preview.
 - Editable scientific tables with adjustable rows and columns, saved as structured tab-separated blocks.
 - Concept-map outline starter.
-- Soft-delete trash, restore, permanent delete, ordered blocks, duplicate/move actions and version snapshots.
-- JSON backup and restore, including app-local attachment bytes.
-- Basic page-to-PDF export.
+- Soft-delete trash, restore, permanent delete, ordered blocks, full subtree duplication, move actions and version snapshots.
+- JSON backup and restore, including app-local attachment bytes and version-history snapshots (legacy v1 backups remain supported).
+- Paginated page-to-PDF export with width-aware word wrapping and attachment references.
 - GitHub Actions debug APK build and artifact publishing.
 
 ## Design

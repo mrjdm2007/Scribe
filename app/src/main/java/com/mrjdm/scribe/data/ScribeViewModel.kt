@@ -3,11 +3,13 @@ package com.mrjdm.scribe.data
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class ScribeViewModel(app: Application) : AndroidViewModel(app) {
-    private val dao = ScribeDatabase.get(app).dao()
+    private val database = ScribeDatabase.get(app)
+    private val dao = database.dao()
     fun children(parentId: Long?) = dao.children(parentId)
     fun kind(kind: String) = dao.byKind(kind)
     val bookmarks = dao.bookmarks()
@@ -16,6 +18,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun snapshots(id: Long) = dao.snapshots(id)
     suspend fun get(id: Long) = dao.byId(id)
     suspend fun all() = dao.allItems()
+    suspend fun allSnapshots() = dao.allSnapshots()
 
     fun add(parentId: Long?, kind: String, title: String, body: String = "", uri: String = "", tags: String = "", done: (Long) -> Unit = {}) {
         viewModelScope.launch {
@@ -60,11 +63,26 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             remove(item.id)
         }
     }
+    /** Duplicate a complete notebook subtree, preserving the hierarchy and attachment references. */
     fun duplicate(item: ScribeItem) {
         viewModelScope.launch {
             val siblings = dao.children(item.parentId).first()
-            dao.insert(item.copy(id = 0, title = item.title + " copy", position = siblings.size,
-                createdAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis(), deletedAt = null))
+            suspend fun copyBranch(source: ScribeItem, newParentId: Long?, root: Boolean): Long {
+                val now = System.currentTimeMillis()
+                val newId = dao.insert(source.copy(
+                    id = 0,
+                    parentId = newParentId,
+                    title = if (root) source.title + " copy" else source.title,
+                    bookmarked = false,
+                    position = if (root) siblings.size else dao.children(newParentId).first().size,
+                    createdAt = now,
+                    updatedAt = now,
+                    deletedAt = null
+                ))
+                dao.children(source.id).first().forEach { child -> copyBranch(child, newId, false) }
+                return newId
+            }
+            database.withTransaction { copyBranch(item, item.parentId, true) }
         }
     }
     fun move(item: ScribeItem, direction: Int) {
@@ -81,10 +99,14 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun toggleBookmark(item: ScribeItem) = update(item, bookmarked = !item.bookmarked)
-    suspend fun restore(items: List<ScribeItem>) {
-        dao.clearItems()
-        dao.clearSnapshots()
-        items.forEach { dao.insert(it) }
+    /** Replace the library and its version history atomically so interrupted restores cannot leave a half-empty notebook. */
+    suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {
+        database.withTransaction {
+            dao.clearItems()
+            dao.clearSnapshots()
+            items.forEach { dao.insert(it) }
+            if (snapshots.isNotEmpty()) dao.insertSnapshots(snapshots)
+        }
     }
     companion object {
         fun defaultTitle(kind: String) = when(kind) {

@@ -98,8 +98,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch {
             val all = vm.all()
-            val array = JSONArray()
-            all.forEach { item -> array.put(JSONObject().apply {
+            val itemArray = JSONArray()
+            all.forEach { item -> itemArray.put(JSONObject().apply {
                 put("id", item.id); put("parentId", item.parentId ?: JSONObject.NULL); put("kind", item.kind)
                 put("title", item.title); put("body", item.body); put("uri", item.uri); put("tags", item.tags)
                 put("bookmarked", item.bookmarked); put("position", item.position); put("createdAt", item.createdAt); put("updatedAt", item.updatedAt)
@@ -109,14 +109,27 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     if (attachment.isFile) put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
                 }
             }) }
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(array.toString(2)) }
+            val snapshotArray = JSONArray()
+            vm.allSnapshots().forEach { snap -> snapshotArray.put(JSONObject().apply {
+                put("id", snap.id); put("itemId", snap.itemId); put("title", snap.title)
+                put("body", snap.body); put("savedAt", snap.savedAt)
+            }) }
+            val backup = JSONObject().apply {
+                put("format", "scribe-backup")
+                put("version", 2)
+                put("items", itemArray)
+                put("snapshots", snapshotArray)
+            }
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(backup.toString(2)) }
         }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             runCatching {
                 val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "[]"
-                val array = JSONArray(raw)
+                // Version 1 backups were a bare JSON array; version 2 wraps items and history in an object.
+                val root = if (raw.trimStart().startsWith("{")) JSONObject(raw) else null
+                val array = root?.optJSONArray("items") ?: JSONArray(raw)
                 val restored = buildList {
                     for (i in 0 until array.length()) {
                         val o = array.getJSONObject(i)
@@ -134,7 +147,15 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             deletedAt = if (o.isNull("deletedAt")) null else o.optLong("deletedAt")))
                     }
                 }
-                vm.restore(restored)
+                val snapshotArray = root?.optJSONArray("snapshots") ?: JSONArray()
+                val restoredSnapshots = buildList {
+                    for (i in 0 until snapshotArray.length()) {
+                        val o = snapshotArray.getJSONObject(i)
+                        add(NoteSnapshot(id = o.optLong("id"), itemId = o.optLong("itemId"),
+                            title = o.optString("title"), body = o.optString("body"), savedAt = o.optLong("savedAt")))
+                    }
+                }
+                vm.restore(restored, restoredSnapshots)
             }
         }
     }
@@ -530,26 +551,51 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 
 private fun exportPdf(context: Context, uri: Uri, title: String, blocks: List<ScribeItem>) {
     val document = PdfDocument()
-    val paint = Paint().apply { textSize = 12f; color = android.graphics.Color.BLACK; isAntiAlias = true }
-    val heading = Paint(paint).apply { textSize = 22f; typeface = android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD) }
-    val sub = Paint(paint).apply { textSize = 10f; color = android.graphics.Color.DKGRAY }
+    val bodyPaint = Paint().apply { textSize = 12f; color = android.graphics.Color.BLACK; isAntiAlias = true }
+    val titlePaint = Paint(bodyPaint).apply { textSize = 23f; typeface = android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD) }
+    val blockPaint = Paint(bodyPaint).apply { textSize = 14f; typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL) }
+    val metaPaint = Paint(bodyPaint).apply { textSize = 10f; color = android.graphics.Color.DKGRAY }
     var pageNo = 1
     var y = 58f
     var page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create())
-    page.canvas.drawText(title, 42f, y, heading); y += 28f
-    page.canvas.drawText("Exported from Scribe · ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())}", 42f, y, sub); y += 28f
-    fun newPage() { document.finishPage(page); pageNo++; page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create()); y = 48f }
-    blocks.forEach { block ->
-        if (y > 770f) newPage()
-        page.canvas.drawText(block.title.take(85), 42f, y, heading.apply { textSize = 14f }); y += 20f
-        val text = block.body.ifBlank { block.uri }
-        text.chunked(88).forEach { line ->
-            if (y > 790f) newPage()
-            page.canvas.drawText(line, 42f, y, paint); y += 17f
+    page.canvas.drawText(title.take(70), 42f, y, titlePaint); y += 28f
+    page.canvas.drawText("Exported from Scribe · ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())}", 42f, y, metaPaint); y += 30f
+    fun newPage() {
+        document.finishPage(page)
+        pageNo++
+        page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create())
+        y = 48f
+    }
+    fun drawParagraph(value: String, paint: Paint) {
+        value.split('\n').forEach { paragraph ->
+            var remaining = paragraph
+            if (remaining.isBlank()) { y += 9f; return@forEach }
+            while (remaining.isNotEmpty()) {
+                if (y > 790f) newPage()
+                val fit = paint.breakText(remaining, true, 511f, null).coerceAtLeast(1)
+                var count = fit
+                if (fit < remaining.length) {
+                    val space = remaining.substring(0, fit).lastIndexOf(' ')
+                    if (space > 0) count = space
+                }
+                page.canvas.drawText(remaining.substring(0, count).trimEnd(), 42f, y, paint)
+                remaining = remaining.substring(count).trimStart()
+                y += if (paint === blockPaint) 21f else 17f
+            }
         }
-        y += 12f
+    }
+    blocks.forEach { block ->
+        if (y > 760f) newPage()
+        drawParagraph(block.title, blockPaint)
+        val content = when {
+            block.body.isNotBlank() && block.body != "Attached file" -> block.body
+            block.uri.isNotBlank() -> "Attachment: ${File(block.uri).name}"
+            else -> block.body
+        }
+        if (content.isNotBlank()) drawParagraph(content, bodyPaint)
+        y += 11f
     }
     document.finishPage(page)
-    context.contentResolver.openOutputStream(uri)?.use { document.writeTo(it) }
-    document.close()
+    try { context.contentResolver.openOutputStream(uri)?.use { document.writeTo(it) } }
+    finally { document.close() }
 }
