@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -88,6 +89,16 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val isWide = LocalConfiguration.current.screenWidthDp >= 600
     val scope = rememberCoroutineScope()
     var stack by remember { mutableStateOf(listOf<ScribeItem>()) }
+    var savedStackIds by rememberSaveable { mutableStateOf("") }
+    var navigationReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val restoredIds = savedStackIds.split(",").mapNotNull { it.toLongOrNull() }
+        if (restoredIds.isNotEmpty()) stack = restoredIds.mapNotNull { vm.get(it) }
+        navigationReady = true
+    }
+    LaunchedEffect(stack, navigationReady) {
+        if (navigationReady) savedStackIds = stack.joinToString(",") { it.id.toString() }
+    }
     var tab by remember { mutableStateOf("Library") }
     var showCreate by remember { mutableStateOf(false) }
     var createKind by remember { mutableStateOf("course") }
