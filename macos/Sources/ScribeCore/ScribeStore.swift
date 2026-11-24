@@ -36,9 +36,20 @@ struct ScribeItem: Identifiable, Codable, Hashable {
     }
 }
 
+struct ScribeHistoryEntry: Codable, Hashable {
+    var title: String
+    var body: String
+    var savedAt: Int64
+}
+struct ScribeHistoryArchive: Codable {
+    var itemId: Int64
+    var entries: [ScribeHistoryEntry]
+}
 struct BackupRecord: Codable {
     var id: Int64; var parentId: Int64?; var kind: String; var title: String; var body: String; var uri: String; var tags: String
-    var bookmarked: Bool; var position: Int; var createdAt: Int64; var updatedAt: Int64; var deletedAt: Int64?; var history: [[String: CodableValue]] = []; var attachmentBase64: String? = nil
+    var bookmarked: Bool; var position: Int; var createdAt: Int64; var updatedAt: Int64; var deletedAt: Int64?
+    var history: [ScribeHistoryEntry]? = nil
+    var attachmentBase64: String? = nil
 }
 enum CodableValue: Codable { case string(String), integer(Int64), bool(Bool), null
     init(from decoder: Decoder) throws { let c = try decoder.singleValueContainer(); if c.decodeNil() { self = .null } else if let v = try? c.decode(Bool.self) { self = .bool(v) } else if let v = try? c.decode(Int64.self) { self = .integer(v) } else { self = .string(try c.decode(String.self)) } }
@@ -49,6 +60,7 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
 
 @MainActor final class ScribeStore: ObservableObject {
     @Published var items: [ScribeItem] = []
+    @Published var snapshots: [Int64: [ScribeHistoryEntry]] = [:]
     @Published var selectedID: Int64?
     @Published var activeTool: ScribeTool = .library
     @Published var focusSearch = false
@@ -61,14 +73,19 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
     private var timer: Timer?
     private var nextID: Int64 = 1
     private let fileURL: URL
+    private let historyURL: URL
 
     init() {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let folder = root.appendingPathComponent("Scribe", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         fileURL = folder.appendingPathComponent("library.json")
+        historyURL = folder.appendingPathComponent("history.json")
         if let data = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode([ScribeItem].self, from: data) {
             items = decoded; nextID = (decoded.map(\.id).max() ?? 0) + 1
+        }
+        if let data = try? Data(contentsOf: historyURL), let archives = try? JSONDecoder().decode([ScribeHistoryArchive].self, from: data) {
+            snapshots = Dictionary(uniqueKeysWithValues: archives.map { ($0.itemId, $0.entries) })
         }
     }
     var selected: ScribeItem? { items.first { $0.id == selectedID } }
@@ -99,10 +116,14 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
         let tags = item.tags.replacingOccurrences(of: #"interval:[0-9]+"#, with: "interval:\(next)", options: .regularExpression)
         update(item, tags: tags.contains("interval:") ? tags : tags + ";interval:\(next)")
     }
-    func persist() { if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) } }
+    func persist() {
+        if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) }
+        let archives = snapshots.map { ScribeHistoryArchive(itemId: $0.key, entries: $0.value) }
+        if let data = try? JSONEncoder().encode(archives) { try? data.write(to: historyURL, options: .atomic) }
+    }
     func backupData() throws -> Data {
         let records = items.map { item -> BackupRecord in
-            var record = BackupRecord(id: item.id, parentId: item.parentId, kind: item.kind, title: item.title, body: item.body, uri: item.uri, tags: item.tags, bookmarked: item.bookmarked, position: item.position, createdAt: item.createdAt, updatedAt: item.updatedAt, deletedAt: item.deletedAt)
+            var record = BackupRecord(id: item.id, parentId: item.parentId, kind: item.kind, title: item.title, body: item.body, uri: item.uri, tags: item.tags, bookmarked: item.bookmarked, position: item.position, createdAt: item.createdAt, updatedAt: item.updatedAt, deletedAt: item.deletedAt, history: snapshots[item.id] ?? [])
             if !item.uri.isEmpty, let attachment = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
                 record.attachmentBase64 = attachment.base64EncodedString()
             }
@@ -117,6 +138,7 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
         let records = try JSONDecoder().decode([BackupRecord].self, from: Data(contentsOf: url))
         let attachments = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
         try FileManager.default.createDirectory(at: attachments, withIntermediateDirectories: true)
+        snapshots = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0.history ?? []) })
         items = records.map { record in
             var restoredURI = record.uri
             if let encoded = record.attachmentBase64, let bytes = Data(base64Encoded: encoded) {
