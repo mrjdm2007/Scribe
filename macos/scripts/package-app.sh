@@ -43,7 +43,7 @@ let image = NSImage(size: NSSize(width: 1024, height: 1024), flipped: false) { r
     for y in [575.0, 500.0, 425.0] {
         for pair in [(245.0, 430.0, y, y + 20), (590.0, 775.0, y + 20, y)] {
             let line = NSBezierPath(); line.lineWidth = 10; line.lineCapStyle = .round
-            line.move(to: NSPoint(x: pair.0, y: pair.2)); line.line(to: NSPoint(x: pair.1, y: pair.3)); line.stroke()
+            line.move(to: NSPoint(x: CGFloat(pair.0), y: CGFloat(pair.2))); line.line(to: NSPoint(x: CGFloat(pair.1), y: CGFloat(pair.3))); line.stroke()
         }
     }
     NSColor.white.withAlphaComponent(0.20).setStroke()
