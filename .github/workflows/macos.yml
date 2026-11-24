@@ -7,6 +7,9 @@ on:
     branches: ["main"]
     paths: ["macos/**", ".github/workflows/macos.yml"]
   workflow_dispatch:
+concurrency:
+  group: macos-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: macos-latest
