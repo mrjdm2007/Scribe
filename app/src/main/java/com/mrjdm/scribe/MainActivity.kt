@@ -72,6 +72,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var quickCapture by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
+    var integrityReport by remember { mutableStateOf<String?>(null) }
     val current = stack.lastOrNull()
     val children by vm.children(current?.id).collectAsState(initial = emptyList())
     val bookmarks by vm.bookmarks.collectAsState(initial = emptyList())
@@ -85,7 +86,12 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 val ext = context.contentResolver.getType(uri).orEmpty()
                 val file = File(context.filesDir, "attachments").apply { mkdirs() }
                 val target = File(file, "${System.currentTimeMillis()}_${name.substringAfterLast(':').replace('/', '_')}")
-                runCatching { context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { output -> input.copyTo(output) } } }
+                val copied = runCatching {
+                    val input = context.contentResolver.openInputStream(uri) ?: error("Unable to open selected file")
+                    input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
+                    target.isFile && target.length() > 0L
+                }.getOrDefault(false)
+                if (!copied) return@launch
                 val kind = when {
                     ext.startsWith("image/") -> "image"
                     ext == "application/pdf" -> "pdf"
@@ -108,6 +114,15 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     val attachment = File(item.uri)
                     if (attachment.isFile) put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
                 }
+                val history = JSONArray()
+                vm.snapshots(item.id).first().forEach { snapshot ->
+                    history.put(JSONObject().apply {
+                        put("title", snapshot.title)
+                        put("body", snapshot.body)
+                        put("savedAt", snapshot.savedAt)
+                    })
+                }
+                put("history", history)
             }) }
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(array.toString(2)) }
         }
@@ -117,6 +132,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             runCatching {
                 val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "[]"
                 val array = JSONArray(raw)
+                val restoredSnapshots = mutableListOf<NoteSnapshot>()
                 val restored = buildList {
                     for (i in 0 until array.length()) {
                         val o = array.getJSONObject(i)
@@ -127,14 +143,21 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             target.writeBytes(Base64.decode(encodedAttachment, Base64.DEFAULT))
                             target.absolutePath
                         } else o.optString("uri")
-                        add(ScribeItem(id = o.optLong("id"), parentId = if (o.isNull("parentId")) null else o.optLong("parentId"),
+                        val itemId = o.optLong("id")
+                        val history = o.optJSONArray("history") ?: JSONArray()
+                        for (h in 0 until history.length()) {
+                            val snap = history.optJSONObject(h) ?: continue
+                            restoredSnapshots += NoteSnapshot(itemId = itemId, title = snap.optString("title"),
+                                body = snap.optString("body"), savedAt = snap.optLong("savedAt", System.currentTimeMillis()))
+                        }
+                        add(ScribeItem(id = itemId, parentId = if (o.isNull("parentId")) null else o.optLong("parentId"),
                             kind = o.optString("kind"), title = o.optString("title"), body = o.optString("body"),
                             uri = restoredUri, tags = o.optString("tags"), bookmarked = o.optBoolean("bookmarked"),
                             position = o.optInt("position"), createdAt = o.optLong("createdAt"), updatedAt = o.optLong("updatedAt"),
                             deletedAt = if (o.isNull("deletedAt")) null else o.optLong("deletedAt")))
                     }
                 }
-                vm.restore(restored)
+                vm.restore(restored, restoredSnapshots)
             }
         }
     }
@@ -246,11 +269,28 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     SettingsRow(Icons.Rounded.CloudUpload, "Export full backup", "Save courses, notes and organisation as JSON") { backupLauncher.launch("Scribe-backup.json") }
                     SettingsRow(Icons.Rounded.CloudDownload, "Restore backup", "Replace this library from a Scribe backup") { restoreLauncher.launch(arrayOf("application/json", "text/*")) }
                     SettingsRow(Icons.Rounded.DeleteSweep, "Recently deleted", "Restore or permanently remove deleted notes") { showTrash = true }
-                    SettingsRow(Icons.Rounded.Info, "About Scribe", "Offline-first academic notebook · v1.0") {}
+                    SettingsRow(Icons.Rounded.VerifiedUser, "Check library integrity", "Find missing attachments and duplicate entries") {
+                        scope.launch {
+                            val all = vm.all()
+                            val missing = all.count { it.uri.isNotBlank() && !File(it.uri).isFile }
+                            val duplicates = all.filter { it.deletedAt == null && it.title.isNotBlank() }
+                                .groupBy { "${it.parentId}|${it.kind}|${it.title.trim().lowercase(Locale.ROOT)}" }
+                                .values.sumOf { (it.size - 1).coerceAtLeast(0) }
+                            integrityReport = "Checked ${all.size} records.\n\nMissing attachment files: $missing\nPossible duplicate entries: $duplicates\n\nNo data was changed."
+                        }
+                    }
+                    SettingsRow(Icons.Rounded.Info, "About Scribe", "Offline-first academic notebook · v1.1") {}
                     Text("All notes are stored locally on this device. Keep regular backups to protect your work.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 18.dp))
                 }
             }
         }
+    }
+
+    integrityReport?.let { report ->
+        AlertDialog(onDismissRequest = { integrityReport = null }, title = { Text("Library health check") },
+            text = { Text(report, lineHeight = 21.sp) },
+            confirmButton = { TextButton(onClick = { integrityReport = null }) { Text("Done", color = Gold) } },
+            containerColor = Color(0xFF202125))
     }
 
     if (showCreate) CreateDialog(createKind, onDismiss = { showCreate = false }) { name, tags ->
