@@ -15,6 +15,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -102,7 +103,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val searchResults by vm.search(searchQuery).collectAsState(initial = emptyList())
 
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && current?.kind == "page") {
+        if (uri != null && current?.kind in listOf("page", "topic")) {
             scope.launch(Dispatchers.IO) {
                 val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment"
                 val ext = context.contentResolver.getType(uri).orEmpty()
@@ -215,7 +216,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         },
         floatingActionButton = {
-            if (tab == "Library" && current?.kind != "page") {
+            if (tab == "Library" && current?.kind != "page" && current?.kind != "topic") {
                 FloatingActionButton(onClick = {
                     createKind = when(current?.kind) { null -> "course"; "course" -> "chapter"; "chapter" -> "topic"; "topic" -> "page"; else -> "course" }
                     showCreate = true
@@ -253,6 +254,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
                             attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
+                    } else if (current?.kind == "topic") {
+                        TopicNotebook(current, vm, onBack = { stack = stack.dropLast(1) },
+                            onOpenPage = { page -> stack = stack + page },
+                            onAttach = { attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*")) })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { stack = stack.dropLast(1) }) { Icon(Icons.Rounded.ArrowBack, null) }
@@ -400,6 +405,182 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 }
             }
         }, confirmButton = { TextButton(onClick = { showTrash = false }) { Text("Close") } })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TopicNotebook(
+    topic: ScribeItem,
+    vm: ScribeViewModel,
+    onBack: () -> Unit,
+    onOpenPage: (ScribeItem) -> Unit,
+    onAttach: () -> Unit
+) {
+    val liveTopic by vm.observe(topic.id).collectAsState(initial = topic)
+    val childItems by vm.children(topic.id).collectAsState(initial = emptyList())
+    val pages = childItems.filter { it.kind == "page" }
+    val blocks = childItems.filter { it.kind == "block" }
+    val scope = rememberCoroutineScope()
+    var noteValue by remember(topic.id) { mutableStateOf(TextFieldValue(topic.body)) }
+    var searchQuery by remember(topic.id) { mutableStateOf("") }
+    var showAdd by remember { mutableStateOf(false) }
+    var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
+
+    LaunchedEffect(liveTopic.body) {
+        if (liveTopic.body != noteValue.text) {
+            noteValue = TextFieldValue(liveTopic.body, TextRange(liveTopic.body.length))
+        }
+    }
+
+    val matchingLines = remember(searchQuery, noteValue.text) {
+        if (searchQuery.isBlank()) emptyList()
+        else noteValue.text.lines().mapIndexedNotNull { index, line ->
+            if (line.contains(searchQuery, ignoreCase = true)) index to line else null
+        }
+    }
+    val matchingBlocks = remember(searchQuery, blocks) {
+        if (searchQuery.isBlank()) emptyList()
+        else blocks.filter { it.title.contains(searchQuery, true) || it.body.contains(searchQuery, true) }
+    }
+    val totalMatches = matchingLines.size + matchingBlocks.size
+
+    Column(Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, null) }
+            Column(Modifier.weight(1f)) {
+                Text("TOPIC NOTEBOOK", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                Text(topic.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            Text("${blocks.size} blocks", color = Muted, fontSize = 11.sp)
+        }
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Find a word in this topic…") },
+            leadingIcon = { Icon(Icons.Rounded.Search, null) },
+            trailingIcon = { if (searchQuery.isNotBlank()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Rounded.Close, null) } },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = fieldColors()
+        )
+        if (searchQuery.isNotBlank()) {
+            Text("$totalMatches matching lines or blocks", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+            LazyColumn(Modifier.heightIn(max = 150.dp)) {
+                items(matchingLines) { (lineIndex, line) ->
+                    ListItem(
+                        headlineContent = { Text(line, maxLines = 2) },
+                        supportingContent = { Text("Notebook · line ${lineIndex + 1}", color = Muted) },
+                        leadingContent = { Icon(Icons.Rounded.FindInPage, null, tint = Gold) },
+                        modifier = Modifier.clickable {
+                            val start = noteValue.text.indexOf(line).coerceAtLeast(0)
+                            noteValue = TextFieldValue(noteValue.text, TextRange(start, (start + line.length).coerceAtMost(noteValue.text.length)))
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
+                items(matchingBlocks, key = { it.id }) { block ->
+                    ListItem(
+                        headlineContent = { Text(block.title) },
+                        supportingContent = { Text(block.body.take(100), maxLines = 1) },
+                        leadingContent = { Icon(Icons.Rounded.Notes, null, tint = Gold) },
+                        modifier = Modifier.clickable { editBlock = block },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("**", "**"); vm.update(liveTopic, body = noteValue.text) }) { Text("B", fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("*", "*"); vm.update(liveTopic, body = noteValue.text) }) { Text("I", fontStyle = FontStyle.Italic) }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("__", "__"); vm.update(liveTopic, body = noteValue.text) }) { Text("U", textDecoration = TextDecoration.Underline) }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("~~", "~~"); vm.update(liveTopic, body = noteValue.text) }) { Text("S", textDecoration = TextDecoration.LineThrough) }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("## ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Heading") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("- ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("List") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("`", "`"); vm.update(liveTopic, body = noteValue.text) }) { Text("Code") }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1E23)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 7.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("YOUR NOTES", color = Gold, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = noteValue,
+                            onValueChange = {
+                                noteValue = it
+                                vm.update(liveTopic, body = it.text)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 18,
+                            maxLines = 48,
+                            placeholder = { Text("Start typing your notes here…") },
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
+                            colors = fieldColors(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                }
+            }
+            if (blocks.isNotEmpty()) {
+                item { Text("NOTE ELEMENTS", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp) }
+                items(blocks, key = { it.id }) { block ->
+                    BlockCard(block, onClick = { editBlock = block }, onBookmark = { vm.toggleBookmark(block) },
+                        onDelete = { vm.removeTree(block) }, onMove = { direction -> vm.move(block, direction) })
+                }
+            }
+            if (pages.isNotEmpty()) {
+                item { Text("OLDER PAGES", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp) }
+                items(pages, key = { it.id }) { page ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable { onOpenPage(page) },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1E23)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
+                    ) {
+                        ListItem(
+                            headlineContent = { Text(page.title) },
+                            supportingContent = { Text("Previously created page · tap to open", color = Muted) },
+                            leadingContent = { Icon(Icons.Rounded.Article, null, tint = Gold) },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        )
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Add element")
+                    }
+                    OutlinedButton(onClick = onAttach, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(6.dp)); Text("Attach file")
+                    }
+                }
+            }
+        }
+    }
+    if (showAdd) AddBlockDialog(onDismiss = { showAdd = false }) { type, title, body, tags ->
+        vm.add(topic.id, "block", title.ifBlank { type.replaceFirstChar { it.uppercase() } },
+            body = body, tags = "type:$type,$tags")
+        showAdd = false
+    }
+    editBlock?.let { block ->
+        EditDialog(block, onDismiss = { editBlock = null }, onSave = { title, body, tags ->
+            vm.update(block, title = title, body = body, tags = tags)
+            editBlock = null
+        })
+    }
 }
 
 @Composable
