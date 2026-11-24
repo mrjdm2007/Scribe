@@ -13,6 +13,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -166,7 +176,7 @@ private fun replaceTag(tags: String, key: String, value: String): String {
 @Composable
 fun AcademicToolsHub(vm: ScribeViewModel) {
     var selected by remember { mutableStateOf("Converter") }
-    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Diagrams")
+    val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Reminders", "Diagrams")
     Column(Modifier.fillMaxSize()) {
         Text("SCRIBE / WORKBENCH", color = ToolGold, fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
@@ -188,7 +198,66 @@ fun AcademicToolsHub(vm: ScribeViewModel) {
             "Formula" -> FormulaLibrary(vm)
             "Questions" -> QuestionBankScreen(vm, practice = false)
             "Practice" -> QuestionBankScreen(vm, practice = true)
+            "Reminders" -> ReminderHub(vm)
             else -> DiagramStarter(vm)
+        }
+    }
+}
+
+@Composable
+private fun ReminderHub(vm: ScribeViewModel) {
+    val context = LocalContext.current
+    val reminders by vm.kind("study_reminder").collectAsState(initial = emptyList())
+    var title by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("Review your notes and formulas.") }
+    var dateTime by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + 60L * 60L * 1000L))) }
+    var error by remember { mutableStateOf("") }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("LOCAL NOTIFICATIONS", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.3.sp)
+        Text("Plan a revision session.", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text("Reminders stay on this device. Pending reminders are rescheduled after a reboot.", color = ToolMuted, fontSize = 12.sp)
+        OutlinedTextField(title, { title = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Reminder title") }, singleLine = true)
+        OutlinedTextField(message, { message = it }, modifier = Modifier.fillMaxWidth(), label = { Text("What should you review?") }, minLines = 2)
+        OutlinedTextField(dateTime, { dateTime = it; error = "" }, modifier = Modifier.fillMaxWidth(), label = { Text("Date and time · yyyy-MM-dd HH:mm") }, singleLine = true)
+        if (error.isNotBlank()) Text(error, color = Color(0xFFE49A91), fontSize = 11.sp)
+        Button(onClick = {
+            val parser = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).apply { isLenient = false }
+            val parsed = runCatching { parser.parse(dateTime)?.time }.getOrNull()
+            if (title.isBlank()) error = "Add a title for this reminder."
+            else if (parsed == null || parsed <= System.currentTimeMillis()) error = "Enter a valid future date and time."
+            else {
+                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    error = "Allow notifications, then tap Schedule reminder again."
+                } else {
+                    vm.add(null, "study_reminder", title.trim(), body = message.trim(), tags = "dueAt:$parsed") { id ->
+                        scheduleStudyReminder(context, id, title.trim(), message.trim(), parsed)
+                    }
+                    title = ""; error = "Reminder scheduled."
+                }
+            }
+        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ToolGold, contentColor = Color(0xFF211B12))) {
+            Icon(Icons.Rounded.NotificationsActive, null); Spacer(Modifier.width(7.dp)); Text("Schedule reminder")
+        }
+        if (error == "Reminder scheduled.") Text(error, color = Color(0xFF8DC6A7), fontSize = 11.sp)
+        Spacer(Modifier.height(6.dp))
+        Text("UPCOMING", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.2.sp)
+        if (reminders.isEmpty()) Text("No reminders yet.", color = ToolMuted, fontSize = 12.sp)
+        reminders.sortedBy { it.tags.substringAfter("dueAt:", "").substringBefore(";").toLongOrNull() ?: Long.MAX_VALUE }.forEach { item ->
+            val at = item.tags.substringAfter("dueAt:", "").substringBefore(";").toLongOrNull()
+            Card(colors = CardDefaults.cardColors(containerColor = ToolPanel), shape = RoundedCornerShape(13.dp)) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, fontWeight = FontWeight.Medium)
+                        Text(at?.let { SimpleDateFormat("EEE, dd MMM · HH:mm", Locale.getDefault()).format(Date(it)) } ?: "Date unavailable", color = ToolGold, fontSize = 11.sp)
+                        Text(item.body, color = ToolMuted, fontSize = 11.sp, maxLines = 2)
+                    }
+                    IconButton(onClick = { cancelStudyReminder(context, item.id); vm.removeTree(item) }) {
+                        Icon(Icons.Rounded.DeleteOutline, null, tint = ToolMuted)
+                    }
+                }
+            }
         }
     }
 }
