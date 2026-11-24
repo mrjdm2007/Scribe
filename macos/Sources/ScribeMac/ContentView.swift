@@ -1,0 +1,155 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct ScribeMacRoot: View {
+    @EnvironmentObject private var store: ScribeStore
+    @State private var showingImport = false
+    @State private var showingExport = false
+    @State private var draftTitle = ""
+    @State private var draftBody = ""
+    @State private var converterValue = "1"
+    @State private var converterUnit = "mA"
+    @State private var converterTarget = "A"
+    @State private var revealed = false
+    @State private var formulaQuery = ""
+
+    private let gold = Color(red: 0.84, green: 0.72, blue: 0.55)
+    private let panel = Color(nsColor: .controlBackgroundColor)
+
+    var body: some View {
+        NavigationSplitView {
+            VStack(spacing: 0) {
+                HStack { Text("SCRIBE").font(.system(size: 12, weight: .bold, design: .rounded)).tracking(2); Spacer(); Text("STUDY WORKSPACE").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary) }.padding()
+                List(selection: $store.activeTool) {
+                    ForEach(ScribeTool.allCases) { tool in Label(tool.rawValue, systemImage: icon(for: tool)).tag(tool) }
+                }.listStyle(.sidebar)
+                Divider()
+                HStack { Image(systemName: "magnifyingglass"); TextField("Search everything", text: $store.searchText).textFieldStyle(.plain) }.padding(12)
+                Button { store.create(kind: "course", title: "Untitled course") } label: { Label("New course", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold).padding()
+            }
+            .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 310)
+        } detail: {
+            Group {
+                switch store.activeTool {
+                case .library: library
+                case .flashcards: flashcards
+                case .focus: focus
+                case .formulas: formulas
+                case .converter: converter
+                case .settings: backup
+                }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
+        }
+        .fileImporter(isPresented: $showingImport, allowedContentTypes: [.json]) { result in if case .success(let url) = result { _ = url.startAccessingSecurityScopedResource(); defer { url.stopAccessingSecurityScopedResource() }; try? store.importBackup(from: url) } }
+        .fileExporter(isPresented: $showingExport, document: BackupDocument(data: (try? JSONEncoder().encode(store.items.map { BackupRecord(id:$0.id,parentId:$0.parentId,kind:$0.kind,title:$0.title,body:$0.body,uri:$0.uri,tags:$0.tags,bookmarked:$0.bookmarked,position:$0.position,createdAt:$0.createdAt,updatedAt:$0.updatedAt,deletedAt:$0.deletedAt) })) ?? Data("[]".utf8)), contentType: .json, defaultFilename: "Scribe-backup") { _ in }
+        .preferredColorScheme(.dark)
+    }
+    private func icon(for tool: ScribeTool) -> String {
+        switch tool { case .library:"books.vertical"; case .flashcards:"rectangle.stack"; case .focus:"timer"; case .formulas:"function"; case .converter:"arrow.left.arrow.right"; case .settings:"externaldrive" }
+    }
+    private var library: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic → Pages").foregroundStyle(.secondary) }; Spacer(); Button { store.create(kind: "page", title: "Untitled page", parentId: store.selectedID) } label: { Label("New page", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
+            HStack(spacing: 12) {
+                hierarchy(parent: nil, title: "Courses")
+                if let selected = store.selected, ["course","chapter","topic"].contains(selected.kind) { hierarchy(parent: selected.id, title: "Contents") }
+                editor
+            }
+        }.padding(22)
+    }
+    private func hierarchy(parent: Int64?, title: String) -> some View {
+        VStack(alignment: .leading) {
+            Text(title.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
+            List(store.children(of: parent), selection: $store.selectedID) { item in
+                HStack { Image(systemName: item.kind == "page" ? "doc.text" : "folder").foregroundStyle(gold); VStack(alignment: .leading) { Text(item.title); Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary) }; Spacer(); if item.bookmarked { Image(systemName:"bookmark.fill").foregroundStyle(gold) } }
+                    .tag(item.id)
+                    .contextMenu { Button("Bookmark") { store.update(item, bookmarked: !item.bookmarked) }; Button("Delete", role: .destructive) { store.remove(item) } }
+            }.listStyle(.inset)
+            HStack {
+                Menu("Add") {
+                    Button("Chapter") { store.create(kind:"chapter",title:"Untitled chapter",parentId:parent) }
+                    Button("Topic") { store.create(kind:"topic",title:"Untitled topic",parentId:parent) }
+                    Button("Page") { store.create(kind:"page",title:"Untitled page",parentId:parent) }
+                }
+                Spacer()
+            }
+        }.padding(12).frame(minWidth: 200).background(panel, in: RoundedRectangle(cornerRadius: 14))
+    }
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let item = store.selected {
+                Text(item.kind.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
+                TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
+                TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                HStack { Button { store.update(item,bookmarked:!item.bookmarked) } label: { Label(item.bookmarked ? "Bookmarked" : "Bookmark",systemImage:"bookmark") }; Spacer(); Button(role:.destructive) { store.remove(item) } label: { Label("Move to trash",systemImage:"trash") } }
+            } else { ContentUnavailableView("Select a course, topic or page", systemImage:"text.book.closed", description:Text("Your notes and study material will appear here.")) }
+        }.padding(14).frame(maxWidth:.infinity,maxHeight:.infinity).background(panel,in:RoundedRectangle(cornerRadius:14))
+    }
+    private var flashcards: some View {
+        VStack(alignment:.leading,spacing:16) {
+            Text("Flashcards").font(.largeTitle.bold())
+            let cards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }
+            if let card = cards.first {
+                VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
+                    if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
+                }.padding(30).background(panel,in:RoundedRectangle(cornerRadius:20))
+            } else { ContentUnavailableView("No flashcards yet",systemImage:"rectangle.stack",description:Text("Create flashcards in your study notes and they will appear here.")) }
+            Spacer()
+        }.padding(24)
+    }
+    private func reviewButton(_ title:String,_ rating:Int,_ card:ScribeItem)->some View { Button(title) { store.review(card,rating:rating); revealed=false }.buttonStyle(.bordered) }
+    private var focus: some View {
+        VStack(spacing:20) {
+            Text("Focus mode").font(.largeTitle.bold())
+            TextField("What are you studying?",text:$store.sessionLabel).textFieldStyle(.roundedBorder).frame(maxWidth:360)
+            Text(String(format:"%02d:%02d",store.remaining/60,store.remaining%60)).font(.system(size:76,weight:.light,design:.rounded)).monospacedDigit().foregroundStyle(gold)
+            HStack { ForEach([15,25,45,60],id:\.self) { m in Button("\(m) min") { store.focusMinutes=m;store.remaining=m*60 }.disabled(store.isRunning) } }
+            HStack { Button(store.isRunning ? "Pause":"Start") { store.startTimer() }.buttonStyle(.borderedProminent).tint(gold); Button("Reset") { store.resetTimer() } }
+            Text("\(store.completedSessions) completed this visit").foregroundStyle(.secondary)
+            Spacer()
+        }.padding(30)
+    }
+    private var formulas: some View {
+        VStack(alignment:.leading,spacing:12) {
+            Text("Engineering formula shelf").font(.largeTitle.bold())
+            TextField("Search formulas",text:$formulaQuery).textFieldStyle(.roundedBorder)
+            let formulas = [("Ohm’s law","V = IR"),("Power","P = VI = I²R"),("Capacitive reactance","Xc = 1 / 2πfC"),("Inductive reactance","XL = 2πfL"),("Resonance","f₀ = 1 / 2π√LC"),("RC time constant","τ = RC"),("Voltage divider","Vout = Vin × R₂ / (R₁ + R₂)"),("Non-inverting op-amp","Av = 1 + Rf/Rin")]
+            ForEach(formulas.filter { formulaQuery.isEmpty || $0.0.localizedCaseInsensitiveContains(formulaQuery) || $0.1.localizedCaseInsensitiveContains(formulaQuery) },id:\.0) { f in HStack { VStack(alignment:.leading) { Text(f.0).font(.headline); Text(f.1).font(.title3.monospaced()).foregroundStyle(gold) }; Spacer(); Button("Save") { store.create(kind:"formula",title:f.0,body:f.1,tags:"subject:engineering") } } .padding(12).background(panel,in:RoundedRectangle(cornerRadius:12)) }
+            Spacer()
+        }.padding(24)
+    }
+    private var converter: some View {
+        VStack(alignment:.leading,spacing:14) {
+            Text("Engineering unit converter").font(.largeTitle.bold())
+            TextField("Value",text:$converterValue).textFieldStyle(.roundedBorder).frame(maxWidth:250)
+            Picker("From",selection:$converterUnit) { ForEach(["mA","A","kA","mV","V","kV","Ω","kΩ","MΩ","nF","µF","mF","F"],id:\.self) { Text($0) } }.frame(maxWidth:260)
+            Picker("To",selection:$converterTarget) { ForEach(["mA","A","kA","mV","V","kV","Ω","kΩ","MΩ","nF","µF","mF","F"],id:\.self) { Text($0) } }.frame(maxWidth:260)
+            Text(convertedValue).font(.system(size:34,weight:.medium,design:.rounded)).foregroundStyle(gold)
+            Text("Conversions are performed within matching electrical dimensions.").foregroundStyle(.secondary)
+            Spacer()
+        }.padding(24)
+    }
+    private var convertedValue: String {
+        guard let v=Double(converterValue), let a=scale[converterUnit], let b=scale[converterTarget], a.group==b.group else { return "—" }
+        return String(format:"%.8g %@",v*a.factor/b.factor,converterTarget)
+    }
+    private var scale: [String:(factor:Double,group:String)] { ["mA":(0.001,"I"),"A":(1,"I"),"kA":(1000,"I"),"mV":(0.001,"V"),"V":(1,"V"),"kV":(1000,"V"),"Ω":(1,"R"),"kΩ":(1000,"R"),"MΩ":(1e6,"R"),"nF":(1e-9,"C"),"µF":(1e-6,"C"),"mF":(1e-3,"C"),"F":(1,"C)] }
+    private var backup: some View {
+        VStack(alignment:.leading,spacing:16) {
+            Text("Backup & settings").font(.largeTitle.bold())
+            Text("Scribe for macOS stores your library locally. Exchange JSON backups with the Android app.")
+            Button { showingExport=true } label: { Label("Export Scribe JSON backup",systemImage:"square.and.arrow.up") }.buttonStyle(.borderedProminent).tint(gold)
+            Button { showingImport=true } label: { Label("Restore Scribe JSON backup",systemImage:"square.and.arrow.down") }
+            Text("This initial macOS client supports the shared note hierarchy, search, flashcards, focus timer, formula shelf and electrical unit conversion. Some Android-only tools are not yet available on macOS.").foregroundStyle(.secondary)
+            Spacer()
+        }.padding(24)
+    }
+}
+
+struct BackupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+    init(data:Data) { self.data=data }
+    init(configuration:ReadConfiguration) throws { data=configuration.file.regularFileContents ?? Data("[]".utf8) }
+    func fileWrapper(configuration:WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents:data) }
+}
