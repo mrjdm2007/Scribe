@@ -56,7 +56,7 @@ a{color:#b18a52}#editor mark{background:#f2d36b;color:#242424}
 <script>
 const editor=document.getElementById("editor");let lastMarkdown="";
 function md(n){
- if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType!==1)return "";
+ if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
  const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
  if(t==="br")return "\\n";if(t==="strong"||t==="b")return "**"+c()+"**";if(t==="em"||t==="i")return "*"+c()+"*";
  if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
