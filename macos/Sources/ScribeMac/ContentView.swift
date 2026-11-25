@@ -85,7 +85,13 @@ struct ScribeMacRoot: View {
                 case .settings: backup
                 case .academic: AcademicToolsView()
                 }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
+            }.frame(maxWidth: .infinity, maxHeight: .infinity).background {
+                ZStack {
+                    Color(nsColor: .windowBackgroundColor)
+                    RadialGradient(colors: [gold.opacity(0.075), .clear], center: .topLeading, startRadius: 20, endRadius: 900)
+                    RadialGradient(colors: [Color.white.opacity(0.018), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 720)
+                }
+            }
         }
         .alert("Set writing goal", isPresented: $showingWordGoal) {
             TextField("Target words (0 disables)", text: $wordGoalDraft)
