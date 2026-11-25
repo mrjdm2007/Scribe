@@ -246,13 +246,7 @@ struct NodeEditorView: View {
                 HStack { Image(systemName: "paperclip"); Text(URL(fileURLWithPath: item.uri).lastPathComponent); Spacer(); Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.uri)]) } }
                     .font(.caption)
                 if URL(fileURLWithPath: item.uri).pathExtension.lowercased() == "pdf" {
-                    PDFPreview(url: URL(fileURLWithPath: item.uri)).frame(minHeight: 420)
-                    Button("Extract PDF text into this note") {
-                        if let document = PDFDocument(url: URL(fileURLWithPath: item.uri)), let text = document.string {
-                            item.body += (item.body.isEmpty ? "" : "\\n\\n") + text
-                            library.update(item)
-                        }
-                    }
+                    PDFReadOnlyView(url: URL(fileURLWithPath: item.uri))
                 } else if let image = NSImage(contentsOfFile: item.uri) {
                     Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 360)
                 }
