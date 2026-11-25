@@ -70,7 +70,23 @@ struct ScribeMacRoot: View {
                 let typeTag = ext == "pdf" ? "pdf" : (["png", "jpg", "jpeg", "heic", "webp", "gif"].contains(ext) ? "image" : "text")
                 let body = typeTag == "text" ? ((try? String(contentsOf: destination, encoding: .utf8)) ?? "") : "\(typeTag.capitalized) attachment"
                 store.create(kind: "block", title: source.lastPathComponent, parentId: store.selectedID,
-                    body: body, tags: "type:\(typeTag)", uri: destination.path, switchToLibrary: false)
+                    body: body, tags: typeTag == "pdf" ? "type:pdf;ocr:pending" : "type:\(typeTag)",
+                    uri: destination.path, switchToLibrary: false)
+                if typeTag == "pdf", let imported = store.selected {
+                    let importedID = imported.id
+                    Task {
+                        do {
+                            let extracted = try await ScribePDFOCR.extractText(from: destination)
+                            if let latest = store.items.first(where: { $0.id == importedID }) {
+                                store.update(latest, body: extracted, tags: "type:pdf;ocr:indexed")
+                            }
+                        } catch {
+                            if let latest = store.items.first(where: { $0.id == importedID }) {
+                                store.update(latest, tags: "type:pdf;ocr:failed")
+                            }
+                        }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showingFlashcardComposer) {

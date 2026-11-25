@@ -53,3 +53,6 @@ GitHub Actions publishes a smaller `scribe-release-apk` artifact. It is signed w
 
 ## Known limitations
 The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF annotations and full-document text extraction are currently available in the macOS app; equivalent annotation controls are not yet available on Android. Android now indexes PDF text automatically at import; macOS PDF extraction remains available from the PDF workspace. Graph plotting supports a bounded expression grammar rather than arbitrary programming-language expressions. The circuit tool remains a schematic starter, not a full drag-and-drop CAD editor or SPICE simulator. Full rich-text rendering parity, live Android–Mac sync, actionable notification parity, background focus countdown notifications, automatic scheduled/cloud backups, advanced stylus pressure/eraser support, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
+
+
+- macOS PDF imports now automatically extract selectable text and run on-device Vision OCR for scanned pages; extracted text is indexed in the library search. OCR status is retained in attachment tags.
