@@ -4,7 +4,7 @@ import Combine
 import UserNotifications
 
 public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
-    let current = max(1, currentDays)
+    let current = min(365, max(1, currentDays))
     let next: Int64
     switch rating {
     case 0: next = 1
@@ -14,6 +14,15 @@ public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
     default: next = current
     }
     return min(365, max(1, next))
+}
+
+public func flashcardReviewTags(_ tags: String, rating: Int, nowMillis: Int64) -> String {
+    let oldValue = tags.split(separator: ";").first(where: { $0.hasPrefix("interval:") }).flatMap { Double($0.dropFirst("interval:".count)) } ?? 1
+    let days = nextReviewIntervalDays(Int64(ceil(oldValue)), rating: rating)
+    let offset = days * 86_400_000
+    let dueAt = nowMillis > Int64.max - offset ? Int64.max : nowMillis + offset
+    let preserved = tags.split(separator: ";").map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("interval:") && !$0.hasPrefix("dueAt:") && !$0.hasPrefix("ease:") }
+    return (preserved + ["interval:\(days)", "dueAt:\(dueAt)"]).joined(separator: ";")
 }
 
 public struct ScribeItem: Identifiable, Codable, Hashable {
@@ -234,9 +243,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     }
 
     public func review(_ item: ScribeItem, rating: Int) {
-        let next = nextReviewIntervalDays(item.interval, rating: rating)
-        let tags = item.tags.replacingOccurrences(of: #"interval:[0-9]+"#, with: "interval:\(next)", options: .regularExpression)
-        update(item, tags: tags.contains("interval:") ? tags : tags + ";interval:\(next)")
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        update(item, tags: flashcardReviewTags(item.tags, rating: rating, nowMillis: now))
     }
     public func persist() {
         if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) }

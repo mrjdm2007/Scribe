@@ -74,3 +74,14 @@ class ReviewScheduleTest {
         assertEquals(0, StudyProgress.currentStreakDays(listOf(session), today, zone))
     }
 }
+
+
+    @Test fun flashcardReviewTagsPreserveMetadataAndSetSharedDueDate() {
+        assertEquals("subject:ECE;custom:x;interval:4;dueAt:345610000", flashcardReviewTags("subject:ECE;interval:2;dueAt:1000;custom:x", 2, 10_000))
+    }
+    @Test fun flashcardAgainSchedulesOneDayAndHandlesLegacyDecimalIntervals() {
+        assertEquals("interval:1;dueAt:86400000", flashcardReviewTags("interval:2.5", 0, 0))
+    }
+    @Test fun hugeIntervalsAreSafelyCappedBeforeMultiplication() {
+        assertEquals(365L, nextReviewIntervalDays(Long.MAX_VALUE, 3))
+    }

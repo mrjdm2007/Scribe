@@ -37,7 +37,6 @@ final class ReviewScheduleTests: XCTestCase {
         XCTAssertEqual(roundTrip.first?.kind, "topic")
         XCTAssertEqual(roundTrip.first?.history?.first?.savedAt, 123)
     }
-}
 
 
     func testDailyStudyGoalSumsOnlySessionsOnTheSelectedDay() {
@@ -76,3 +75,14 @@ final class ReviewScheduleTests: XCTestCase {
             createdAt: Int64(old.timeIntervalSince1970 * 1000))
         XCTAssertEqual(ScribeStudyProgress.currentStreakDays(sessions: [session], today: today, calendar: calendar), 0)
     }
+
+    func testFlashcardReviewTagsPreserveMetadataAndSetSharedDueDate() {
+        XCTAssertEqual(flashcardReviewTags("subject:ECE;interval:2;dueAt:1000;custom:x", rating: 2, nowMillis: 10_000), "subject:ECE;custom:x;interval:4;dueAt:345610000")
+    }
+    func testFlashcardAgainSchedulesOneDayAndHandlesLegacyDecimalIntervals() {
+        XCTAssertEqual(flashcardReviewTags("interval:2.5", rating: 0, nowMillis: 0), "interval:1;dueAt:86400000")
+    }
+    func testHugeFlashcardIntervalsAreSafelyCapped() {
+        XCTAssertEqual(nextReviewIntervalDays(Int64.max, rating: 3), 365)
+    }
+}

@@ -75,15 +75,13 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
             Text("How well did you remember it?", color = FlashMuted, fontSize = 12.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 ReviewButton("Again", Color(0xFFE49A91), Modifier.weight(1f), enabled = revealed) {
-                    scheduleFlashcard(vm, next, interval = 0.006, easeDelta = -0.2)
+                    scheduleFlashcard(vm, next, rating = 0)
                 }
                 ReviewButton("Good", FlashGold, Modifier.weight(1f), enabled = revealed) {
-                    val old = flashMeta(next.tags, "interval", "0").toDoubleOrNull() ?: 0.0
-                    scheduleFlashcard(vm, next, interval = if (old < 1.0) 1.0 else old * (flashMeta(next.tags, "ease", "2.5").toDoubleOrNull() ?: 2.5), easeDelta = 0.0)
+                    scheduleFlashcard(vm, next, rating = 2)
                 }
                 ReviewButton("Easy", Color(0xFF8DC6A7), Modifier.weight(1f), enabled = revealed) {
-                    val old = flashMeta(next.tags, "interval", "0").toDoubleOrNull() ?: 0.0
-                    scheduleFlashcard(vm, next, interval = if (old < 1.0) 4.0 else old * (flashMeta(next.tags, "ease", "2.5").toDoubleOrNull() ?: 2.5) * 1.3, easeDelta = 0.15)
+                    scheduleFlashcard(vm, next, rating = 3)
                 }
             }
         }
@@ -150,12 +148,6 @@ private fun ReviewButton(label: String, color: Color, modifier: Modifier, enable
     }
 }
 
-private fun scheduleFlashcard(vm: ScribeViewModel, item: ScribeItem, interval: Double, easeDelta: Double) {
-    val oldEase = flashMeta(item.tags, "ease", "2.5").toDoubleOrNull() ?: 2.5
-    val newEase = (oldEase + easeDelta).coerceIn(1.3, 3.0)
-    val days = interval.coerceIn(0.006, 3650.0)
-    val dueAt = System.currentTimeMillis() + (days * 24.0 * 60.0 * 60.0 * 1000.0).toLong()
-    val newTags = item.tags.split(";").filterNot { it.startsWith("dueAt:") || it.startsWith("interval:") || it.startsWith("ease:") }
-        .plus("dueAt:$dueAt").plus("interval:$days").plus("ease:$newEase").joinToString(";")
-    vm.update(item, tags = newTags)
+private fun scheduleFlashcard(vm: ScribeViewModel, item: ScribeItem, rating: Int) {
+    vm.update(item, tags = flashcardReviewTags(item.tags, rating, System.currentTimeMillis()))
 }

@@ -343,13 +343,19 @@ struct ScribeMacRoot: View {
         VStack(alignment:.leading,spacing:16) {
             HStack { Text("Flashcards").font(.largeTitle.bold()); Spacer(); Button { showingFlashcardComposer = true } label: { Label("Add flashcard", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
             let cards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }
-            Text("\(reviewedCardIDs.count) of \(cards.count) reviewed in this session").foregroundStyle(.secondary)
-            if let card = cards.first(where: { !reviewedCardIDs.contains($0.id) }) {
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            let dueCards = cards.filter { card in
+                let dueAt = card.tags.split(separator: ";").first(where: { $0.hasPrefix("dueAt:") }).flatMap { Int64($0.dropFirst("dueAt:".count)) } ?? 0
+                return dueAt <= now
+            }
+            let upcomingCount = cards.count - dueCards.count
+            Text("\(dueCards.count) due now · \(upcomingCount) upcoming").foregroundStyle(.secondary)
+            if let card = dueCards.first(where: { !reviewedCardIDs.contains($0.id) }) {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
                 }.padding(30).background(panel,in:RoundedRectangle(cornerRadius:20))
             } else if cards.isEmpty { VStack(spacing: 10) { Image(systemName: "rectangle.stack").font(.system(size: 34)); Text("No flashcards yet").font(.headline); Text("Create flashcards in your study notes and they will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 180) }
-            else { VStack(spacing: 10) { Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(gold); Text("Review session complete").font(.headline); Button("Start again") { reviewedCardIDs.removeAll() } }.frame(maxWidth: .infinity, minHeight: 180) }
+            else { VStack(spacing: 10) { Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(gold); Text("All caught up").font(.headline); Text("\(upcomingCount) cards scheduled for later review.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 180) }
             Spacer()
         }.padding(24)
     }
