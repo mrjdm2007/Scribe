@@ -13,6 +13,7 @@ Native SwiftUI desktop application, targeting macOS 13+ with Swift 5.9+.
 - Course → Chapter → Topic → Page → Block hierarchy with ordered local persistence.
 - Rich content block types: text, headings, LaTeX source, code, tables, lists, checklists, quotes, links, questions, flashcards and diagrams; live WYSIWYG Markdown editing for text blocks and rendered MathJax equation previews with source fallback when offline.
 - Search, tags, bookmarks, quick capture, trash/restore/permanent delete, duplicate, reorder, page split/merge, topic cross-links and version snapshots.
+- API-key-free Ask my notes: local text retrieval, per-course context selection and notebook-path citations; attachment files and OCR/PDF text are excluded.
 - Photo and PDF imports only. Photos are previewed; PDFs use a read-only PDFKit viewer with page navigation and page-by-page Vision OCR. There are no PDF editing or annotation tools, and no audio/video import workflows.
 - Page-to-PDF export, without modifying attached PDF files.
 - Portable JSON backup/restore using the Android-compatible JSON-array interchange format, including photo/PDF bytes and note history.
