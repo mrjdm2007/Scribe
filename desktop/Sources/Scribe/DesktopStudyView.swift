@@ -16,6 +16,7 @@ struct DesktopStudyView: View {
     @State private var completed = false
     @State private var reminderTime = Calendar.current.date(from: DateComponents(hour: 18, minute: 0)) ?? .now
     @State private var reminderStatus = "No daily reminder scheduled."
+    @AppStorage("scribe.study.dailyGoalMinutes") private var dailyGoalMinutes = 60
 
     private var cards: [ScribeNode] { library.visibleNodes.filter { $0.kind == "flashcard" }.sorted { $0.createdAt < $1.createdAt } }
     private var dueCards: [ScribeNode] {
@@ -29,6 +30,33 @@ struct DesktopStudyView: View {
     }
     private var activeCard: ScribeNode? { activeCardID.flatMap(library.node) ?? dueCards.first }
     private var sessions: [ScribeNode] { library.visibleNodes.filter { $0.kind == "study_session" }.sorted { $0.createdAt > $1.createdAt } }
+    private func sessionMinutes(_ item: ScribeNode) -> Int {
+        item.tags.split(separator: ";").first(where: { $0.hasPrefix("minutes:") })
+            .flatMap { Int($0.dropFirst(8)) }.map { max(0, $0) } ?? 0
+    }
+    private var todayMinutes: Int {
+        sessions.filter { Calendar.current.isDate($0.createdAt, inSameDayAs: .now) }
+            .reduce(0) { $0 + sessionMinutes($1) }
+    }
+    private var weeklySessions: [ScribeNode] {
+        let start = Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start ?? Calendar.current.startOfDay(for: .now)
+        return sessions.filter { $0.createdAt >= start }
+    }
+    private var weeklyMinutes: Int { weeklySessions.reduce(0) { $0 + sessionMinutes($1) } }
+    private var studyStreak: Int {
+        let calendar = Calendar.current
+        let days = Set(sessions.filter { sessionMinutes($0) > 0 }.map { calendar.startOfDay(for: $0.createdAt) })
+        let today = calendar.startOfDay(for: .now)
+        var cursor = days.contains(today) ? today : (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
+        guard days.contains(cursor) else { return 0 }
+        var count = 0
+        while days.contains(cursor) {
+            count += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return count
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -135,6 +163,35 @@ struct DesktopStudyView: View {
     private var focusPanel: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Make time for deep work.").font(.largeTitle.weight(.semibold))
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TODAY'S STUDY GOAL").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text("\(todayMinutes) / \(dailyGoalMinutes) min").font(.title2.weight(.semibold))
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("🔥 \(studyStreak) day\(studyStreak == 1 ? "" : "s")").font(.headline)
+                        Text("study streak").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                HStack(spacing: 6) {
+                    ForEach([30, 60, 90, 120], id: \.self) { minutes in
+                        Button("\(minutes) min") { dailyGoalMinutes = minutes }
+                            .buttonStyle(.bordered)
+                            .tint(dailyGoalMinutes == minutes ? .accentColor : .secondary)
+                    }
+                }
+                ProgressView(value: Double(min(todayMinutes, dailyGoalMinutes)), total: Double(max(1, dailyGoalMinutes)))
+                Text(todayMinutes >= dailyGoalMinutes ? "Daily goal completed" : "\(dailyGoalMinutes - todayMinutes) min left to reach today's goal")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            HStack(spacing: 12) {
+                metric("THIS WEEK", value: "\(weeklyMinutes / 60)h \(weeklyMinutes % 60)m")
+                metric("SESSIONS THIS WEEK", value: "\(weeklySessions.count)")
+            }
             TextField("Session / subject", text: $sessionLabel).textFieldStyle(.roundedBorder).frame(maxWidth: 420)
             if let endDate {
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
