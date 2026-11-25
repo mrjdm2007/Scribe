@@ -17,6 +17,7 @@ struct ScribeIntelligenceView: View {
     @State private var errorMessage = ""
     @State private var mode = "notes"
     @State private var busy = false
+    @State private var conversation: [String] = []
     private let modes = ["notes", "explain", "exam", "quiz", "research", "summary"]
 
     private func notebookPath(for item: ScribeItem) -> String {
@@ -55,6 +56,8 @@ struct ScribeIntelligenceView: View {
                     Text("Your study assistant").font(.title2.bold())
                 }
                 Spacer()
+                Button("New chat") { conversation = []; question = ""; answer = ""; errorMessage = "" }
+                    .buttonStyle(.borderless).disabled(busy)
                 if busy { ProgressView() }
             }
             Picker("Mode", selection: $mode) {
@@ -88,6 +91,9 @@ struct ScribeIntelligenceView: View {
             errorMessage = "Add your Supabase project URL and anon key in Scribe Settings first."
             return
         }
+        let studentMessage = question
+        let priorTurns = conversation.suffix(8).joined(separator: "\\n\\n")
+        let conversationPrompt = (priorTurns.isEmpty ? "" : priorTurns + "\\n\\n") + "STUDENT: " + studentMessage
         busy = true; errorMessage = ""; answer = ""
         defer { busy = false }
         do {
@@ -119,7 +125,7 @@ struct ScribeIntelligenceView: View {
             request.setValue(anonKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             let payload: [String: Any] = [
-                "question": question, "mode": mode,
+                "question": conversationPrompt, "mode": mode,
                 "note_context": try JSONSerialization.jsonObject(with: JSONEncoder().encode(relevantNotes))
             ]
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
@@ -130,6 +136,10 @@ struct ScribeIntelligenceView: View {
                 throw NSError(domain: "ScribeAI", code: status, userInfo: [NSLocalizedDescriptionKey: object["error"] as? String ?? "Study assistant request failed (HTTP \(status))."])
             }
             answer = object["answer"] as? String ?? "The assistant returned an empty response."
+            conversation.append("Student: " + studentMessage)
+            conversation.append("Scribe: " + answer)
+            if conversation.count > 16 { conversation.removeFirst(conversation.count - 16) }
+            question = ""
         } catch {
             errorMessage = error.localizedDescription
         }
