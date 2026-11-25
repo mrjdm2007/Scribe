@@ -47,7 +47,7 @@ html,body{margin:0;padding:0;background:transparent;color:#e9e6df;font:16px sans
 #fallback{display:none;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px monospace;color:#d5b98c}
 </style>
 <script>
-window.MathJax={tex:{inlineMath:[['\\\\(','\\\\)']],displayMath:[['\\\\[','\\\\]']],packages:{'[+]':['ams']}},chtml:{scale:1.0}};
+window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],packages:{'[+]':['ams']}},chtml:{scale:1.0}};
 </script>
 <script defer id="mathjax-loader" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head><body>
@@ -56,7 +56,7 @@ window.MathJax={tex:{inlineMath:[['\\\\(','\\\\)']],displayMath:[['\\\\[','\\\\]
 let equationSource=$safeInitial;
 function renderEquation(){
  const target=document.getElementById('equation'),fallback=document.getElementById('fallback');
- target.textContent='\\\\['+equationSource+'\\\\]';fallback.textContent=equationSource;
+ target.textContent='\\['+equationSource+'\\]';fallback.textContent=equationSource;
  if(window.MathJax&&window.MathJax.typesetPromise){
   fallback.style.display='none';MathJax.typesetClear([target]);
   MathJax.typesetPromise([target]).catch(()=>fallback.style.display='block');
