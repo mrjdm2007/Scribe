@@ -51,6 +51,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    // PDFBox loads JP2ForAndroid reflectively when a PDF contains JPX images.
+    runtimeOnly("com.github.Tgo1014:JP2ForAndroid:1.0.4")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.room:room-runtime:2.6.1")
