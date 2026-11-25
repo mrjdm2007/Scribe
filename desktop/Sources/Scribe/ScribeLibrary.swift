@@ -300,7 +300,10 @@ final class ScribeLibrary: ObservableObject {
             let originalURI = row["uri"] as? String ?? ""
             let ext = URL(fileURLWithPath: originalURI).pathExtension
             let type = UTType(filenameExtension: ext)
-            guard type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true else {
+            let declaredType = (row["tags"] as? String ?? "").split(separator: ";").first(where: { $0.hasPrefix("type:") })
+                .map { String($0.dropFirst(5)).components(separatedBy: ",").first ?? "" } ?? ""
+            guard type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true ||
+                    declaredType == "image" || declaredType == "pdf" else {
                 throw NSError(domain: "ScribeBackup", code: 415, userInfo: [NSLocalizedDescriptionKey: "This backup contains an attachment that is not a photo or PDF."])
             }
         }
@@ -322,8 +325,12 @@ final class ScribeLibrary: ObservableObject {
                 let name = URL(fileURLWithPath: originalURI).lastPathComponent
                 let ext = URL(fileURLWithPath: name).pathExtension
                 let type = UTType(filenameExtension: ext)
-                if type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true {
-                    let target = attachmentFolder.appendingPathComponent("\(id.uuidString)-\(name.isEmpty ? "attachment" : name)")
+                let declaredType = tags.split(separator: ";").first(where: { $0.hasPrefix("type:") })
+                    .map { String($0.dropFirst(5)).components(separatedBy: ",").first ?? "" } ?? ""
+                if type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true ||
+                    declaredType == "image" || declaredType == "pdf" {
+                    let fallbackName = name.isEmpty ? (declaredType == "pdf" ? "attachment.pdf" : "attachment.jpg") : (ext.isEmpty ? name + (declaredType == "pdf" ? ".pdf" : ".jpg") : name)
+                    let target = attachmentFolder.appendingPathComponent("\(id.uuidString)-\(fallbackName)")
                     try bytes.write(to: target, options: .atomic)
                     uri = target.path
                 }
