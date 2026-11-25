@@ -186,6 +186,11 @@ struct NodeEditorView: View {
     @State private var showAttachmentPicker = false
     @State private var showHistory = false
     @State private var showTopicLinker = false
+    @State private var showAddBlock = false
+    @State private var newBlockType = "text"
+    @State private var newBlockTitle = ""
+    @State private var newBlockBody = ""
+    @State private var newBlockTags = ""
     @State private var showPDFExporter = false
     @State private var pdfDocument = ScribePDFDocument(data: Data())
     private func preparePDFExport() {
@@ -240,6 +245,8 @@ struct NodeEditorView: View {
             }
             TextField("Title", text: $item.title).font(.largeTitle.weight(.semibold)).textFieldStyle(.plain)
                 .onChange(of: item.title) { _ in library.update(item) }
+            TextField("Tags", text: $item.tags).textFieldStyle(.roundedBorder)
+                .onChange(of: item.tags) { _ in library.update(item) }
             if ["block", "formula", "question", "flashcard", "diagram", "study_question"].contains(item.kind) {
                 if !isMediaAttachment {
                     if item.kind == "block" {
@@ -282,8 +289,10 @@ struct NodeEditorView: View {
                 .frame(minHeight: 160)
             }
             HStack {
-                if let childKind {
-                    Button { _ = library.add(kind: childKind, parent: item.id) } label: { Label("Add \(childKind.capitalized)", systemImage: "plus") }.buttonStyle(.borderedProminent)
+                if item.kind == "page" {
+                    Button { showAddBlock = true } label: { Label("Add content", systemImage: "plus") }.buttonStyle(.borderedProminent)
+                } else if let childKind {
+                    Button { _ = library.add(kind: childKind, parent: item.id) } label: { Label("Add \\(childKind.capitalized)", systemImage: "plus") }.buttonStyle(.borderedProminent)
                 }
                 if item.kind == "page" {
                     Button { showTopicLinker = true } label: { Label("Link topic", systemImage: "link") }
@@ -311,6 +320,30 @@ struct NodeEditorView: View {
         .fileExporter(isPresented: $showPDFExporter, document: pdfDocument, contentType: .pdf,
                       defaultFilename: item.title.replacingOccurrences(of: "/", with: "-") + ".pdf") { result in
             if case .failure(let error) = result { library.lastError = "PDF export failed: \\(error.localizedDescription)" }
+        }
+        .sheet(isPresented: $showAddBlock) {
+            NavigationStack {
+                Form {
+                    Picker("Content type", selection: $newBlockType) {
+                        ForEach(["text","heading","equation","code","table","list","checklist","quote","link","diagram","question","flashcard"], id: \.self) { Text($0.capitalized).tag($0) }
+                    }
+                    TextField("Heading / label", text: $newBlockTitle)
+                    TextEditor(text: $newBlockBody).frame(minHeight: 150)
+                    TextField("Tags (optional)", text: $newBlockTags)
+                }
+                .navigationTitle("Add page content")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showAddBlock = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Add") {
+                            let tags = "type:\\(newBlockType)" + (newBlockTags.isEmpty ? "" : ";\\(newBlockTags)")
+                            _ = library.add(kind: "block", parent: item.id, title: newBlockTitle.isEmpty ? newBlockType.capitalized : newBlockTitle,
+                                            body: newBlockBody, tags: tags)
+                            newBlockType = "text"; newBlockTitle = ""; newBlockBody = ""; newBlockTags = ""; showAddBlock = false
+                        }
+                    }
+                }
+            }.frame(minWidth: 480, minHeight: 420)
         }
         .sheet(isPresented: $showTopicLinker) {
             NavigationStack {
