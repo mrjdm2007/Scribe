@@ -10,8 +10,8 @@ Scribe Intelligence uses the Supabase project already configured in Scribe Cloud
 3. Set the server-side OpenAI secret:
    `supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY`
 4. Optionally select a model enabled for your OpenAI project:
-   `supabase secrets set OPENAI_MODEL=gpt-6-mini`
-   The function defaults to `gpt-6-mini` if this secret is omitted.
+   `supabase secrets set OPENAI_MODEL=gpt-6-luna`
+   The function defaults to `gpt-6-luna` if this secret is omitted.
 5. Deploy:
    `supabase functions deploy study-assistant`
 
