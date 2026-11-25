@@ -178,10 +178,37 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun bulkArchive(items: List<ScribeItem>) {
-        viewModelScope.launch { items.distinctBy { it.id }.forEach { item -> if (item.deletedAt == null) removeTree(item) } }
+        viewModelScope.launch {
+            database.withTransaction {
+                val all = dao.allItems()
+                val deletedAt = System.currentTimeMillis()
+                suspend fun markTree(id: Long) {
+                    all.filter { it.parentId == id && it.deletedAt == null }.forEach { markTree(it.id) }
+                    dao.byId(id)?.takeIf { it.deletedAt == null }?.let {
+                        dao.update(it.copy(deletedAt = deletedAt, updatedAt = deletedAt))
+                    }
+                }
+                items.distinctBy { it.id }.forEach { if (it.deletedAt == null) markTree(it.id) }
+            }
+        }
     }
     fun bulkRestore(items: List<ScribeItem>) {
-        viewModelScope.launch { items.distinctBy { it.id }.forEach { item -> if (item.deletedAt != null) restoreTree(item) } }
+        viewModelScope.launch {
+            database.withTransaction {
+                val all = dao.allItems()
+                suspend fun restoreBatch(id: Long, rootDeletedAt: Long) {
+                    val current = dao.byId(id) ?: return
+                    if (!belongsToTrashBatch(current.deletedAt, rootDeletedAt)) return
+                    dao.update(current.copy(deletedAt = null, updatedAt = System.currentTimeMillis()))
+                    all.filter { it.parentId == id && belongsToTrashBatch(it.deletedAt, rootDeletedAt) }
+                        .forEach { restoreBatch(it.id, rootDeletedAt) }
+                }
+                items.distinctBy { it.id }.forEach { selected ->
+                    val deletedAt = dao.byId(selected.id)?.deletedAt ?: selected.deletedAt ?: return@forEach
+                    restoreBatch(selected.id, deletedAt)
+                }
+            }
+        }
     }
     fun bulkTag(items: List<ScribeItem>, tag: String) {
         val clean = tag.trim().replace(";", " ")
@@ -197,7 +224,17 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun bulkDeleteForever(items: List<ScribeItem>) {
-        viewModelScope.launch { items.distinctBy { it.id }.forEach { item -> deleteForever(item) } }
+        viewModelScope.launch {
+            database.withTransaction {
+                val all = dao.allItems()
+                suspend fun deleteTree(id: Long) {
+                    all.filter { it.parentId == id }.forEach { deleteTree(it.id) }
+                    dao.deleteSnapshotsForItem(id)
+                    dao.deleteId(id)
+                }
+                items.distinctBy { it.id }.forEach { deleteTree(it.id) }
+            }
+        }
     }
 
     companion object {
