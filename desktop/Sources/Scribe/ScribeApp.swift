@@ -23,6 +23,7 @@ struct ScribeRootView: View {
     @State private var query = ""
     @State private var searchKind = "All"
     @State private var searchTag = ""
+    @State private var selectedTag: String?
     @State private var showImporter = false
     @State private var showBackupExporter = false
     @State private var showBackupImporter = false
@@ -51,6 +52,20 @@ struct ScribeRootView: View {
              item.tags.localizedCaseInsensitiveContains(searchTag.trimmingCharacters(in: .whitespacesAndNewlines)))
         }
     }
+    private var tagEntries: [(name: String, count: Int)] {
+        let counts = library.visibleNodes
+            .flatMap { $0.tags.split(whereSeparator: { $0 == ";" || $0 == "," }).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } }
+            .filter { !$0.isEmpty && !$0.hasPrefix("type:") && !$0.hasPrefix("target:") && !$0.hasPrefix("dueAt:") && !$0.hasPrefix("due:") && !$0.hasPrefix("interval:") && !$0.hasPrefix("ease:") && !$0.hasPrefix("reviewedAt:") && !$0.hasPrefix("notificationID:") && !$0.hasPrefix("minutes:") && !$0.hasPrefix("completedAt:") && !$0.hasPrefix("deck:") }
+            .reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+        return counts.map { (name: $0.key, count: $0.value) }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+    private var taggedItems: [ScribeNode] {
+        guard let selectedTag else { return [] }
+        return library.visibleNodes.filter { item in
+            item.tags.split(whereSeparator: { $0 == ";" || $0 == "," })
+                .contains { $0.trimmingCharacters(in: .whitespacesAndNewlines).localizedCaseInsensitiveCompare(selectedTag) == .orderedSame }
+        }.sorted { $0.updatedAt > $1.updatedAt }
+    }
     private var displayed: [ScribeNode] {
         switch section {
         case "Recent": return library.recentlyEdited
@@ -67,6 +82,7 @@ struct ScribeRootView: View {
                 Picker("Section", selection: $section) {
                     Text("Library").tag("Library")
                     Text("Recent").tag("Recent")
+                    Text("Tags").tag("Tags")
                     Text("Bookmarks").tag("Bookmarks")
                     Text("Trash").tag("Trash")
                     Text("Tools").tag("Tools")
@@ -114,6 +130,47 @@ struct ScribeRootView: View {
                                     Text("\(item.kind.capitalized) · \(item.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
+                            }
+                        }
+                    }
+                } else if section == "Tags" {
+                    List {
+                        Section("Browse tags · \(tagEntries.count)") {
+                            ForEach(tagEntries, id: \.name) { entry in
+                                Button {
+                                    selectedTag = entry.name
+                                } label: {
+                                    HStack {
+                                        Label(entry.name, systemImage: "tag")
+                                        Spacer()
+                                        Text("\(entry.count)").foregroundStyle(.secondary)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .listRowBackground(selectedTag == entry.name ? Color.accentColor.opacity(0.12) : Color.clear)
+                            }
+                        }
+                        if let selectedTag {
+                            Section {
+                                HStack {
+                                    Text("Items tagged “\(selectedTag)”").font(.headline)
+                                    Spacer()
+                                    Button("Clear") { self.selectedTag = nil }.buttonStyle(.borderless)
+                                }
+                                ForEach(taggedItems) { item in
+                                    Button {
+                                        selectedID = item.id
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Label(item.title, systemImage: symbol(item.kind))
+                                            Text("\(item.kind.capitalized) · \(item.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                if taggedItems.isEmpty { Text("No items use this tag.").foregroundStyle(.secondary) }
                             }
                         }
                     }
