@@ -35,9 +35,18 @@ struct ScribeRootView: View {
     @State private var integrityReport = ""
 
     private var selected: ScribeNode? { selectedID.flatMap(library.node) }
+    private var searchKindValue: String? {
+        switch searchKind {
+        case "All": return nil
+        case "Study question": return "study_question"
+        case "Study session": return "study_session"
+        case "Study reminder": return "study_reminder"
+        default: return searchKind.lowercased()
+        }
+    }
     private var filteredSearchResults: [ScribeNode] {
         library.search(query).filter { item in
-            (searchKind == "All" || item.kind == searchKind.lowercased()) &&
+            (searchKindValue == nil || item.kind == searchKindValue) &&
             (searchTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
              item.tags.localizedCaseInsensitiveContains(searchTag.trimmingCharacters(in: .whitespacesAndNewlines)))
         }
@@ -69,7 +78,7 @@ struct ScribeRootView: View {
                     VStack(spacing: 8) {
                         HStack(spacing: 8) {
                             Picker("Type", selection: $searchKind) {
-                                ForEach(["All", "Course", "Chapter", "Topic", "Page", "Block"], id: \.self) { Text($0).tag($0) }
+                                ForEach(["All", "Course", "Chapter", "Topic", "Page", "Block", "Formula", "Flashcard", "Study question", "Diagram", "Study reminder", "Study session"], id: \.self) { Text($0).tag($0) }
                             }.frame(width: 130)
                             TextField("Filter by tag", text: $searchTag).textFieldStyle(.roundedBorder)
                         }.padding(.horizontal, 10).padding(.top, 8)
