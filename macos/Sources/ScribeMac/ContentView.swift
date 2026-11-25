@@ -378,6 +378,30 @@ struct ScribeMacRoot: View {
             if let item = store.selected {
                 Text(item.kind == "topic" ? "TOPIC NOTEBOOK" : item.kind.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
                 TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
+                if item.kind == "topic" {
+                    let backlinkBlocks = store.items.filter { block in
+                        block.tags.contains("type:crosslink") &&
+                        Int64(block.tags.components(separatedBy: "target:").last?.components(separatedBy: CharacterSet(charactersIn: ";,")).first ?? "") == item.id
+                    }
+                    let backlinkSources = backlinkBlocks.compactMap { block in
+                        store.items.first(where: { $0.id == block.parentId })
+                    }.reduce(into: [ScribeItem]()) { result, source in
+                        if !result.contains(where: { $0.id == source.id }) { result.append(source) }
+                    }
+                    if !backlinkSources.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("LINKED FROM").font(.caption.bold()).foregroundStyle(.secondary)
+                            ForEach(backlinkSources) { source in
+                                Button {
+                                    store.selectedID = source.id
+                                } label: {
+                                    Label(source.title, systemImage: "arrowshape.turn.up.left")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }.buttonStyle(.plain)
+                            }
+                        }.padding(10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
                 let editorWordCount = item.body.split(whereSeparator: { $0.isWhitespace }).count
                 HStack(spacing: 7) {
                     Text("\(editorWordCount) words")

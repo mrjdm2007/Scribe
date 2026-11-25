@@ -793,6 +793,8 @@ private fun TopicNotebook(
 private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onExport: () -> Unit) {
     val blocks by vm.children(page.id).collectAsState(initial = emptyList())
     val topics by vm.kind("topic").collectAsState(initial = emptyList())
+    var allItems by remember(page.id) { mutableStateOf(emptyList<ScribeItem>()) }
+    LaunchedEffect(page.id) { allItems = vm.all() }
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
     var showLinkPicker by remember { mutableStateOf(false) }
@@ -808,6 +810,24 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
             }
             IconButton(onClick = onHistory) { Icon(Icons.Rounded.History, null, tint = Muted) }
             IconButton(onClick = onExport) { Icon(Icons.Rounded.PictureAsPdf, null, tint = Muted) }
+        }
+        val backlinkBlocks = allItems.filter { block ->
+            block.tags.contains("type:crosslink") &&
+                block.tags.substringAfter("target:", "").substringBefore(";").substringBefore(",").toLongOrNull() == page.id
+        }
+        val backlinkSources = backlinkBlocks.mapNotNull { block -> allItems.firstOrNull { it.id == block.parentId } }.distinctBy { it.id }
+        if (backlinkSources.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                Text("LINKED FROM", color = Muted, fontSize = 10.sp, letterSpacing = 1.4.sp)
+                Spacer(Modifier.height(5.dp))
+                backlinkSources.forEach { source ->
+                    TextButton(onClick = { onOpenTopic(source) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)) {
+                        Icon(Icons.Rounded.CallReceived, null, tint = Gold, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(source.title, maxLines = 1)
+                    }
+                }
+            }
         }
         OutlinedTextField(value = pageTitle, onValueChange = { pageTitle = it; vm.update(page, title = it) },
             modifier = Modifier.fillMaxWidth(), textStyle = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
