@@ -114,7 +114,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         if let data = try? Data(contentsOf: historyURL), let archives = try? JSONDecoder().decode([ScribeHistoryArchive].self, from: data) {
             snapshots = Dictionary(uniqueKeysWithValues: archives.map { ($0.itemId, $0.entries) })
         }
-        if ScribeCloudSessionVault.load() != nil { scheduleCloudSync() }
+        if ScribeCloudSessionVault.load() != nil {
+            scheduleCloudSync()
+            Task { @MainActor [weak self] in
+                _ = try? await self?.syncSavedCloudSession()
+            }
+        }
     }
     public var selected: ScribeItem? { items.first { $0.id == selectedID } }
     public var visibleItems: [ScribeItem] {
