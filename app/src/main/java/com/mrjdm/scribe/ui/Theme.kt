@@ -10,6 +10,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -70,29 +71,37 @@ fun ScribeTheme(content: @Composable () -> Unit) {
 fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier =
     this
         .shadow(14.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.30f))
+        .shadow(18.dp, shape, clip = false, ambientColor = Color(0xFFD9BD91).copy(alpha = 0.025f), spotColor = Color(0xFFD9BD91).copy(alpha = 0.035f))
+        .clip(shape)
         .background(
             Brush.verticalGradient(
                 listOf(
-                    Color(0xFF343840).copy(alpha = 0.94f),
-                    Color(0xFF22262D).copy(alpha = 0.97f),
+                    Color(0xFF373B43).copy(alpha = 0.95f),
+                    Color(0xFF242830).copy(alpha = 0.975f),
                     Color(0xFF191C22).copy(alpha = 0.99f)
                 )
             ),
             shape
         )
+        .background(
+            Brush.radialGradient(
+                listOf(Color(0xFFD9BD91).copy(alpha = 0.055f), Color.Transparent)
+            ),
+            shape
+        )
         .drawWithContent {
+            drawContent()
             drawRect(
                 Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.105f), Color.White.copy(alpha = 0.018f), Color.Transparent),
-                    endY = size.height * 0.48f
+                    listOf(Color.White.copy(alpha = 0.045f), Color.Transparent),
+                    endY = size.height * 0.34f
                 )
             )
-            drawContent()
         }
         .border(
             1.dp,
             Brush.linearGradient(
-                listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.055f), Color(0xFFD9BD91).copy(alpha = 0.16f))
+                listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.06f), Color(0xFFD9BD91).copy(alpha = 0.19f))
             ),
             shape
         )
