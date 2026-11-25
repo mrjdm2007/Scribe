@@ -420,7 +420,7 @@ struct ScribeMacRoot: View {
                             Button("S") { applyMarkup("~~", "~~") }
                             Button("Heading") { applyMarkup("## ", "") }
                             Button("List") { applyMarkup("- ", "") }
-                            Button("Code") { applyMarkup("~~~", "~~~") }
+                            Button("Code") { applyMarkup("```\\n", "\\n```") }
                             Button("Math") { applyMarkup("\\(", "\\)") }
                             Button("Quote") { applyMarkup("> ", "") }
                             Button("Link") { applyMarkup("[", "](https://)") }
