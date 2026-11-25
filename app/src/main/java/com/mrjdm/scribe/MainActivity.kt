@@ -548,6 +548,11 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         },
         confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(enabled = !cloudBusy, onClick = {
+                ScribeCloudSession.clear(context)
+                cloudStatus = "Automatic sync disabled."
+            }) { Text("Disable auto sync") }
             TextButton(enabled = !cloudBusy, onClick = {
                 val cleanUrl = cloudUrl.trim().trimEnd('/')
                 context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE).edit()
@@ -561,6 +566,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     cloudBusy = false
                 }
             }) { Text("Sync now", color = Gold) }
+            }
         },
         dismissButton = { TextButton(enabled = !cloudBusy, onClick = { showCloudSync = false }) { Text("Close") } }
     )
