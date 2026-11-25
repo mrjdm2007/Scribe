@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import ScribeCore
 import UniformTypeIdentifiers
+import WebKit
 
 struct ScribeMacRoot: View {
     @EnvironmentObject private var store: ScribeStore
@@ -33,6 +34,7 @@ struct ScribeMacRoot: View {
     @State private var formulaQuery = ""
     @State private var topicSearchQuery = ""
     @State private var topicSearchIndex = 0
+    @State private var showLatexPreview = false
     @State private var editorSelection = NSRange(location: 0, length: 0)
     @FocusState private var searchFocused: Bool
 
@@ -247,9 +249,10 @@ struct ScribeMacRoot: View {
                         List(filteredSearchItems, selection: $store.selectedID) { item in
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.title)
-                                Text("\(item.kind.capitalized) · \(item.body.prefix(80).isEmpty ? "No content yet" : String(item.body.prefix(80)))")
+                                let bodyPreview = item.body.isEmpty ? "No content yet" : String(item.body.prefix(80))
+                                Text("\(item.kind.capitalized) · \(bodyPreview)")
                                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                let wordCount = item.body.split(whereSeparator: \\.isWhitespace).count
+                                let wordCount = item.body.split(whereSeparator: { $0.isWhitespace }).count
                                 let editedDate = Date(timeIntervalSince1970: Double(item.updatedAt) / 1000)
                                     .formatted(date: .abbreviated, time: .omitted)
                                 Text("\(wordCount) words · Edited \(editedDate)")
@@ -373,6 +376,8 @@ struct ScribeMacRoot: View {
                             Button("Heading") { applyMarkup("## ", "") }
                             Button("List") { applyMarkup("- ", "") }
                             Button("Code") { applyMarkup("~~~", "~~~") }
+                            Button("Math") { applyMarkup("\\(", "\\)") }
+                            Button(showLatexPreview ? "Edit" : "Preview") { showLatexPreview.toggle() }
                         }.buttonStyle(.bordered).controlSize(.small)
                     }
                     Text("Notes use portable Markdown text, preserving line breaks and formatting markers across Android, Mac and window resizing.").font(.caption).foregroundStyle(.secondary)
@@ -415,12 +420,18 @@ struct ScribeMacRoot: View {
                     }
                 } else {
                     if item.kind == "topic" {
-                        MarkdownEditor(
-                            text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item, body: $0) }),
-                            selection: $editorSelection,
-                            searchQuery: topicSearchQuery,
-                            matchIndex: topicSearchIndex
-                        )
+                        Group {
+                            if showLatexPreview {
+                                LatexPreviewView(source: item.body)
+                            } else {
+                                MarkdownEditor(
+                                    text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item, body: $0) }),
+                                    selection: $editorSelection,
+                                    searchQuery: topicSearchQuery,
+                                    matchIndex: topicSearchIndex
+                                )
+                            }
+                        }
                         .frame(minHeight: 340)
                         .padding(8)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -791,4 +802,46 @@ private struct FlashcardDeckManagerSheet: View {
             HStack { Spacer(); Button("Close") { dismiss() } }
         }.padding(22).frame(width: 420)
     }
+}
+
+
+private struct LatexPreviewView: NSViewRepresentable {
+    let source: String
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeNSView(context: Context) -> WKWebView {
+        let view = WKWebView(frame: .zero)
+        view.setValue(false, forKey: "drawsBackground")
+        let html = latexPreviewHTML(source)
+        context.coordinator.lastHTML = html
+        view.loadHTMLString(html, baseURL: URL(string: "https://scribe.local/"))
+        return view
+    }
+    func updateNSView(_ view: WKWebView, context: Context) {
+        let html = latexPreviewHTML(source)
+        guard context.coordinator.lastHTML != html else { return }
+        context.coordinator.lastHTML = html
+        view.loadHTMLString(html, baseURL: URL(string: "https://scribe.local/"))
+    }
+    final class Coordinator { var lastHTML = "" }
+}
+
+private func latexPreviewHTML(_ source: String) -> String {
+    let safe = source
+        .replacingOccurrences(of: "&", with: "&amp;")
+        .replacingOccurrences(of: "<", with: "&lt;")
+        .replacingOccurrences(of: ">", with: "&gt;")
+    return """
+    <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+    :root{color-scheme:light dark}body{margin:0;padding:18px;background:transparent;color:CanvasText;font:15px/1.65 -apple-system,BlinkMacSystemFont,sans-serif}
+    #content{white-space:pre-wrap;overflow-wrap:anywhere}.MathJax{color:inherit!important}
+    mjx-container[display="true"]{max-width:100%;overflow-x:auto;overflow-y:hidden;padding:8px 0}
+    #status{font-size:11px;opacity:.65;margin-top:14px}
+    </style>
+    <script>window.MathJax={tex:{inlineMath:[['\\\\(','\\\\)'],['$','$']],displayMath:[['\\\\[','\\\\]'],['$$','$$']],processEscapes:true,packages:{'[+]':['ams']}},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" onerror="document.getElementById('status').textContent='Math rendering needs an internet connection. Your LaTeX source is unchanged.'"></script>
+    </head><body><div id="content">\(safe)</div><div id="status">Rendering mathematics…</div>
+    <script>window.addEventListener('load',()=>{if(window.MathJax&&MathJax.startup){MathJax.startup.promise.then(()=>{document.getElementById('status').textContent='LaTeX preview';}).catch(()=>{document.getElementById('status').textContent='Some expressions could not be rendered.';});}});</script>
+    </body></html>
+    """
 }

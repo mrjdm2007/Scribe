@@ -40,6 +40,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
@@ -511,6 +514,7 @@ private fun TopicNotebook(
     var searchQuery by rememberSaveable(topic.id) { mutableStateOf("") }
     var showAdd by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
+    var showLatexPreview by rememberSaveable(topic.id) { mutableStateOf(false) }
 
     LaunchedEffect(noteValue.text, topic.id) {
         delay(250)
@@ -589,6 +593,8 @@ private fun TopicNotebook(
             TextButton(onClick = { noteValue = noteValue.wrapSelection("## ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Heading") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("- ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("List") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("`", "`"); vm.update(liveTopic, body = noteValue.text) }) { Text("Code") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("\\(", "\\)"); vm.update(liveTopic, body = noteValue.text) }) { Text("Math") }
+            TextButton(onClick = { showLatexPreview = !showLatexPreview }) { Text(if (showLatexPreview) "Edit" else "Preview") }
         }
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -606,19 +612,21 @@ private fun TopicNotebook(
                     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.045f), Color.Transparent, Color.Black.copy(alpha = 0.07f)))).padding(14.dp)) {
                         Text("YOUR NOTES", color = Gold, fontSize = 10.sp, letterSpacing = 1.5.sp)
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = noteValue,
-                            onValueChange = {
-                                noteValue = it
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 18,
-                            maxLines = 48,
-                            placeholder = { Text("Start typing your notes here…") },
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
-                            colors = fieldColors(),
-                            shape = RoundedCornerShape(12.dp)
-                        )
+                        if (showLatexPreview) {
+                            LatexPreviewWebView(noteValue.text, Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 620.dp))
+                        } else {
+                            OutlinedTextField(
+                                value = noteValue,
+                                onValueChange = { noteValue = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 18,
+                                maxLines = 48,
+                                placeholder = { Text("Start typing notes… Use \\(…\\) inline or \\[ … \\] for display maths.") },
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
+                                colors = fieldColors(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -817,6 +825,51 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
             }
         }
     }
+}
+
+
+@Composable
+private fun LatexPreviewWebView(source: String, modifier: Modifier = Modifier) {
+    val html = remember(source) { latexPreviewHtml(source) }
+    AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = false
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
+                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                webViewClient = WebViewClient()
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                loadDataWithBaseURL("https://scribe.local/", html, "text/html", "UTF-8", null)
+                tag = html
+            }
+        },
+        update = { webView ->
+            if (webView.tag != html) {
+                webView.tag = html
+                webView.loadDataWithBaseURL("https://scribe.local/", html, "text/html", "UTF-8", null)
+            }
+        }
+    )
+}
+
+private fun latexPreviewHtml(source: String): String {
+    val safe = source.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return """
+<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{color-scheme:dark}body{margin:0;padding:16px;background:transparent;color:#ded8ce;font:16px/1.65 -apple-system,BlinkMacSystemFont,sans-serif}
+#content{white-space:pre-wrap;overflow-wrap:anywhere}.MathJax{color:#f0d8ad!important}
+mjx-container[display="true"]{max-width:100%;overflow-x:auto;overflow-y:hidden;padding:8px 0}
+#status{font-size:11px;color:#aaa;margin-top:14px}
+</style>
+<script>window.MathJax={tex:{inlineMath:[['\\\\(','\\\\)'],['$','$']],displayMath:[['\\\\[','\\\\]'],['$$','$$']],processEscapes:true,packages:{'[+]':['ams']}},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" onerror="document.getElementById('status').textContent='Math rendering needs an internet connection. Your LaTeX source is safe and unchanged.'"></script>
+</head><body><div id="content">${safe}</div><div id="status">Rendering mathematics…</div>
+<script>window.addEventListener('load',()=>{if(window.MathJax&&MathJax.startup){MathJax.startup.promise.then(()=>{document.getElementById('status').textContent='LaTeX preview';}).catch(()=>{document.getElementById('status').textContent='Some expressions could not be rendered.';});}});</script>
+</body></html>""".trimIndent()
 }
 
 @Composable
