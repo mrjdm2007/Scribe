@@ -1,39 +1,35 @@
-# Scribe Intelligence setup
+# Scribe Intelligence deployment
 
-Scribe Intelligence is backed by the Supabase Edge Function in `supabase/functions/study-assistant`.
-The Android and macOS clients send only locally retrieved note excerpts for the current question.
-The OpenAI credential stays on the server and is never embedded in either app.
+Scribe Intelligence uses the Supabase project already configured in Scribe Cloud Sync. The Android and macOS clients send the question and locally retrieved note excerpts to this function. The OpenAI credential stays in Supabase Edge Function secrets and is never shipped in either app.
 
 ## One-time setup
 
-1. Configure the same Supabase project URL and public anon key in Scribe Settings on both devices.
-2. Sign in to Scribe Cloud and complete one successful sync. The clients use the encrypted Android session store / macOS Keychain refresh session to authenticate AI requests.
-3. Add the OpenAI API credential as a Supabase Edge Function secret (never commit it):
-   ```sh
-   supabase secrets set OPENAI_API_KEY=YOUR_SECRET_VALUE
-   ```
-4. Deploy the function:
-   ```sh
-   supabase functions deploy study-assistant
-   ```
+1. Configure Supabase Cloud Sync in Scribe and sign in. The assistant requires a valid signed-in Supabase session.
+2. From the repository root, link the Supabase CLI to your project:
+   `supabase link --project-ref YOUR_PROJECT_REF`
+3. Set the server-side OpenAI secret:
+   `supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY`
+4. Optionally select a model enabled for your OpenAI project:
+   `supabase secrets set OPENAI_MODEL=gpt-6-mini`
+   The function defaults to `gpt-6-mini` if this secret is omitted.
+5. Deploy:
+   `supabase functions deploy study-assistant`
 
-Supabase supplies `SUPABASE_URL` and `SUPABASE_ANON_KEY` to deployed Edge Functions. The function validates the bearer token against Supabase Auth and rejects anonymous requests before calling the model.
+The function verifies the bearer token against Supabase Auth before it can call the model. Do not disable JWT verification for this function.
 
 ## Modes
 
-- `notes`: answer from retrieved notebook context
-- `explain`: tutor-style explanation
-- `exam`: exam questions and model answers
-- `quiz`: interactive quiz generation
-- `summary`: concise revision summary
-- `research`: Responses API web search with source citations
+- Notes: answer from matching notebook excerpts and identify when they do not contain the answer.
+- Explain: teach a topic step by step.
+- Exam: generate exam-style questions and model answers.
+- Quiz: conduct an interactive question-at-a-time quiz.
+- Research: use web search and distinguish external sources from notebook evidence.
+- Summary: produce a concise study summary.
 
-The Edge Function uses the OpenAI Responses API and the `web_search` tool only in research mode. See the [OpenAI web search guide](https://developers.openai.com/api/docs/guides/tools-web-search?api-mode=responses).
+## Privacy and limits
 
-## Privacy and cost
-
-- Requests use `store: false`.
-- Note excerpts are sent only when the user submits a question.
-- The server secret is not shipped in the APK or macOS app.
-- Model and web-search usage may incur OpenAI API charges.
-- Configure Supabase Auth rate limits and monitor Edge Function usage before wider distribution.
+- The app retrieves up to 24 relevant note records locally and sends excerpts of at most 12,000 characters per record with the user's request.
+- The function does not request persistent response storage.
+- AI provider usage is billed to the OpenAI account whose key is configured in Supabase.
+- Notes remain in local storage and the user's configured sync provider unless the user asks Scribe Intelligence to use them.
+- Large PDFs or image-only attachments need OCR/text extraction before their contents can be retrieved as note context; a filename alone is not treated as file content.
