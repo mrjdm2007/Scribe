@@ -154,8 +154,8 @@ struct NodeEditorView: View {
     @State private var showAttachmentPicker = false
     @State private var showHistory = false
     private func wrapBody(_ marker: String) {
-        guard !item.body.isEmpty else { item.body = "(marker)text(marker)"; library.update(item); return }
-        item.body = "(marker)(item.body)(marker)"
+        guard !item.body.isEmpty else { item.body = "\\(marker)text\\(marker)"; library.update(item); return }
+        item.body = "\\(marker)\\(item.body)\\(marker)"
         library.update(item)
     }
     private func prefixBody(_ prefix: String) {
