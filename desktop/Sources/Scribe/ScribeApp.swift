@@ -182,8 +182,10 @@ struct OutlineNodeRow: View {
 struct NodeEditorView: View {
     @EnvironmentObject private var library: ScribeLibrary
     @State var item: ScribeNode
+    @Binding var selectedID: UUID?
     @State private var showAttachmentPicker = false
     @State private var showHistory = false
+    @State private var showTopicLinker = false
     private func wrapBody(_ marker: String) {
         guard !item.body.isEmpty else { item.body = "\(marker)text\(marker)"; library.update(item); return }
         item.body = "\(marker)\(item.body)\(marker)"
@@ -201,6 +203,10 @@ struct NodeEditorView: View {
     }
     private var isMediaAttachment: Bool {
         item.kind == "block" && !item.uri.isEmpty && (blockType == "image" || blockType == "pdf")
+    }
+    private var linkedTopicID: UUID? {
+        guard let value = item.tags.split(separator: ";").first(where: { $0.hasPrefix("target:") }) else { return nil }
+        return UUID(uuidString: String(value.dropFirst(7)))
     }
     private var childKind: String? {
         switch item.kind { case "course": return "chapter"; case "chapter": return "topic"; case "topic": return "page"; case "page": return "block"; default: return nil }
@@ -250,6 +256,10 @@ struct NodeEditorView: View {
                             RichBlockPreview(bodyText: item.body, type: item.kind == "block" ? blockType : item.kind)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(12).background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+                            if blockType == "crosslink", let targetID = linkedTopicID, let target = library.node(targetID) {
+                                Button("Open linked topic: \\(target.title)") { selectedID = targetID }
+                                    .buttonStyle(.link)
+                            }
                         }
                     }
                 } else {
@@ -268,6 +278,7 @@ struct NodeEditorView: View {
                     Button { _ = library.add(kind: childKind, parent: item.id) } label: { Label("Add \(childKind.capitalized)", systemImage: "plus") }.buttonStyle(.borderedProminent)
                 }
                 if item.kind == "page" {
+                    Button { showTopicLinker = true } label: { Label("Link topic", systemImage: "link") }
                     Button { showAttachmentPicker = true } label: { Label("Attach photo or PDF", systemImage: "paperclip") }
                 }
                 Spacer()
@@ -287,6 +298,21 @@ struct NodeEditorView: View {
         .padding(28)
         .fileImporter(isPresented: $showAttachmentPicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { do { try library.importAttachment(from: url, parent: item.id) } catch { library.lastError = error.localizedDescription } } }
+        }
+        .sheet(isPresented: $showTopicLinker) {
+            NavigationStack {
+                List(library.visibleNodes.filter { $0.kind == "topic" }) { topic in
+                    Button {
+                        _ = library.add(kind: "block", parent: item.id, title: topic.title,
+                                        body: "topic-ref:\\(topic.id)", tags: "type:crosslink;target:\\(topic.id)")
+                        showTopicLinker = false
+                    } label: {
+                        Label(topic.title, systemImage: "link")
+                    }
+                }
+                .navigationTitle("Link a topic")
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showTopicLinker = false } } }
+            }.frame(minWidth: 360, minHeight: 320)
         }
         .sheet(isPresented: $showHistory) {
             NavigationStack {
