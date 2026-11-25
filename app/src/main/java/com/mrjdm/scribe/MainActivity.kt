@@ -639,6 +639,7 @@ private fun TopicNotebook(
     val pages = childItems.filter { it.kind == "page" }
     val blocks = childItems.filter { it.kind == "block" }
     val scope = rememberCoroutineScope()
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 520
     var noteValue by rememberSaveable(topic.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(topic.body)) }
     var searchQuery by rememberSaveable(topic.id) { mutableStateOf("") }
     var showAdd by remember { mutableStateOf(false) }
@@ -793,12 +794,12 @@ private fun TopicNotebook(
                         Text("YOUR NOTES", color = Gold, fontSize = 10.sp, letterSpacing = 1.5.sp)
                         Spacer(Modifier.height(8.dp))
                         if (showLatexPreview) {
-                            LatexPreviewWebView(noteValue.text, Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 620.dp))
+                            LatexPreviewWebView(noteValue.text, Modifier.fillMaxWidth().heightIn(min = if (compactHeight) 180.dp else 280.dp, max = if (compactHeight) 380.dp else 620.dp))
                         } else {
                             RichMarkdownEditor(value = noteValue.text, onValueChange = { edited, start, length ->
                                 val safeStart = start.coerceIn(0, edited.length)
                                 noteValue = TextFieldValue(edited, TextRange(safeStart, (safeStart + length).coerceIn(safeStart, edited.length)))
-                            }, modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp, max = 680.dp))
+                            }, modifier = Modifier.fillMaxWidth().heightIn(min = if (compactHeight) 220.dp else 360.dp, max = if (compactHeight) 460.dp else 680.dp))
                         }
                     }
                 }
