@@ -19,13 +19,13 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Quick capture notes routed into a visible Quick Notes course and Inbox chapter.
 - Formula source pad with symbol keyboard and saved formula collection.
 - Engineering unit conversions for length, electrical quantities, frequency, power, energy, time, speed, charge and inductance.
-- Local graph plotting for a small built-in set of functions, with the graph expression saved into the library.
+- Local graph plotting for linear and built-in trigonometric, polynomial, reciprocal and exponential functions; graph expressions are saved into the library.
 - Engineering formula shelf with common electronics equations and a personal saved collection.
 - Circuit component sketch starter with reference/value notes and a simple schematic preview.
-- Editable scientific tables with adjustable rows and columns, saved as structured tab-separated blocks.
+- Editable scientific tables with adjustable rows and columns on Android and macOS, saved as structured tab-separated blocks.
 - Concept-map outline starter.
 - Text-first engineering tools for equations, formula collections, circuit concepts, graphing, scientific tables and unit conversion.
-- On-device OCR for rendered PDF pages, with extracted-text filtering on the current page.
+- Full-document PDF text extraction on macOS (using embedded text where available and on-device Vision OCR for scanned pages); extracted text is saved with the attachment for global search. PDF highlights and note annotations can be embedded in the PDF on macOS.
 - Markdown-style bold, italic, underline, strikethrough, heading and list controls in the block editor.
 - Soft-delete trash, restore, permanent delete, ordered blocks, duplicate/move actions and version snapshots.
 - JSON backup and restore, including app-local attachment bytes and saved note-version history.
@@ -52,4 +52,4 @@ gradle :app:assembleDebug
 GitHub Actions publishes a smaller `scribe-release-apk` artifact. It is signed with the temporary debug signing key for testing; create a private release keystore before publishing a Play Store build.
 
 ## Known limitations
-The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF OCR currently works page by page; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting supports a small, explicitly listed set of functions rather than arbitrary expressions. The circuit tool is a component sketch starter, not a full schematic editor or SPICE simulator. Persistent PDF annotations, full-document indexed OCR, arbitrary-expression graphing, a full schematic editor/SPICE simulator, advanced stylus pressure/eraser support, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. The focus timer runs only while the app is open; it does not yet provide background countdown notifications. Audio and video remain out of scope.
+The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF annotations and full-document text extraction are currently available in the macOS app; equivalent annotation controls are not yet available on Android. OCR text becomes searchable after extraction, but OCR indexing is not automatic. Graph plotting supports a defined set of functions rather than arbitrary expressions. The circuit tool remains a schematic starter, not a full drag-and-drop CAD editor or SPICE simulator. Full rich-text rendering parity, live Android–Mac sync, actionable notification parity, background focus countdown notifications, automatic scheduled/cloud backups, advanced stylus pressure/eraser support, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
