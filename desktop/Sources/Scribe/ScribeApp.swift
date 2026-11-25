@@ -264,6 +264,20 @@ struct DesktopToolsView: View {
     @State private var tableColumns = "3"
     @State private var graphRange = 6.28
     private let units: [String: Double] = ["m":1,"cm":0.01,"mm":0.001,"km":1000,"V":1,"mV":0.001,"kV":1000,"A":1,"mA":0.001,"µA":0.000001,"Hz":1,"kHz":1000,"MHz":1_000_000,"GHz":1_000_000_000,"W":1,"mW":0.001,"kW":1000,"s":1,"ms":0.001,"min":60,"h":3600,"Ω":1,"kΩ":1000,"MΩ":1_000_000,"F":1,"µF":0.000001,"nF":0.000000001,"pF":0.000000000001,"J":1,"kJ":1000,"Wh":3600,"kWh":3600000,"m/s":1,"km/h":1.0/3.6,"C":1,"mC":0.001,"µC":0.000001,"H":1,"mH":0.001,"µH":0.000001]
+    private let unitDimensions: [String: String] = [
+        "m":"length","cm":"length","mm":"length","km":"length",
+        "V":"voltage","mV":"voltage","kV":"voltage",
+        "A":"current","mA":"current","µA":"current",
+        "Hz":"frequency","kHz":"frequency","MHz":"frequency","GHz":"frequency",
+        "W":"power","mW":"power","kW":"power",
+        "s":"time","ms":"time","min":"time","h":"time",
+        "Ω":"resistance","kΩ":"resistance","MΩ":"resistance",
+        "F":"capacitance","µF":"capacitance","nF":"capacitance","pF":"capacitance",
+        "J":"energy","kJ":"energy","Wh":"energy","kWh":"energy",
+        "m/s":"speed","km/h":"speed",
+        "C":"charge","mC":"charge","µC":"charge",
+        "H":"inductance","mH":"inductance","µH":"inductance"
+    ]
     private var graphValues: [CGFloat] {
         (0...160).map { i in
             let x = -graphRange + (2 * graphRange * Double(i) / 160)
@@ -296,8 +310,11 @@ struct DesktopToolsView: View {
                         TextField("Value", text: $value)
                         Picker("From", selection: $from) { ForEach(units.keys.sorted(), id: \.self) { Text($0).tag($0) } }
                         Picker("To", selection: $to) { ForEach(units.keys.sorted(), id: \.self) { Text($0).tag($0) } }
-                        if let n = Double(value), let a = units[from], let b = units[to] {
+                        if let n = Double(value), let a = units[from], let b = units[to],
+                           unitDimensions[from] == unitDimensions[to] {
                             Text("\(n * a / b, format: .number.precision(.significantDigits(1...8))) \(to)").font(.title2)
+                        } else {
+                            Text("Choose units from the same physical quantity.").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 } else if tool == "Formulas" {
