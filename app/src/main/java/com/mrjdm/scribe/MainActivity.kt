@@ -271,6 +271,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                         }
                         Spacer(Modifier.height(12.dp))
                         if (current.kind == "topic") {
+                            TopicWordGoalCard(current, children, vm)
+                            Spacer(Modifier.height(12.dp))
                             Text("PAGES", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(10.dp))
                         } else {
@@ -411,6 +413,58 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 }
 
 @Composable
+@Composable
+private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: ScribeViewModel) {
+    val scope = rememberCoroutineScope()
+    var allItems by remember(topic.id) { mutableStateOf(emptyList<ScribeItem>()) }
+    var goalDraft by remember(topic.id) {
+        mutableStateOf(topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
+            ?.substringAfter(':') ?: "500")
+    }
+    LaunchedEffect(topic.id, pages.map { it.id }) {
+        allItems = vm.all()
+    }
+    val pageIDs = pages.map { it.id }.toSet()
+    val words = allItems.asSequence()
+        .filter { it.parentId in pageIDs && it.uri.isBlank() && !it.tags.contains("type:image") && !it.tags.contains("type:pdf") }
+        .sumOf { it.body.trim().split(Regex("\\s+")).count { word -> word.isNotBlank() } }
+    val goal = topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
+        ?.substringAfter(':')?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1C20)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("TOPIC WORD GOAL", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+                    Text(if (goal > 0) "$words / $goal words" else "$words words", color = Gold, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedTextField(goalDraft, { goalDraft = it.filter(Char::isDigit).take(6) },
+                    modifier = Modifier.width(105.dp), singleLine = true, label = { Text("Target") }, colors = fieldColors())
+                TextButton(onClick = {
+                    val target = goalDraft.toIntOrNull()?.coerceIn(0, 100_000) ?: 0
+                    val tags = topic.tags.split(';', ',').map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
+                    vm.update(topic, tags = (tags + if (target > 0) listOf("wordGoal:$target") else emptyList()).joinToString(";"))
+                    goalDraft = if (target > 0) target.toString() else "500"
+                }) { Text("Save", color = Gold) }
+            }
+            if (goal > 0) {
+                LinearProgressIndicator(
+                    progress = { (words.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(), color = Gold, trackColor = Color(0xFF38352F)
+                )
+                Text(if (words >= goal) "Word goal completed" else "${goal - words} words remaining",
+                    color = Muted, fontSize = 11.sp)
+                TextButton(onClick = {
+                    val tags = topic.tags.split(';', ',').map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
+                    vm.update(topic, tags = tags.joinToString(";"))
+                    goalDraft = "500"
+                }) { Text("Disable goal", color = Muted, fontSize = 11.sp) }
+            } else {
+                Text("Track writing progress across every page in this topic.", color = Muted, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
 private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onExport: () -> Unit) {
     val blocks by vm.children(page.id).collectAsState(initial = emptyList())
     val topics by vm.kind("topic").collectAsState(initial = emptyList())
