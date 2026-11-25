@@ -15,7 +15,7 @@ struct DesktopStudyView: View {
     private var dueCards: [ScribeNode] {
         library.visibleNodes.filter { node in
             guard node.kind == "flashcard" else { return false }
-            let due = reviewValue("due", in: node.tags).flatMap(Double.init).map(Date.init(timeIntervalSince1970:)) ?? .distantPast
+            let due = reviewValue("due", in: node.tags).flatMap(Double.init).map { Date(timeIntervalSince1970: $0) } ?? .distantPast
             return due <= .now
         }.sorted { $0.createdAt < $1.createdAt }
     }
@@ -166,6 +166,7 @@ struct DesktopStudyView: View {
 }
 
 private func reviewValue(_ key: String, in tags: String) -> String? {
-    tags.split(separator: ";").first(where: { $0.hasPrefix("review\(key.capitalized)=") })
-        .map { String($0.split(separator: "=", maxSplits: 1).last ?? "") }
+    let prefix = "review\\(key.capitalized)="
+    return tags.split(separator: ";").first(where: { $0.hasPrefix(prefix) })
+        .map { String($0.dropFirst(prefix.count)) }
 }
