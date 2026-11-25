@@ -108,9 +108,6 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     }
     var navigationReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        val cloudPrefs = context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE)
-        cloudUrl = cloudPrefs.getString("url", ScribeCloudConfig.SUPABASE_URL).orEmpty()
-        cloudKey = cloudPrefs.getString("anon_key", ScribeCloudConfig.SUPABASE_ANON_KEY).orEmpty()
         val restoredIds = savedStackIds.split(",").mapNotNull { it.toLongOrNull() }
         if (restoredIds.isNotEmpty()) stack = restoredIds.mapNotNull { vm.get(it) }
         val storedRecent = context.getSharedPreferences("scribe_navigation", Context.MODE_PRIVATE)
@@ -143,6 +140,11 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var cloudStatus by remember { mutableStateOf("") }
     var cloudBusy by remember { mutableStateOf(false) }
     var trashSelectedIds by remember { mutableStateOf(setOf<Long>()) }
+    LaunchedEffect(Unit) {
+        val cloudPrefs = context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE)
+        cloudUrl = cloudPrefs.getString("url", ScribeCloudConfig.SUPABASE_URL).orEmpty()
+        cloudKey = cloudPrefs.getString("anon_key", ScribeCloudConfig.SUPABASE_ANON_KEY).orEmpty()
+    }
     var integrityReport by remember { mutableStateOf<String?>(null) }
     val current = stack.lastOrNull()
     val children by vm.children(current?.id).collectAsState(initial = emptyList())

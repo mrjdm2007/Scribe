@@ -729,7 +729,7 @@ struct ScribeMacRoot: View {
             } else {
                 HStack {
                     Button(trashSelectedIDs.count == deleted.count ? "Clear selection" : "Select all") {
-                        trashSelectedIDs = trashSelectedIDs.count == deleted.count ? [] : Set(deleted.map(\\.id))
+                        trashSelectedIDs = trashSelectedIDs.count == deleted.count ? [] : Set(deleted.map { $0.id })
                     }
                     Text("\\(trashSelectedIDs.count) selected").font(.caption).foregroundStyle(.secondary)
                     Spacer()
