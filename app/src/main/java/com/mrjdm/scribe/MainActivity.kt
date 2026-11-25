@@ -421,6 +421,10 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
         mutableStateOf(topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
             ?.substringAfter(':') ?: "500")
     }
+    var savedGoal by remember(topic.id) {
+        mutableIntStateOf(topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
+            ?.substringAfter(':')?.toIntOrNull()?.coerceAtLeast(0) ?: 0)
+    }
     LaunchedEffect(topic.id, pages.map { it.id }) {
         allItems = vm.all()
     }
@@ -428,8 +432,7 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
     val words = allItems.asSequence()
         .filter { it.parentId != null && it.parentId in pageIDs && it.uri.isBlank() && !it.tags.contains("type:image") && !it.tags.contains("type:pdf") }
         .sumOf { it.body.trim().split(Regex("\\s+")).count { word -> word.isNotBlank() } }
-    val goal = topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
-        ?.substringAfter(':')?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+    val goal = savedGoal
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1C20)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -443,6 +446,7 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
                     val target = goalDraft.toIntOrNull()?.coerceIn(0, 100_000) ?: 0
                     val tags = topic.tags.split(';', ',').map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
                     vm.update(topic, tags = (tags + if (target > 0) listOf("wordGoal:$target") else emptyList()).joinToString(";"))
+                    savedGoal = target
                     goalDraft = if (target > 0) target.toString() else "500"
                 }) { Text("Save", color = Gold) }
             }
@@ -456,6 +460,7 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
                 TextButton(onClick = {
                     val tags = topic.tags.split(';', ',').map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
                     vm.update(topic, tags = tags.joinToString(";"))
+                    savedGoal = 0
                     goalDraft = "500"
                 }) { Text("Disable goal", color = Muted, fontSize = 11.sp) }
             } else {
