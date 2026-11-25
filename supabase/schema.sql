@@ -49,6 +49,12 @@ create policy "Users can read their own Scribe tombstones"
 drop policy if exists "Users can insert their own Scribe tombstones" on public.scribe_cloud_tombstones;
 create policy "Users can insert their own Scribe tombstones"
     on public.scribe_cloud_tombstones for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own Scribe tombstones" on public.scribe_cloud_tombstones;
+create policy "Users can update their own Scribe tombstones"
+    on public.scribe_cloud_tombstones for update
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
 drop policy if exists "Users can delete their own Scribe tombstones" on public.scribe_cloud_tombstones;
 create policy "Users can delete their own Scribe tombstones"
     on public.scribe_cloud_tombstones for delete using (auth.uid() = user_id);
