@@ -44,6 +44,7 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
     val next = due.firstOrNull()
     var revealed by remember(next?.id) { mutableStateOf(false) }
     var create by remember { mutableStateOf(false) }
+    var editingCard by remember { mutableStateOf<ScribeItem?>(null) }
     val upcoming = visibleCards.count { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) > now }
     val todayStart = Calendar.getInstance().apply {
         timeInMillis = now
@@ -74,7 +75,10 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
             Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FlashPanel)) {
                 Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(if (revealed) "ANSWER" else "QUESTION", color = FlashGold, fontSize = 10.sp, letterSpacing = 1.4.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (revealed) "ANSWER" else "QUESTION", color = FlashGold, fontSize = 10.sp, letterSpacing = 1.4.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { editingCard = next }) { Text("Edit") }
+                        }
                         Text(next.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                         if (revealed) {
                             HorizontalDivider(color = Color(0xFF3B3D41))
@@ -113,6 +117,7 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
                             Text(item.title, fontSize = 12.sp)
                             Text("Due " + SimpleDateFormat("dd MMM · HH:mm", Locale.getDefault()).format(Date(flashMeta(item.tags, "dueAt", "0").toLongOrNull() ?: now)), color = FlashMuted, fontSize = 10.sp)
                         }
+                        TextButton(onClick = { editingCard = item }) { Text("Edit") }
                         IconButton(onClick = { vm.removeTree(item) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = FlashMuted) }
                     }
                 }
@@ -142,6 +147,28 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
                 }) { Text("Save card", color = FlashGold) }
             },
             dismissButton = { TextButton(onClick = { create = false }) { Text("Cancel") } },
+            containerColor = Color(0xFF202125)
+        )
+    }
+    editingCard?.let { card ->
+        var front by remember(card.id) { mutableStateOf(card.title) }
+        var back by remember(card.id) { mutableStateOf(card.body) }
+        var deck by remember(card.id) { mutableStateOf(flashMeta(card.tags, "deck", flashMeta(card.tags, "subject", "General"))) }
+        AlertDialog(
+            onDismissRequest = { editingCard = null },
+            title = { Text("Edit flashcard") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(front, { front = it }, label = { Text("Question / front") }, minLines = 2)
+                OutlinedTextField(back, { back = it }, label = { Text("Answer / back") }, minLines = 3)
+                OutlinedTextField(deck, { deck = it }, label = { Text("Deck / subject") }, singleLine = true)
+            } },
+            confirmButton = { TextButton(enabled = front.isNotBlank() && back.isNotBlank(), onClick = {
+                val safeDeck = deck.trim().ifBlank { "General" }.replace(";", " ")
+                val retained = card.tags.split(";").filterNot { it.startsWith("deck:") || it.startsWith("subject:") }
+                vm.update(card, title = front.trim(), body = back.trim(), tags = (retained + "deck:$safeDeck").joinToString(";"))
+                editingCard = null
+            }) { Text("Save changes", color = FlashGold) } },
+            dismissButton = { TextButton(onClick = { editingCard = null }) { Text("Cancel") } },
             containerColor = Color(0xFF202125)
         )
     }

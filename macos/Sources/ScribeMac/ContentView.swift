@@ -14,6 +14,7 @@ struct ScribeMacRoot: View {
     @State private var showingIntegrityReport = false
     @State private var historyItem: ScribeItem?
     @State private var showingFlashcardComposer = false
+    @State private var editingFlashcard: ScribeItem?
     @State private var flashcardQuestion = ""
     @State private var flashcardAnswer = ""
     @State private var flashcardDeck = "General"
@@ -108,6 +109,9 @@ struct ScribeMacRoot: View {
                     flashcardQuestion = ""; flashcardAnswer = ""; flashcardDeck = "General"; showingFlashcardComposer = false
                 }.buttonStyle(.borderedProminent).tint(gold) }
             }.padding(22).frame(width: 420, height: 300)
+        }
+        .sheet(item: $editingFlashcard) { card in
+            FlashcardEditSheet(card: card) { title, body, tags in store.update(card, title: title, body: body, tags: tags) }
         }
         .sheet(isPresented: $showingTrash) { trashSheet }
         .sheet(item: $historyItem) { item in historySheet(item) }
@@ -372,7 +376,7 @@ struct ScribeMacRoot: View {
                 }.frame(maxWidth: 180)
             }
             if let card = dueCards.first {
-                VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
+                VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }; Button("Edit flashcard") { editingFlashcard = card }.buttonStyle(.bordered)
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
                 }.padding(30).background(panel,in:RoundedRectangle(cornerRadius:20))
             } else if cards.isEmpty { VStack(spacing: 10) { Image(systemName: "rectangle.stack").font(.system(size: 34)); Text("No flashcards yet").font(.headline); Text("Create flashcards in your study notes and they will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 180) }
@@ -581,4 +585,39 @@ struct BackupDocument: FileDocument {
     init(data:Data) { self.data=data }
     init(configuration:ReadConfiguration) throws { data=configuration.file.regularFileContents ?? Data("[]".utf8) }
     func fileWrapper(configuration:WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents:data) }
+}
+
+
+private struct FlashcardEditSheet: View {
+    let card: ScribeItem
+    let onSave: (String, String, String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var question: String
+    @State private var answer: String
+    @State private var deck: String
+
+    init(card: ScribeItem, onSave: @escaping (String, String, String) -> Void) {
+        self.card = card
+        self.onSave = onSave
+        _question = State(initialValue: card.title)
+        _answer = State(initialValue: card.body)
+        let parts = card.tags.split(separator: ";")
+        let tag = parts.first(where: { $0.hasPrefix("deck:") }) ?? parts.first(where: { $0.hasPrefix("subject:") })
+        _deck = State(initialValue: tag.map { String($0.dropFirst(6)) } ?? "General")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Edit flashcard").font(.title2.bold())
+            TextField("Question / front", text: $question).textFieldStyle(.roundedBorder)
+            TextEditor(text: $answer).frame(minHeight: 120)
+            TextField("Deck / subject", text: $deck).textFieldStyle(.roundedBorder)
+            HStack { Spacer(); Button("Cancel") { dismiss() }; Button("Save changes") {
+                let safeDeck = deck.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ";", with: " ")
+                let retained = card.tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("deck:") && !$0.hasPrefix("subject:") }
+                onSave(question.trimmingCharacters(in: .whitespacesAndNewlines), answer, (retained + ["deck:" + (safeDeck.isEmpty ? "General" : safeDeck)]).joined(separator: ";"))
+                dismiss()
+            }.disabled(question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).buttonStyle(.borderedProminent) }
+        }.padding(22).frame(width: 440, height: 340)
+    }
 }
