@@ -87,6 +87,7 @@ struct ScribeRootView: View {
                     Text("Trash").tag("Trash")
                     Text("Tools").tag("Tools")
                     Text("Study").tag("Study")
+                    Text("Ask Notes").tag("Ask Notes")
                     Text("Settings").tag("Settings")
                 }
                 .pickerStyle(.segmented).padding(12)
@@ -232,6 +233,8 @@ struct ScribeRootView: View {
                 DesktopWorkbenchView()
             } else if section == "Study" {
                 DesktopStudyView()
+            } else if section == "Ask Notes" {
+                LocalNotesAssistantView()
             } else if section == "Settings" {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Your Scribe workspace").font(.largeTitle.weight(.semibold))
