@@ -24,8 +24,8 @@ internal class ScribeSupabaseSync(
     suspend fun sync(url: String, anonKey: String, email: String, password: String = "", refreshToken: String? = null): String =
         withContext(Dispatchers.IO) {
             require(url.startsWith("https://")) { "Enter a valid HTTPS Supabase project URL." }
-            require(anonKey.isNotBlank() && email.isNotBlank() && password.isNotBlank()) {
-                "Enter the Supabase anon key, email and password."
+            require(anonKey.isNotBlank() && (!refreshToken.isNullOrBlank() || (email.isNotBlank() && password.isNotBlank()))) {
+                "Enter the Supabase anon key and sign in with your account."
             }
             val root = url.trimEnd('/')
             fun request(path: String, method: String, body: String? = null, token: String? = null,
