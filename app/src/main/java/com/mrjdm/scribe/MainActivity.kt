@@ -1199,6 +1199,7 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit ${item.kind}") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             OutlinedTextField(title, { title = it }, label = { Text("Title") }, colors = fieldColors())
+            var preview by remember(item.id) { mutableStateOf(false) }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("**", "**") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("B", fontWeight = FontWeight.Bold) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("*", "*") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("I", fontStyle = FontStyle.Italic) }
@@ -1206,11 +1207,18 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~", "~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("S", textDecoration = TextDecoration.LineThrough) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("## ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("H2") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("- ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("List") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("1. ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("1.List") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("- [ ] ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Task") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("> ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Quote") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("[", "](https://)") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Link") }
-                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~~\\n", "\\n~~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Code block") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~~\\n", "\\n~~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Code") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("| ", " |  |") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Table") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("\\\\(", "\\\\)") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Math") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("$\\n", "\\n$") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Display") }
+                TextButton(onClick = { preview = !preview }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text(if (preview) "Edit" else "Preview") }
             }
-            OutlinedTextField(bodyValue, { bodyValue = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
+            if (preview) LatexPreviewWebView(bodyValue.text, Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 420.dp))
+            else OutlinedTextField(bodyValue, { bodyValue = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags") }, colors = fieldColors())
         }
     }, confirmButton = { TextButton(onClick = { onSave(title, bodyValue.text, tags) }) { Text("Save", color = Gold) } },
