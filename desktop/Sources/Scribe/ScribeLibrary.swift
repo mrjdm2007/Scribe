@@ -352,7 +352,7 @@ final class ScribeLibrary: ObservableObject {
                 let name = URL(fileURLWithPath: originalURI).lastPathComponent
                 let ext = URL(fileURLWithPath: name).pathExtension
                 let type = UTType(filenameExtension: ext)
-                let declaredType = tags.split(separator: ";").first(where: { $0.hasPrefix("type:") })
+                let declaredType = (row["tags"] as? String ?? "").split(separator: ";").first(where: { $0.hasPrefix("type:") })
                     .map { String($0.dropFirst(5)).components(separatedBy: ",").first ?? "" } ?? ""
                 if type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true ||
                     declaredType == "image" || declaredType == "pdf" {
