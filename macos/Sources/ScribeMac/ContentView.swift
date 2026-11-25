@@ -33,8 +33,20 @@ private struct ScribeGlassPanel: ViewModifier {
                     .padding(.horizontal, cornerRadius * 0.7)
                     .padding(.top, 1)
             }
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(LinearGradient(
+                        colors: [Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.16), .clear, .white.opacity(0.045)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ))
+                    .frame(height: 1)
+                    .padding(.horizontal, cornerRadius * 0.75)
+                    .padding(.bottom, 1)
+                    .allowsHitTesting(false)
+            }
             .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 7)
-            .shadow(color: Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.055), radius: 20, x: 0, y: 4)
+            .shadow(color: Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.075), radius: 22, x: 0, y: 5)
     }
 }
 
