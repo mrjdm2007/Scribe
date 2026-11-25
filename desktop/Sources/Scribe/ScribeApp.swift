@@ -153,6 +153,17 @@ struct NodeEditorView: View {
     @State var item: ScribeNode
     @State private var showAttachmentPicker = false
     @State private var showHistory = false
+    private func wrapBody(_ marker: String) {
+        guard !item.body.isEmpty else { item.body = "(marker)text(marker)"; library.update(item); return }
+        item.body = "(marker)(item.body)(marker)"
+        library.update(item)
+    }
+    private func prefixBody(_ prefix: String) {
+        item.body = item.body.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { prefix + $0 }.joined(separator: "\n")
+        library.update(item)
+    }
+
     private var childKind: String? {
         switch item.kind { case "course": return "chapter"; case "chapter": return "topic"; case "topic": return "page"; case "page": return "block"; default: return nil }
     }
@@ -178,9 +189,29 @@ struct NodeEditorView: View {
             TextField("Title", text: $item.title).font(.largeTitle.weight(.semibold)).textFieldStyle(.plain)
                 .onChange(of: item.title) { _ in library.update(item) }
             if item.kind == "block" || item.kind == "formula" || item.kind == "question" || item.kind == "flashcard" || item.kind == "diagram" {
+                if item.kind == "block" {
+                    HStack(spacing: 8) {
+                        Button("Bold") { wrapBody("**") }
+                        Button("Italic") { wrapBody("*") }
+                        Button("Strike") { wrapBody("~~") }
+                        Button("Heading") { prefixBody("# ") }
+                        Button("Bullet") { prefixBody("- ") }
+                        Button("Quote") { prefixBody("> ") }
+                        Button("Code") { wrapBody("`") }
+                    }.buttonStyle(.bordered).controlSize(.small)
+                }
                 TextEditor(text: $item.body).font(.body).scrollContentBackground(.hidden)
-                    .padding(10).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+                    .padding(10).frame(minHeight: 220)
+                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
                     .onChange(of: item.body) { _ in library.update(item) }
+                if item.kind == "block" && !item.body.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("FORMATTED PREVIEW").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text((try? AttributedString(markdown: item.body)) ?? AttributedString(item.body))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12).background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
             } else {
                 Text("Notebook contents").font(.headline).foregroundStyle(.secondary)
                 List(library.children(of: item.id)) { child in
