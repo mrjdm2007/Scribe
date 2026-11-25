@@ -21,10 +21,9 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Engineering unit conversions for length, electrical quantities, frequency, power, energy, time, speed, charge and inductance.
 - Local graph plotting with a bounded expression evaluator supporting arithmetic, powers, parentheses, x, constants, and common trigonometric/logarithmic functions; graph expressions are saved into the library.
 - Engineering formula shelf with common electronics equations and a personal saved collection.
-- Circuit component sketch starter with reference/value notes and a simple schematic preview.
 - Editable scientific tables with adjustable rows and columns on Android and macOS, saved as structured tab-separated blocks.
 - Concept-map outline starter.
-- Text-first engineering tools for equations, formula collections, circuit concepts, graphing, scientific tables and unit conversion.
+- Text-first engineering tools for equations, formula collections, graphing, scientific tables and unit conversion.
 - Full-document PDF text extraction on macOS (using embedded text where available and on-device Vision OCR for scanned pages); extracted text is saved with the attachment for global search. PDF highlights and note annotations can be embedded in the PDF on macOS.
 - Markdown-style bold, italic, underline, strikethrough, heading and list controls in the block editor.
 - Soft-delete trash, restore, permanent delete, ordered blocks, duplicate/move actions and version snapshots.
@@ -63,7 +62,7 @@ Scribe uses stable cloud IDs to keep Android's Room IDs and macOS's local IDs in
 
 ## Known limitations
 
-- Supabase setup requires the included SQL migration and a Supabase account. Cloud sync is manual, not background/automatic. Attachments up to 8 MB are embedded in record payloads; larger attachments and note-version snapshots are not currently synchronized. Concurrent edits made at nearly the same time can still require manual conflict review.
+- Supabase setup requires the included SQL migration and a Supabase account. Cloud sync is currently manual, not background/automatic. Attachments up to 8 MB are embedded in record payloads; larger attachments are not synchronized. Version history is merged across devices. Simultaneous edits with identical timestamps can still require manual conflict review.
 - Markdown preview supports common Markdown blocks, tables, links, code blocks and math, but its Markdown and MathJax renderers are loaded from CDNs; previewing formatted content and equations requires internet access. Source text remains editable offline.
 - Android PDF annotations are saved as normalized page regions, displayed as overlays, and can be exported into a flattened annotated PDF. They are not editable PDF annotation objects after export. macOS uses PDFKit annotations embedded in the PDF file.
 - The graphing tool uses a bounded expression grammar rather than arbitrary programming-language expressions. The circuit tool remains a schematic starter, not a full CAD editor or SPICE simulator. Audio and video remain out of scope.
