@@ -1,6 +1,8 @@
 package com.mrjdm.scribe
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -33,21 +35,28 @@ private fun flashMeta(tags: String, key: String, fallback: String): String =
 fun FlashcardsScreen(vm: ScribeViewModel) {
     val cards by vm.kind("flashcard").collectAsState(initial = emptyList())
     val now = System.currentTimeMillis()
-    val due = cards.filter { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) <= now }
+    fun deckOf(item: ScribeItem): String = flashMeta(item.tags, "deck", flashMeta(item.tags, "subject", "General")).ifBlank { "General" }
+    val decks = listOf("All decks") + cards.map(::deckOf).distinct().sorted()
+    var selectedDeck by remember { mutableStateOf("All decks") }
+    val visibleCards = cards.filter { selectedDeck == "All decks" || deckOf(it) == selectedDeck }
+    val due = visibleCards.filter { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) <= now }
         .sortedBy { flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L }
     val next = due.firstOrNull()
     var revealed by remember(next?.id) { mutableStateOf(false) }
     var create by remember { mutableStateOf(false) }
-    val upcoming = cards.count { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) > now }
+    val upcoming = visibleCards.count { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) > now }
     val todayStart = Calendar.getInstance().apply {
         timeInMillis = now
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
     }.timeInMillis
-    val reviewedToday = cards.count { (flashMeta(it.tags, "lastReviewedAt", "0").toLongOrNull() ?: 0L) >= todayStart }
+    val reviewedToday = visibleCards.count { (flashMeta(it.tags, "lastReviewedAt", "0").toLongOrNull() ?: 0L) >= todayStart }
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("SPACED REPETITION", color = FlashMuted, fontSize = 10.sp, letterSpacing = 1.4.sp)
         Text("Flashcards", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            decks.forEach { deck -> FilterChip(selected = selectedDeck == deck, onClick = { selectedDeck = deck }, label = { Text(deck) }) }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatPill("DUE NOW", due.size.toString(), Modifier.weight(1f))
             StatPill("UPCOMING", upcoming.toString(), Modifier.weight(1f))
@@ -96,7 +105,7 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
         }
         if (cards.isNotEmpty()) {
             Text("UPCOMING REVIEWS", color = FlashMuted, fontSize = 10.sp, letterSpacing = 1.sp)
-            cards.filter { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) > now }
+            visibleCards.filter { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) > now }
                 .sortedBy { flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L }
                 .take(3).forEach { item ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -113,7 +122,7 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
     if (create) {
         var front by remember { mutableStateOf("") }
         var back by remember { mutableStateOf("") }
-        var subject by remember { mutableStateOf("") }
+        var deck by remember { mutableStateOf("General") }
         AlertDialog(
             onDismissRequest = { create = false },
             title = { Text("New flashcard") },
@@ -121,12 +130,13 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(front, { front = it }, label = { Text("Question / front") }, minLines = 2)
                     OutlinedTextField(back, { back = it }, label = { Text("Answer / back") }, minLines = 3)
-                    OutlinedTextField(subject, { subject = it }, label = { Text("Subject or topic (optional)") }, singleLine = true)
+                    OutlinedTextField(deck, { deck = it }, label = { Text("Deck / subject") }, singleLine = true)
                 }
             },
             confirmButton = {
                 TextButton(enabled = front.isNotBlank() && back.isNotBlank(), onClick = {
-                    val tags = "dueAt:${System.currentTimeMillis()};interval:0;ease:2.5;subject:${subject.trim()}"
+                    val safeDeck = deck.trim().ifBlank { "General" }.replace(";", " ")
+                    val tags = "dueAt:${System.currentTimeMillis()};interval:0;ease:2.5;deck:$safeDeck"
                     vm.add(null, "flashcard", front.trim(), body = back.trim(), tags = tags)
                     create = false
                 }) { Text("Save card", color = FlashGold) }
