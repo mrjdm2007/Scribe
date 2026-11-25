@@ -5,8 +5,8 @@ import ScribeCore
 struct AcademicToolsView: View {
     @EnvironmentObject private var store: ScribeStore
     @State private var section = "Graph"
-    @State private var slope = "1"
-    @State private var intercept = "0"
+    @State private var graphExpression = "sin(x)"
+    @State private var graphRange = "6.28"
     @State private var equationTitle = ""
     @State private var equationText = ""
     @State private var circuitTitle = "Circuit design"
@@ -15,7 +15,12 @@ struct AcademicToolsView: View {
     @State private var tableTitle = "Scientific table"
     @State private var tableCells = Array(repeating: Array(repeating: "", count: 4), count: 4)
     @State private var question = ""
-    @State private var answer = ""
+    @State private var topic = ""
+    @State private var options = ["", "", "", ""]
+    @State private var correctOption = "A"
+    @State private var explanation = ""
+    @State private var practiceAnswered = false
+    @State private var practiceScore = 0
     @State private var practiceIndex = 0
     @State private var revealAnswer = false
     @State private var diagramTitle = "Concept map"
@@ -26,7 +31,19 @@ struct AcademicToolsView: View {
     @State private var reminderStatus = ""
 
     private let sections = ["Graph", "Equations", "Circuit", "Tables", "Questions", "Practice", "Reminders", "Diagrams"]
-    private var questions: [ScribeItem] { store.items.filter { $0.kind == "question" && $0.deletedAt == nil }.sorted { $0.updatedAt > $1.updatedAt } }
+    private var questions: [ScribeItem] { store.items.filter { $0.kind == "study_question" && $0.deletedAt == nil }.sorted { $0.updatedAt > $1.updatedAt } }
+
+    private func parsedQuestion(_ item: ScribeItem) -> (prompt: String, options: [String], correct: String, explanation: String) {
+        let optionsMarker = "\\n---OPTIONS---\\n"
+        let answerMarker = "\\n---CORRECT---\\n"
+        let explanationMarker = "\\n---EXPLANATION---\\n"
+        let optionPart = item.body.components(separatedBy: optionsMarker).dropFirst().joined(separator: optionsMarker)
+        let answerPart = optionPart.components(separatedBy: answerMarker)
+        let optionLines = (answerPart.first ?? "").components(separatedBy: .newlines).filter { !$0.isEmpty }
+        let tail = answerPart.count > 1 ? answerPart[1] : "A"
+        let answerAndExplanation = tail.components(separatedBy: explanationMarker)
+        return (item.body.components(separatedBy: optionsMarker).first ?? item.body, optionLines, answerAndExplanation.first ?? "A", answerAndExplanation.count > 1 ? answerAndExplanation[1] : "")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -59,36 +76,62 @@ struct AcademicToolsView: View {
 
     private var graph: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Linear graph plotter").font(.title2.bold())
-            HStack {
-                TextField("Slope (m)", text: $slope).textFieldStyle(.roundedBorder)
-                TextField("Intercept (c)", text: $intercept).textFieldStyle(.roundedBorder)
-            }.frame(maxWidth: 420)
-            Text("y = mx + c").font(.system(.title3, design: .monospaced))
+            Text("Function graph plotter").font(.title2.bold())
+            TextField("Function · sin(x), cos(x), tan(x), x, x^2, 1/x, exp(x)", text: $graphExpression)
+                .textFieldStyle(.roundedBorder).frame(maxWidth: 520)
+            TextField("X range · 1 to 30", text: $graphRange)
+                .textFieldStyle(.roundedBorder).frame(maxWidth: 220)
+            Text("y = " + graphExpression).font(.system(.title3, design: .monospaced))
             Canvas { context, size in
                 let midX = size.width / 2, midY = size.height / 2
+                var grid = Path()
+                for index in 0...10 {
+                    let x = size.width * CGFloat(index) / 10
+                    let y = size.height * CGFloat(index) / 10
+                    grid.move(to: CGPoint(x: x, y: 0)); grid.addLine(to: CGPoint(x: x, y: size.height))
+                    grid.move(to: CGPoint(x: 0, y: y)); grid.addLine(to: CGPoint(x: size.width, y: y))
+                }
+                context.stroke(grid, with: .color(.secondary.opacity(0.15)), lineWidth: 0.7)
                 var axes = Path()
                 axes.move(to: CGPoint(x: 0, y: midY)); axes.addLine(to: CGPoint(x: size.width, y: midY))
                 axes.move(to: CGPoint(x: midX, y: 0)); axes.addLine(to: CGPoint(x: midX, y: size.height))
-                context.stroke(axes, with: .color(.secondary.opacity(0.7)), lineWidth: 1)
-                guard let m = Double(slope), let c = Double(intercept) else { return }
+                context.stroke(axes, with: .color(.secondary.opacity(0.8)), lineWidth: 1)
+                let limit = min(max(Double(graphRange) ?? 6.28, 1), 30)
                 var plot = Path()
-                for step in 0...100 {
-                    let x = (Double(step) / 100.0 * 10.0) - 5.0
-                    let y = m * x + c
-                    let point = CGPoint(x: Double(step) / 100.0 * size.width,
-                                         y: midY - y * size.height / 12.0)
-                    if step == 0 { plot.move(to: point) } else { plot.addLine(to: point) }
+                var started = false
+                for step in 0...600 {
+                    let x = -limit + 2 * limit * Double(step) / 600
+                    let px = CGFloat(step) / 600 * size.width
+                    if let y = graphValue(x), y.isFinite, abs(y) <= 6 {
+                        let point = CGPoint(x: px, y: midY - CGFloat(y) * size.height / 12)
+                        if started { plot.addLine(to: point) } else { plot.move(to: point); started = true }
+                    } else { started = false }
                 }
-                context.stroke(plot, with: .color(.orange), lineWidth: 2.5)
+                context.stroke(plot, with: .color(.orange), lineWidth: 2.4)
             }
-            .frame(height: 260)
+            .frame(height: 280)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             Button("Save graph to library") {
-                store.create(kind: "block", title: "Graph · y = \(slope)x + \(intercept)",
-                             body: "Linear graph: y = \(slope)x + \(intercept)", tags: "type:graph", switchToLibrary: false)
+                store.create(kind: "block", title: "Graph · y = " + graphExpression,
+                    body: "y = " + graphExpression + "\\nRange: ±" + graphRange + " (radians for trigonometric functions)",
+                    tags: "type:graph", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
+            Text("Supported functions: sin(x), cos(x), tan(x), x, x^2, 1/x and exp(x). Trigonometric functions use radians.")
+                .font(.caption).foregroundStyle(.secondary)
             Spacer()
+        }
+    }
+
+    private func graphValue(_ x: Double) -> Double? {
+        switch graphExpression.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "sin(x)": return sin(x)
+        case "cos(x)": return cos(x)
+        case "tan(x)": return min(max(tan(x), -5), 5)
+        case "x": return x
+        case "x^2": return x * x
+        case "1/x": return abs(x) < 0.0001 ? nil : 1 / x
+        case "exp(x)": return min(max(exp(x), -10), 10)
+        default: return nil
         }
     }
 
@@ -131,19 +174,27 @@ struct AcademicToolsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Scientific table").font(.title2.bold())
             TextField("Table title", text: $tableTitle).textFieldStyle(.roundedBorder).frame(maxWidth: 360)
-            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                ForEach(0..<4, id: \.self) { row in
-                    GridRow {
-                        ForEach(0..<4, id: \.self) { column in
-                            TextField(row == 0 ? "Header" : "—", text: cellBinding(row, column))
-                                .textFieldStyle(.roundedBorder).frame(minWidth: 90)
+            HStack {
+                Button("Add row") { if tableCells.count < 30 { tableCells.append(Array(repeating: "", count: tableCells.first?.count ?? 4)) } }
+                Button("Add column") { if (tableCells.first?.count ?? 0) < 12 { for index in tableCells.indices { tableCells[index].append("") } } }
+                Button("Remove row") { if tableCells.count > 1 { tableCells.removeLast() } }
+                Button("Remove column") { if (tableCells.first?.count ?? 0) > 1 { for index in tableCells.indices { tableCells[index].removeLast() } } }
+            }.buttonStyle(.bordered)
+            ScrollView([.horizontal, .vertical]) {
+                Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                    ForEach(tableCells.indices, id: \\.self) { row in
+                        GridRow {
+                            ForEach(tableCells[row].indices, id: \\.self) { column in
+                                TextField(row == 0 ? "Header" : "—", text: cellBinding(row, column))
+                                    .textFieldStyle(.roundedBorder).frame(minWidth: 105)
+                            }
                         }
                     }
-                }
-            }
+                }.padding(4)
+            }.frame(maxHeight: 360)
             Button("Save table") {
-                let text = tableCells.map { $0.joined(separator: "\t") }.joined(separator: "\n")
-                store.create(kind: "block", title: tableTitle, body: text, tags: "type:table", switchToLibrary: false)
+                let text = tableCells.map { $0.joined(separator: "\\t") }.joined(separator: "\\n")
+                store.create(kind: "block", title: tableTitle, body: text, tags: "type:table;format:tsv", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
             Spacer()
         }
@@ -154,24 +205,43 @@ struct AcademicToolsView: View {
     }
 
     private var questionsEditor: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Question bank").font(.title2.bold())
             TextField("Question", text: $question, axis: .vertical).lineLimit(2...4).textFieldStyle(.roundedBorder)
-            TextEditor(text: $answer).frame(minHeight: 100).padding(6)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-            Button("Add question") {
-                guard !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                store.create(kind: "question", title: question, body: answer, tags: "subject:general", switchToLibrary: false)
-                question = ""; answer = ""
-            }.buttonStyle(.borderedProminent)
-            Text("\(questions.count) saved questions").foregroundStyle(.secondary)
-            List(questions.prefix(12)) { item in
-                VStack(alignment: .leading) {
-                    Text(item.title)
-                    Text(item.body).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            TextField("Topic / subject", text: $topic).textFieldStyle(.roundedBorder)
+            ForEach(options.indices, id: \\.self) { index in
+                TextField("Option \\(Character(UnicodeScalar(65 + index)!))", text: Binding(
+                    get: { options[index] },
+                    set: { options[index] = $0 }
+                )).textFieldStyle(.roundedBorder)
+            }
+            HStack {
+                Text("Correct option")
+                ForEach(["A", "B", "C", "D"], id: \\.self) { value in
+                    Button(value) { correctOption = value }.buttonStyle(.borderedProminent)
+                        .tint(correctOption == value ? .accentColor : .secondary.opacity(0.25))
                 }
             }
-            Spacer()
+            TextEditor(text: $explanation).frame(minHeight: 65).padding(5)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.25)))
+            Button("Add question") {
+                let prompt = question.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !prompt.isEmpty, options.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
+                let body = prompt + "\\n---OPTIONS---\\n" + options.joined(separator: "\\n")
+                    + "\\n---CORRECT---\\n" + correctOption + "\\n---EXPLANATION---\\n" + explanation
+                store.create(kind: "study_question", title: prompt, body: body,
+                    tags: "subject:" + topic, switchToLibrary: false)
+                question = ""; topic = ""; options = ["", "", "", ""]; explanation = ""; correctOption = "A"
+            }.buttonStyle(.borderedProminent)
+            Text("\\(questions.count) saved multiple-choice questions").foregroundStyle(.secondary)
+            List(questions.prefix(20)) { item in
+                let parsed = parsedQuestion(item)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                    Text(parsed.options.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Text("Answer: " + parsed.correct).font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -179,19 +249,39 @@ struct AcademicToolsView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Practice").font(.title2.bold())
             if questions.isEmpty {
-                VStack(spacing: 8) { Image(systemName: "questionmark.circle").font(.largeTitle); Text("No questions yet").font(.headline); Text("Add questions in the Question bank first.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 160)
+                VStack(spacing: 8) {
+                    Image(systemName: "questionmark.circle").font(.largeTitle)
+                    Text("No questions yet").font(.headline)
+                    Text("Add multiple-choice questions in the Question bank first.").foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, minHeight: 160)
             } else {
                 let card = questions[practiceIndex % questions.count]
-                Text("Question \((practiceIndex % questions.count) + 1) of \(questions.count)").font(.caption).foregroundStyle(.secondary)
-                Text(card.title).font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-                if revealAnswer {
-                    Text(card.body).padding().frame(maxWidth: .infinity, alignment: .leading)
+                let parsed = parsedQuestion(card)
+                Text("Question \\(practiceIndex % questions.count + 1) of \\(questions.count) · Score \\(practiceScore)")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(card.title).font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
+                ForEach(parsed.options.indices, id: \\.self) { index in
+                    let letter = String(UnicodeScalar(65 + index)!)
+                    Text(parsed.options[index])
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(alignment: .leading) { Text(letter).fontWeight(.bold).padding(.leading, 8).foregroundStyle(.secondary) }
+                        .onTapGesture {
+                            guard !practiceAnswered else { return }
+                            if letter == parsed.correct { practiceScore += 1 }
+                            practiceAnswered = true
+                        }
+                }
+                if practiceAnswered {
+                    Text("Correct answer: " + parsed.correct).fontWeight(.semibold)
+                    if !parsed.explanation.isEmpty { Text(parsed.explanation).foregroundStyle(.secondary) }
                 }
                 HStack {
-                    Button(revealAnswer ? "Hide answer" : "Reveal answer") { revealAnswer.toggle() }
-                    Button("Next question") { practiceIndex = (practiceIndex + 1) % questions.count; revealAnswer = false }
-                        .buttonStyle(.borderedProminent)
+                    Button("Restart") { practiceIndex = 0; practiceScore = 0; practiceAnswered = false }
+                    Button("Next question") {
+                        practiceIndex = (practiceIndex + 1) % questions.count
+                        practiceAnswered = false
+                    }.buttonStyle(.borderedProminent)
                 }
             }
             Spacer()
@@ -205,9 +295,16 @@ struct AcademicToolsView: View {
             TextField("Message (optional)", text: $reminderMessage).textFieldStyle(.roundedBorder)
             DatePicker("Remind me", selection: $reminderDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
             Button("Schedule reminder") {
-                guard !reminderTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    reminderStatus = "Enter a reminder title."; return
+                guard !reminderTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      reminderDate > Date() else {
+                    reminderStatus = "Enter a title and a future date."; return
                 }
+                let title = reminderTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                let message = reminderMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+                store.create(kind: "study_reminder", title: title, body: message,
+                    tags: "dueAt:\\(Int64(reminderDate.timeIntervalSince1970 * 1000))",
+                    switchToLibrary: false)
+                guard let item = store.items.last else { reminderStatus = "Could not save reminder."; return }
                 let center = UNUserNotificationCenter.current()
                 center.requestAuthorization(options: [.alert, .sound]) { granted, error in
                     guard granted, error == nil else {
@@ -215,18 +312,40 @@ struct AcademicToolsView: View {
                         return
                     }
                     let content = UNMutableNotificationContent()
-                    content.title = reminderTitle
-                    content.body = reminderMessage.isEmpty ? "Time for your study session." : reminderMessage
+                    content.title = title
+                    content.body = message.isEmpty ? "Time for your study session." : message
                     content.sound = .default
                     let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: reminderDate)
                     let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-                    let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+                    let request = UNNotificationRequest(identifier: "scribe-reminder-\\(item.id)", content: content, trigger: trigger)
                     center.add(request) { error in
-                        DispatchQueue.main.async { reminderStatus = error == nil ? "Reminder scheduled." : "Could not schedule reminder." }
+                        DispatchQueue.main.async {
+                            reminderStatus = error == nil ? "Reminder saved and scheduled." : "Saved, but notification scheduling failed."
+                        }
                     }
                 }
+                reminderTitle = ""; reminderMessage = ""
             }.buttonStyle(.borderedProminent)
             Text(reminderStatus).font(.caption).foregroundStyle(.secondary)
+            Text("UPCOMING REMINDERS").font(.caption.bold()).foregroundStyle(.secondary)
+            let reminders = store.items.filter { $0.kind == "study_reminder" && $0.deletedAt == nil }
+                .sorted { $0.tags < $1.tags }
+            if reminders.isEmpty { Text("No reminders scheduled.").foregroundStyle(.secondary) }
+            ForEach(reminders) { item in
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.title).fontWeight(.medium)
+                        Text(item.tags.replacingOccurrences(of: "dueAt:", with: "Due · "))
+                            .font(.caption).foregroundStyle(.secondary)
+                        if !item.body.isEmpty { Text(item.body).font(.caption).foregroundStyle(.secondary) }
+                    }
+                    Spacer()
+                    Button("Cancel", role: .destructive) {
+                        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["scribe-reminder-\\(item.id)"])
+                        store.remove(item)
+                    }
+                }.padding(10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+            }
             Spacer()
         }
     }

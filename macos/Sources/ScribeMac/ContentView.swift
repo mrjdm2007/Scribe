@@ -249,7 +249,7 @@ struct ScribeMacRoot: View {
                     }
                 }
                 if item.tags.contains("type:pdf"), !item.uri.isEmpty {
-                    ScribePDFPreview(url: URL(fileURLWithPath: item.uri)).frame(minHeight: 340).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    ScribePDFWorkspace(url: URL(fileURLWithPath: item.uri))
                     HStack {
                         Button { Task { if let text = try? await ScribePDFOCR.extractText(from: URL(fileURLWithPath: item.uri)) { store.update(item, body: text) } } } label: { Label("Extract PDF text", systemImage: "text.viewfinder") }
                         Text("OCR text is saved in this attachment's note body.").font(.caption).foregroundStyle(.secondary)
