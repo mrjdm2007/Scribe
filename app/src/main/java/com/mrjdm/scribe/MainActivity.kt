@@ -105,6 +105,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var createKind by remember { mutableStateOf("course") }
     var editItem by remember { mutableStateOf<ScribeItem?>(null) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchKind by rememberSaveable { mutableStateOf("All") }
+    var searchSavedOnly by rememberSaveable { mutableStateOf(false) }
+    var searchSort by rememberSaveable { mutableStateOf("Recent") }
     var quickCapture by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
@@ -114,6 +117,12 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val bookmarks by vm.bookmarks.collectAsState(initial = emptyList())
     val trash by vm.trash.collectAsState(initial = emptyList())
     val searchResults by vm.search(searchQuery).collectAsState(initial = emptyList())
+    val filteredSearchResults = remember(searchResults, searchKind, searchSavedOnly, searchSort) {
+        val filtered = searchResults.filter { item ->
+            (searchKind == "All" || item.kind.equals(searchKind, ignoreCase = true)) && (!searchSavedOnly || item.bookmarked)
+        }
+        if (searchSort == "Title") filtered.sortedBy { it.title.lowercase() } else filtered.sortedByDescending { it.updatedAt }
+    }
 
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && current != null && current.kind in listOf("page", "topic")) {
@@ -311,8 +320,17 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             trailingIcon = { if (searchQuery.isNotBlank()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Rounded.Close, null) } },
                             singleLine = true, shape = RoundedCornerShape(16.dp), colors = fieldColors())
                         if (searchQuery.isNotBlank()) {
-                            Spacer(Modifier.height(16.dp)); Text("SEARCH RESULTS", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
-                            LazyColumn { items(searchResults, key = { it.id }) { item -> SearchRow(item) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                listOf("All", "course", "chapter", "topic", "page", "block").forEach { kind ->
+                                    FilterChip(selected = searchKind == kind, onClick = { searchKind = kind }, label = { Text(kind.replaceFirstChar { it.uppercase() }) })
+                                }
+                                FilterChip(selected = searchSavedOnly, onClick = { searchSavedOnly = !searchSavedOnly }, label = { Text("Saved only") })
+                                TextButton(onClick = { searchSort = if (searchSort == "Recent") "Title" else "Recent" }) { Text("Sort: $searchSort") }
+                            }
+                            Spacer(Modifier.height(8.dp)); Text("SEARCH RESULTS · ${filteredSearchResults.size}", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                            if (filteredSearchResults.isEmpty()) EmptyState("No matching notes", "Try another type, turn off Saved only, or change your search.")
+                            LazyColumn { items(filteredSearchResults, key = { it.id }) { item -> SearchRow(item) {
                                 scope.launch {
                                     if (item.kind == "block" && item.parentId != null) {
                                         val parent = vm.get(item.parentId)

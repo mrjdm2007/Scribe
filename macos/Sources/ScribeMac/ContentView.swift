@@ -20,6 +20,9 @@ struct ScribeMacRoot: View {
     @State private var flashcardAnswer = ""
     @State private var flashcardDeck = "General"
     @State private var flashcardDeckFilter = "All decks"
+    @State private var searchKindFilter = "All"
+    @State private var searchSavedOnly = false
+    @State private var searchSort = "Recent"
     @State private var draftTitle = ""
     @State private var draftBody = ""
     @State private var converterValue = "1"
@@ -172,8 +175,21 @@ struct ScribeMacRoot: View {
                     if let selected = store.selected, ["course","chapter"].contains(selected.kind) { hierarchy(parent: selected.id, title: "Contents") }
                 } else {
                     VStack(alignment: .leading) {
-                        Text("SEARCH RESULTS · \(store.visibleItems.count)").font(.caption.bold()).foregroundStyle(.secondary)
-                        List(store.visibleItems, selection: $store.selectedID) { item in
+                        let filteredSearchItems = store.visibleItems.filter { item in
+                            (searchKindFilter == "All" || item.kind.caseInsensitiveCompare(searchKindFilter) == .orderedSame) && (!searchSavedOnly || item.bookmarked)
+                        }.sorted {
+                            searchSort == "Title" ? $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending : $0.updatedAt > $1.updatedAt
+                        }
+                        HStack(spacing: 8) {
+                            Picker("Type", selection: $searchKindFilter) {
+                                ForEach(["All", "course", "chapter", "topic", "page", "block"], id: \.self) { Text($0.capitalized).tag($0) }
+                            }.pickerStyle(.menu).frame(width: 120)
+                            Toggle("Saved only", isOn: $searchSavedOnly).toggleStyle(.checkbox)
+                            Spacer()
+                            Button("Sort: \(searchSort)") { searchSort = searchSort == "Recent" ? "Title" : "Recent" }
+                        }
+                        Text("SEARCH RESULTS · \(filteredSearchItems.count)").font(.caption.bold()).foregroundStyle(.secondary)
+                        List(filteredSearchItems, selection: $store.selectedID) { item in
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.title)
                                 Text("\(item.kind.capitalized) · \(item.body.prefix(80))").font(.caption).foregroundStyle(.secondary).lineLimit(1)
