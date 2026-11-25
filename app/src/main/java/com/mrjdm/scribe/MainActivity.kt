@@ -134,7 +134,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         when (searchSort) {
             "Title" -> filtered.sortedBy { it.title.lowercase() }
             "Oldest" -> filtered.sortedBy { it.updatedAt }
+            "Created" -> filtered.sortedByDescending { it.createdAt }
             "Longest" -> filtered.sortedByDescending { it.body.length }
+            "Shortest" -> filtered.sortedBy { it.body.length }
             else -> filtered.sortedByDescending { it.updatedAt }
         }
     }
@@ -341,7 +343,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                     FilterChip(selected = searchKind == kind, onClick = { searchKind = kind }, label = { Text(kind.replaceFirstChar { it.uppercase() }) })
                                 }
                                 FilterChip(selected = searchSavedOnly, onClick = { searchSavedOnly = !searchSavedOnly }, label = { Text("Saved only") })
-                                TextButton(onClick = { searchSort = when (searchSort) { "Recent" -> "Oldest"; "Oldest" -> "Title"; "Title" -> "Longest"; else -> "Recent" } }) { Text("Sort: $searchSort") }
+                                TextButton(onClick = { searchSort = when (searchSort) { "Recent" -> "Oldest"; "Oldest" -> "Created"; "Created" -> "Title"; "Title" -> "Longest"; "Longest" -> "Shortest"; else -> "Recent" } }) { Text("Sort: $searchSort") }
                             }
                             Spacer(Modifier.height(8.dp)); Text("SEARCH RESULTS · ${filteredSearchResults.size}", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             if (filteredSearchResults.isEmpty()) EmptyState("No matching notes", "Try another type, turn off Saved only, or change your search.")

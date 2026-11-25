@@ -224,7 +224,9 @@ struct ScribeMacRoot: View {
                             switch searchSort {
                             case "Title": return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
                             case "Oldest": return $0.updatedAt < $1.updatedAt
+                            case "Created": return $0.createdAt > $1.createdAt
                             case "Longest": return $0.body.count > $1.body.count
+                            case "Shortest": return $0.body.count < $1.body.count
                             default: return $0.updatedAt > $1.updatedAt
                             }
                         }
@@ -234,7 +236,11 @@ struct ScribeMacRoot: View {
                             }.pickerStyle(.menu).frame(width: 120)
                             Toggle("Saved only", isOn: $searchSavedOnly).toggleStyle(.checkbox)
                             Spacer()
-                            Button("Sort: \(searchSort)") { searchSort = searchSort == "Recent" ? "Title" : "Recent" }
+                            Button("Sort: \\(searchSort)") {
+                                let order = ["Recent", "Oldest", "Created", "Title", "Longest", "Shortest"]
+                                let index = order.firstIndex(of: searchSort) ?? 0
+                                searchSort = order[(index + 1) % order.count]
+                            }
                         }
                         Text("SEARCH RESULTS · \(filteredSearchItems.count)").font(.caption.bold()).foregroundStyle(.secondary)
                         List(filteredSearchItems, selection: $store.selectedID) { item in
