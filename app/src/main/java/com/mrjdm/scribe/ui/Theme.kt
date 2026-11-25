@@ -81,13 +81,13 @@ fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier =
             shape
         )
         .drawWithContent {
-            drawContent()
             drawRect(
                 Brush.verticalGradient(
                     listOf(Color.White.copy(alpha = 0.105f), Color.White.copy(alpha = 0.018f), Color.Transparent),
                     endY = size.height * 0.48f
                 )
             )
+            drawContent()
         }
         .border(
             1.dp,
