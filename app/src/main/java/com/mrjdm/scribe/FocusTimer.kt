@@ -14,19 +14,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mrjdm.scribe.data.ScribeViewModel
+import com.mrjdm.scribe.data.StudyProgress
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 private val FocusGold = Color(0xFFD5B98C)
 private val FocusPanel = Color(0xFF1B1C20)
 private val FocusMuted = Color(0xFF96938D)
-
-private fun sessionMinutes(tags: String): Int =
-    tags.split(';', ',').firstOrNull { it.trim().startsWith("minutes:") }
-        ?.substringAfter(':')?.toIntOrNull()?.coerceAtLeast(0) ?: 0
 
 /** Foreground focus timer. Completed sessions are stored locally in the study history. */
 @Composable
@@ -37,33 +30,11 @@ fun FocusTimer(vm: ScribeViewModel) {
     var dailyGoalMinutes by remember { mutableIntStateOf(preferences.getInt("daily_goal_minutes", 60)) }
     var durationMinutes by remember { mutableIntStateOf(25) }
     var remainingSeconds by remember { mutableIntStateOf(25 * 60) }
-    val todayKey = remember { SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date()) }
-    val todayMinutes = sessions.filter {
-        SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(it.createdAt)) == todayKey
-    }.sumOf { sessionMinutes(it.tags) }
-    val weekStart = remember {
-        Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-    }
-    val weeklySessions = sessions.filter { it.createdAt >= weekStart }
-    val weeklyMinutes = weeklySessions.sumOf { sessionMinutes(it.tags) }
-    val studyDays = remember(sessions) {
-        sessions.filter { sessionMinutes(it.tags) > 0 }.map {
-            SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(it.createdAt))
-        }.toSet()
-    }
-    val streak = remember(studyDays, todayKey) {
-        val calendar = Calendar.getInstance()
-        if (todayKey !in studyDays) calendar.add(Calendar.DAY_OF_YEAR, -1)
-        var count = 0
-        while (SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(calendar.time) in studyDays) {
-            count++
-            calendar.add(Calendar.DAY_OF_YEAR, -1)
-        }
-        count
-    }
+    val nowMillis = System.currentTimeMillis()
+    val todayMinutes = StudyProgress.todayMinutes(sessions, nowMillis)
+    val weeklySessions = StudyProgress.sessionsThisWeek(sessions, nowMillis)
+    val weeklyMinutes = weeklySessions.sumOf { StudyProgress.sessionMinutes(it.tags) }
+    val streak = StudyProgress.streakDays(sessions, nowMillis)
     var running by remember { mutableStateOf(false) }
     var sessionLabel by remember { mutableStateOf("Focused study") }
     var completed by remember { mutableIntStateOf(0) }
