@@ -68,6 +68,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mrjdm.scribe.data.*
 import com.mrjdm.scribe.ui.ScribeTheme
 import com.mrjdm.scribe.ui.scribeGlass
+import com.mrjdm.scribe.ui.scribeGlass
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -310,7 +311,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         },
         bottomBar = {
-            if (!isWide) NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
+            if (!isWide) NavigationBar(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).scribeGlass(RoundedCornerShape(22.dp)),
+                containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp
+            ) {
                 listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
                     val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
@@ -322,7 +326,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     ) { padding ->
         Row(Modifier.fillMaxSize().padding(padding).animateContentSize().background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.055f), Color.Transparent), radius = 1050f))) {
             if (isWide) {
-                NavigationRail(containerColor = Color(0xFF17181B), contentColor = Gold) {
+                NavigationRail(
+                    modifier = Modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp).scribeGlass(RoundedCornerShape(20.dp)),
+                    containerColor = Color.Transparent, contentColor = Gold
+                ) {
                     Spacer(Modifier.height(12.dp))
                     listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
                         val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
@@ -778,7 +785,7 @@ private fun TopicNotebook(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1E23)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 7.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.035f), Gold.copy(alpha = 0.18f))))
                 ) {
                     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.085f), Color.White.copy(alpha = 0.018f), Color.Transparent, Color.Black.copy(alpha = 0.09f)))).padding(14.dp)) {
                         Text("YOUR NOTES", color = Gold, fontSize = 10.sp, letterSpacing = 1.5.sp)
