@@ -15,6 +15,15 @@ internal fun belongsToTrashBatch(candidateDeletedAt: Long?, rootDeletedAt: Long?
     return kotlin.math.abs(candidateDeletedAt.toDouble() - rootDeletedAt.toDouble()) <= 5_000.0
 }
 
+internal fun shouldSnapshotBody(previous: String, next: String): Boolean = previous != next
+
+internal fun appendTag(existingTags: String, rawTag: String): String {
+    val clean = rawTag.trim().replace(";", " ")
+    if (clean.isEmpty()) return existingTags
+    val tags = existingTags.split(";").filter { it.isNotBlank() }
+    return if (clean in tags) tags.joinToString(";") else (tags + clean).joinToString(";")
+}
+
 class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     private val database = ScribeDatabase.get(app)
     private val dao = database.dao()
@@ -44,7 +53,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
                 val current = dao.byId(item.id) ?: return@withTransaction
                 val nextBody = body ?: current.body
                 val now = maxOf(System.currentTimeMillis(), current.updatedAt + 1)
-                if (current.body != nextBody) {
+                if (shouldSnapshotBody(current.body, nextBody)) {
                     dao.snapshot(NoteSnapshot(itemId = current.id, title = current.title, body = current.body, savedAt = now))
                 }
                 dao.update(current.copy(
@@ -178,8 +187,13 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleBookmark(item: ScribeItem) {
         viewModelScope.launch {
-            val current = dao.byId(item.id) ?: return@launch
-            update(current, bookmarked = !current.bookmarked)
+            database.withTransaction {
+                val current = dao.byId(item.id) ?: return@withTransaction
+                dao.update(current.copy(
+                    bookmarked = !current.bookmarked,
+                    updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1)
+                ))
+            }
         }
     }
     suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {
@@ -245,9 +259,9 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             database.withTransaction {
                 items.distinctBy { it.id }.forEach { item ->
                     val current = dao.byId(item.id) ?: return@forEach
-                    val tags = current.tags.split(";").filter { it.isNotBlank() }
-                    if (clean !in tags) {
-                        dao.update(current.copy(tags = (tags + clean).joinToString(";"), updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1)))
+                    val nextTags = appendTag(current.tags, clean)
+                    if (nextTags != current.tags) {
+                        dao.update(current.copy(tags = nextTags, updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1)))
                     }
                 }
             }
