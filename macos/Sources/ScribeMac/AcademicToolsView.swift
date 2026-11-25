@@ -34,9 +34,9 @@ struct AcademicToolsView: View {
     private var questions: [ScribeItem] { store.items.filter { $0.kind == "study_question" && $0.deletedAt == nil }.sorted { $0.updatedAt > $1.updatedAt } }
 
     private func parsedQuestion(_ item: ScribeItem) -> (prompt: String, options: [String], correct: String, explanation: String) {
-        let optionsMarker = "\\n---OPTIONS---\\n"
-        let answerMarker = "\\n---CORRECT---\\n"
-        let explanationMarker = "\\n---EXPLANATION---\\n"
+        let optionsMarker = "\n---OPTIONS---\n"
+        let answerMarker = "\n---CORRECT---\n"
+        let explanationMarker = "\n---EXPLANATION---\n"
         let optionPart = item.body.components(separatedBy: optionsMarker).dropFirst().joined(separator: optionsMarker)
         let answerPart = optionPart.components(separatedBy: answerMarker)
         let optionLines = (answerPart.first ?? "").components(separatedBy: .newlines).filter { !$0.isEmpty }
@@ -113,7 +113,7 @@ struct AcademicToolsView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             Button("Save graph to library") {
                 store.create(kind: "block", title: "Graph · y = " + graphExpression,
-                    body: "y = " + graphExpression + "\\nRange: ±" + graphRange + " (radians for trigonometric functions)",
+                    body: "y = " + graphExpression + "\nRange: ±" + graphRange + " (radians for trigonometric functions)",
                     tags: "type:graph", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
             Text("Supported functions: sin(x), cos(x), tan(x), x, x^2, 1/x and exp(x). Trigonometric functions use radians.")
@@ -182,9 +182,9 @@ struct AcademicToolsView: View {
             }.buttonStyle(.bordered)
             ScrollView([.horizontal, .vertical]) {
                 Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                    ForEach(tableCells.indices, id: \\.self) { row in
+                    ForEach(tableCells.indices, id: \.self) { row in
                         GridRow {
-                            ForEach(tableCells[row].indices, id: \\.self) { column in
+                            ForEach(tableCells[row].indices, id: \.self) { column in
                                 TextField(row == 0 ? "Header" : "—", text: cellBinding(row, column))
                                     .textFieldStyle(.roundedBorder).frame(minWidth: 105)
                             }
@@ -193,7 +193,7 @@ struct AcademicToolsView: View {
                 }.padding(4)
             }.frame(maxHeight: 360)
             Button("Save table") {
-                let text = tableCells.map { $0.joined(separator: "\\t") }.joined(separator: "\\n")
+                let text = tableCells.map { $0.joined(separator: "\t") }.joined(separator: "\n")
                 store.create(kind: "block", title: tableTitle, body: text, tags: "type:table;format:tsv", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
             Spacer()
@@ -209,15 +209,15 @@ struct AcademicToolsView: View {
             Text("Question bank").font(.title2.bold())
             TextField("Question", text: $question, axis: .vertical).lineLimit(2...4).textFieldStyle(.roundedBorder)
             TextField("Topic / subject", text: $topic).textFieldStyle(.roundedBorder)
-            ForEach(options.indices, id: \\.self) { index in
-                TextField("Option \\(["A", "B", "C", "D"][index])", text: Binding(
+            ForEach(options.indices, id: \.self) { index in
+                TextField("Option \(["A", "B", "C", "D"][index])", text: Binding(
                     get: { options[index] },
                     set: { options[index] = $0 }
                 )).textFieldStyle(.roundedBorder)
             }
             HStack {
                 Text("Correct option")
-                ForEach(["A", "B", "C", "D"], id: \\.self) { value in
+                ForEach(["A", "B", "C", "D"], id: \.self) { value in
                     Button(value) { correctOption = value }.buttonStyle(.borderedProminent)
                         .tint(correctOption == value ? .accentColor : .secondary.opacity(0.25))
                 }
@@ -227,13 +227,13 @@ struct AcademicToolsView: View {
             Button("Add question") {
                 let prompt = question.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !prompt.isEmpty, options.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
-                let body = prompt + "\\n---OPTIONS---\\n" + options.joined(separator: "\\n")
-                    + "\\n---CORRECT---\\n" + correctOption + "\\n---EXPLANATION---\\n" + explanation
+                let body = prompt + "\n---OPTIONS---\n" + options.joined(separator: "\n")
+                    + "\n---CORRECT---\n" + correctOption + "\n---EXPLANATION---\n" + explanation
                 store.create(kind: "study_question", title: prompt, body: body,
                     tags: "subject:" + topic, switchToLibrary: false)
                 question = ""; topic = ""; options = ["", "", "", ""]; explanation = ""; correctOption = "A"
             }.buttonStyle(.borderedProminent)
-            Text("\\(questions.count) saved multiple-choice questions").foregroundStyle(.secondary)
+            Text("\(questions.count) saved multiple-choice questions").foregroundStyle(.secondary)
             List(questions.prefix(20)) { item in
                 let parsed = parsedQuestion(item)
                 VStack(alignment: .leading, spacing: 3) {
@@ -257,10 +257,10 @@ struct AcademicToolsView: View {
             } else {
                 let card = questions[practiceIndex % questions.count]
                 let parsed = parsedQuestion(card)
-                Text("Question \\(practiceIndex % questions.count + 1) of \\(questions.count) · Score \\(practiceScore)")
+                Text("Question \(practiceIndex % questions.count + 1) of \(questions.count) · Score \(practiceScore)")
                     .font(.caption).foregroundStyle(.secondary)
                 Text(card.title).font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
-                ForEach(parsed.options.indices, id: \\.self) { index in
+                ForEach(parsed.options.indices, id: \.self) { index in
                     let letter = ["A", "B", "C", "D"][index]
                     Text(parsed.options[index])
                         .frame(maxWidth: .infinity, alignment: .leading).padding(12)
@@ -302,7 +302,7 @@ struct AcademicToolsView: View {
                 let title = reminderTitle.trimmingCharacters(in: .whitespacesAndNewlines)
                 let message = reminderMessage.trimmingCharacters(in: .whitespacesAndNewlines)
                 store.create(kind: "study_reminder", title: title, body: message,
-                    tags: "dueAt:\\(Int64(reminderDate.timeIntervalSince1970 * 1000))",
+                    tags: "dueAt:\(Int64(reminderDate.timeIntervalSince1970 * 1000))",
                     switchToLibrary: false)
                 guard let item = store.items.last else { reminderStatus = "Could not save reminder."; return }
                 let center = UNUserNotificationCenter.current()
@@ -317,7 +317,7 @@ struct AcademicToolsView: View {
                     content.sound = .default
                     let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: reminderDate)
                     let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-                    let request = UNNotificationRequest(identifier: "scribe-reminder-\\(item.id)", content: content, trigger: trigger)
+                    let request = UNNotificationRequest(identifier: "scribe-reminder-\(item.id)", content: content, trigger: trigger)
                     center.add(request) { error in
                         DispatchQueue.main.async {
                             reminderStatus = error == nil ? "Reminder saved and scheduled." : "Saved, but notification scheduling failed."
@@ -341,7 +341,7 @@ struct AcademicToolsView: View {
                     }
                     Spacer()
                     Button("Cancel", role: .destructive) {
-                        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["scribe-reminder-\\(item.id)"])
+                        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["scribe-reminder-\(item.id)"])
                         store.remove(item)
                     }
                 }.padding(10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
