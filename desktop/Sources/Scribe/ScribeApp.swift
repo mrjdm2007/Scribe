@@ -124,9 +124,9 @@ struct ScribeRootView: View {
             .toolbar {
                 ToolbarItemGroup {
                     Button { _ = library.add(kind: "course") } label: { Image(systemName: "plus") }.help("New course")
-                    Button { showQuickCapture = true } label: { Image(systemName: "square.and.pencil") }.help("Quick capture")
+                    Button { showQuickCapture = true } label: { Image(systemName: "square.and.pencil") }.help("Quick capture").keyboardShortcut("k", modifiers: [.command, .shift])
                     Menu {
-                        Button("Manage multiple notes…") { showBulkManage = true }
+                        Button("Manage multiple notes…") { showBulkManage = true }.keyboardShortcut("m", modifiers: [.command, .shift])
                         Divider()
                         Button("Export backup…") { exportBackup() }
                         Button("Import backup…") { showBackupImporter = true }
