@@ -161,6 +161,10 @@ struct NodeEditorView: View {
                     Button("Move down") { library.move(item.id, offset: 1) }
                     Button("Duplicate") { _ = library.duplicate(item.id) }
                     Button("Version history") { showHistory = true }
+                    if item.kind == "page" {
+                        Button("Split page at middle") { library.splitPage(item.id) }
+                        Button("Merge with next page") { library.mergePageWithNext(item.id) }
+                    }
                     Divider()
                     Button("Move to Trash", role: .destructive) { library.moveToTrash(item.id) }
                 } label: { Image(systemName: "ellipsis.circle") }
