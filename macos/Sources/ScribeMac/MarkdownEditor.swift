@@ -71,10 +71,16 @@ function md(n){
  if(t==="table")return c()+"\\n";return c();
 }
 function toMarkdown(){return Array.from(editor.childNodes).map(md).join("").replace(/\\n{3,}/g,"\\n\\n").trim();}
-function publish(){const value=toMarkdown();if(value!==lastMarkdown){lastMarkdown=value;window.webkit.messageHandlers.scribeEditor.postMessage(value);}}
+function selectionOffsets(){
+ const selected=window.getSelection();if(!selected||!selected.rangeCount||!editor.contains(selected.anchorNode))return {start:lastMarkdown.length,length:0};
+ const before=document.createRange();before.selectNodeContents(editor);before.setEnd(selected.anchorNode,selected.anchorOffset);
+ const start=md(before.cloneContents()).length;const length=md(selected.getRangeAt(0).cloneContents()).length;
+ return {start:start,length:length};
+}
+function publish(){const value=toMarkdown();const range=selectionOffsets();if(value!==lastMarkdown)lastMarkdown=value;window.webkit.messageHandlers.scribeEditor.postMessage({markdown:value,start:range.start,length:range.length});}
 window.setMarkdown=function(value){if(value===lastMarkdown)return;lastMarkdown=value;const parser=window.markdownit?window.markdownit({html:false,linkify:false,typographer:false}).enable("table"):null;editor.innerHTML=parser?parser.render(value):"<pre>"+value.replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</pre>";};
 window.findText=function(query,index){if(!query)return;const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let node,found=[];while(node=walker.nextNode()){let at=0;while((at=node.textContent.indexOf(query,at))>=0){found.push({node:node,at:at});at+=query.length;}}if(found.length){const item=found[Math.min(index,found.length-1)];const range=document.createRange();range.setStart(item.node,item.at);range.setEnd(item.node,item.at+query.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);range.startContainer.parentElement.scrollIntoView({block:"center"});}};
-editor.addEventListener("input",publish);editor.addEventListener("blur",publish);
+editor.addEventListener("input",publish);editor.addEventListener("keyup",publish);editor.addEventListener("mouseup",publish);editor.addEventListener("blur",publish);document.addEventListener("selectionchange",()=>{if(document.activeElement===editor)publish();});
 window.addEventListener("DOMContentLoaded",()=>window.setMarkdown(__INITIAL__));
 </script></body></html>
 """
@@ -84,10 +90,14 @@ window.addEventListener("DOMContentLoaded",()=>window.setMarkdown(__INITIAL__));
         var lastMarkdown = ""
         init(_ parent: MarkdownEditor) { self.parent = parent; self.lastMarkdown = parent.text }
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let value = message.body as? String else { return }
+            guard let payload = message.body as? [String: Any],
+                  let value = payload["markdown"] as? String else { return }
             lastMarkdown = value
             parent.text = value
-            parent.selection = NSRange(location: (value as NSString).length, length: 0)
+            let sourceLength = (value as NSString).length
+            let start = min(max(0, payload["start"] as? Int ?? sourceLength), sourceLength)
+            let length = min(max(0, payload["length"] as? Int ?? 0), sourceLength - start)
+            parent.selection = NSRange(location: start, length: length)
         }
     }
 }
