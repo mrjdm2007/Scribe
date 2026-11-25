@@ -154,34 +154,43 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun move(item: ScribeItem, direction: Int) {
         viewModelScope.launch {
-            val siblings = dao.children(item.parentId).first().sortedBy { it.position }
-            if (siblings.isEmpty()) return@launch
-            val from = siblings.indexOfFirst { it.id == item.id }
-            if (from < 0) return@launch
-            val to = (from + direction).coerceIn(0, siblings.lastIndex)
-            if (to != from) {
-                val moving = siblings[from]
-                val displaced = siblings[to]
-                dao.update(moving.copy(position = displaced.position, updatedAt = System.currentTimeMillis()))
-                dao.update(displaced.copy(position = moving.position, updatedAt = System.currentTimeMillis()))
+            database.withTransaction {
+                val siblings = dao.children(item.parentId).first().sortedBy { it.position }
+                if (siblings.isEmpty()) return@withTransaction
+                val from = siblings.indexOfFirst { it.id == item.id }
+                if (from < 0) return@withTransaction
+                val to = (from + direction).coerceIn(0, siblings.lastIndex)
+                if (to != from) {
+                    val moving = dao.byId(siblings[from].id) ?: return@withTransaction
+                    val displaced = dao.byId(siblings[to].id) ?: return@withTransaction
+                    val now = System.currentTimeMillis()
+                    dao.update(moving.copy(position = displaced.position, updatedAt = maxOf(now, moving.updatedAt + 1)))
+                    dao.update(displaced.copy(position = moving.position, updatedAt = maxOf(now, displaced.updatedAt + 1)))
+                }
             }
         }
     }
+
     fun mergePageWithNext(page: ScribeItem) {
         if (page.kind != "page") return
         viewModelScope.launch {
-            val siblings = dao.children(page.parentId).first().sortedBy { it.position }
-            val index = siblings.indexOfFirst { it.id == page.id }
-            if (index < 0) return@launch
-            val next = siblings.getOrNull(index + 1) ?: return@launch
-            val existing = dao.children(page.id).first()
-            val incoming = dao.children(next.id).first()
             database.withTransaction {
-                var position = existing.size
-                incoming.forEach { block ->
-                    dao.update(block.copy(parentId = page.id, position = position++, updatedAt = System.currentTimeMillis()))
+                val currentPage = dao.byId(page.id) ?: return@withTransaction
+                val siblings = dao.children(currentPage.parentId).first().sortedBy { it.position }
+                val index = siblings.indexOfFirst { it.id == currentPage.id }
+                if (index < 0) return@withTransaction
+                val nextRef = siblings.getOrNull(index + 1) ?: return@withTransaction
+                val next = dao.byId(nextRef.id) ?: return@withTransaction
+                val incoming = dao.children(next.id).first()
+                var position = dao.children(currentPage.id).first().size
+                incoming.forEach { selected ->
+                    val block = dao.byId(selected.id) ?: return@forEach
+                    dao.update(block.copy(parentId = currentPage.id, position = position++,
+                        updatedAt = maxOf(System.currentTimeMillis(), block.updatedAt + 1)))
                 }
-                dao.update(next.copy(deletedAt = System.currentTimeMillis()))
+                val latestNext = dao.byId(next.id) ?: return@withTransaction
+                val now = System.currentTimeMillis()
+                dao.update(latestNext.copy(deletedAt = now, updatedAt = maxOf(now, latestNext.updatedAt + 1)))
             }
         }
     }
@@ -189,18 +198,21 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun splitPage(page: ScribeItem) {
         if (page.kind != "page") return
         viewModelScope.launch {
-            val blocks = dao.children(page.id).first().sortedBy { it.position }
-            if (blocks.size < 2) return@launch
-            val siblings = dao.children(page.parentId).first()
             database.withTransaction {
+                val currentPage = dao.byId(page.id) ?: return@withTransaction
+                val blocks = dao.children(currentPage.id).first().sortedBy { it.position }
+                if (blocks.size < 2) return@withTransaction
+                val siblings = dao.children(currentPage.parentId).first()
                 val now = System.currentTimeMillis()
-                val newPageId = dao.insert(page.copy(
-                    id = 0, title = page.title + " · Part 2", body = "",
+                val newPageId = dao.insert(currentPage.copy(
+                    id = 0, title = currentPage.title + " · Part 2", body = "",
                     position = siblings.size, bookmarked = false,
                     createdAt = now, updatedAt = now, deletedAt = null
                 ))
-                blocks.drop((blocks.size + 1) / 2).forEachIndexed { index, block ->
-                    dao.update(block.copy(parentId = newPageId, position = index, updatedAt = now))
+                blocks.drop((blocks.size + 1) / 2).forEachIndexed { index, selected ->
+                    val block = dao.byId(selected.id) ?: return@forEachIndexed
+                    dao.update(block.copy(parentId = newPageId, position = index,
+                        updatedAt = maxOf(now, block.updatedAt + 1)))
                 }
             }
         }
