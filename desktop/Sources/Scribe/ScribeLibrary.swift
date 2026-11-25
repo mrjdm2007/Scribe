@@ -221,17 +221,42 @@ final class ScribeLibrary: ObservableObject {
     }
 
     func backupData() throws -> Data {
-        let attachments: [ScribeAttachmentBackup] = nodes.compactMap { item in
-            guard !item.uri.isEmpty, let bytes = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) else { return nil }
-            return ScribeAttachmentBackup(nodeID: item.id, filename: URL(fileURLWithPath: item.uri).lastPathComponent,
-                                          mimeType: "application/octet-stream", dataBase64: bytes.base64EncodedString())
+        // Export the same JSON-array format used by Android so a backup can move between platforms.
+        let portableIDs = Dictionary(uniqueKeysWithValues: nodes.enumerated().map { ($0.element.id, Int64($0.offset + 1)) })
+        let rows: [[String: Any]] = try nodes.map { item in
+            var row: [String: Any] = [
+                "id": portableIDs[item.id] ?? 0,
+                "parentId": item.parentID.flatMap { portableIDs[$0] }.map { NSNumber(value: $0) } ?? NSNull(),
+                "kind": item.kind, "title": item.title, "body": item.body,
+                "uri": item.uri, "tags": portableTags(item.tags, ids: portableIDs),
+                "bookmarked": item.bookmarked, "position": item.position,
+                "createdAt": Int64(item.createdAt.timeIntervalSince1970 * 1000),
+                "updatedAt": Int64(item.updatedAt.timeIntervalSince1970 * 1000),
+                "deletedAt": item.deletedAt.map { NSNumber(value: Int64($0.timeIntervalSince1970 * 1000)) } ?? NSNull()
+            ]
+            if !item.uri.isEmpty {
+                let fileURL = URL(fileURLWithPath: item.uri)
+                let type = UTType(filenameExtension: fileURL.pathExtension)
+                if type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true,
+                   let bytes = try? Data(contentsOf: fileURL) {
+                    row["attachmentBase64"] = bytes.base64EncodedString()
+                }
+            }
+            row["history"] = snapshots.filter { $0.itemID == item.id }.map {
+                ["title": $0.title, "body": $0.body, "savedAt": Int64($0.savedAt.timeIntervalSince1970 * 1000)] as [String: Any]
+            }
+            return row
         }
-        return try JSONEncoder.scribe.encode(ScribeBackup(items: nodes, snapshots: snapshots, attachments: attachments))
+        return try JSONSerialization.data(withJSONObject: rows, options: [.prettyPrinted, .sortedKeys])
     }
+
     func restoreBackup(_ data: Data) throws {
+        if let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            try restoreAndroidBackup(rows)
+            return
+        }
         let backup = try JSONDecoder.scribe.decode(ScribeBackup.self, from: data)
         guard backup.schemaVersion == 1 else { throw CocoaError(.fileReadCorruptFile) }
-        // Validate references and attachment payloads before mutating the live library.
         let ids = Set(backup.items.map(\.id))
         guard backup.items.allSatisfy({ $0.parentID == nil || ids.contains($0.parentID!) }),
               backup.attachments.allSatisfy({ ids.contains($0.nodeID) && Data(base64Encoded: $0.dataBase64) != nil }) else {
@@ -249,6 +274,75 @@ final class ScribeLibrary: ObservableObject {
             restoredItems[index].uri = target.path
         }
         nodes = restoredItems; snapshots = backup.snapshots; save()
+    }
+
+    private func restoreAndroidBackup(_ rows: [[String: Any]]) throws {
+        let numericIDs = rows.compactMap { ($0["id"] as? NSNumber)?.int64Value }
+        guard numericIDs.count == rows.count, Set(numericIDs).count == numericIDs.count else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let idMap = Dictionary(uniqueKeysWithValues: numericIDs.map { ($0, UUID()) })
+        guard rows.allSatisfy({ row in
+            if let parent = row["parentId"] as? NSNumber { return idMap[parent.int64Value] != nil }
+            return true
+        }) else { throw CocoaError(.fileReadCorruptFile) }
+
+        let attachmentFolder = root.appendingPathComponent("attachments", isDirectory: true)
+        try FileManager.default.createDirectory(at: attachmentFolder, withIntermediateDirectories: true)
+        var restored: [ScribeNode] = []
+        var restoredSnapshots: [ScribeSnapshot] = []
+        for row in rows {
+            let oldID = (row["id"] as? NSNumber)?.int64Value ?? 0
+            guard let id = idMap[oldID] else { throw CocoaError(.fileReadCorruptFile) }
+            let parentNumber = (row["parentId"] as? NSNumber)?.int64Value
+            let created = (row["createdAt"] as? NSNumber)?.doubleValue ?? Date.now.timeIntervalSince1970 * 1000
+            let updated = (row["updatedAt"] as? NSNumber)?.doubleValue ?? created
+            let deleted = (row["deletedAt"] as? NSNumber)?.doubleValue
+            let originalURI = row["uri"] as? String ?? ""
+            var uri = ""
+            if let encoded = row["attachmentBase64"] as? String, let bytes = Data(base64Encoded: encoded) {
+                let name = URL(fileURLWithPath: originalURI).lastPathComponent
+                let ext = URL(fileURLWithPath: name).pathExtension
+                let type = UTType(filenameExtension: ext)
+                if type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true {
+                    let target = attachmentFolder.appendingPathComponent("\(id.uuidString)-\(name.isEmpty ? "attachment" : name)")
+                    try bytes.write(to: target, options: .atomic)
+                    uri = target.path
+                }
+            }
+            var tags = row["tags"] as? String ?? ""
+            if let targetToken = tags.split(separator: ";").first(where: { $0.hasPrefix("target:") }),
+               let targetNumber = Int64(targetToken.dropFirst(7)), let targetUUID = idMap[targetNumber] {
+                tags = tags.replacingOccurrences(of: "target:\(targetNumber)", with: "target:\(targetUUID.uuidString)")
+            }
+            var body = row["body"] as? String ?? ""
+            if body.hasPrefix("topic-ref:"), let targetNumber = Int64(body.dropFirst(10)), let targetUUID = idMap[targetNumber] {
+                body = "topic-ref:\(targetUUID.uuidString)"
+            }
+            restored.append(ScribeNode(
+                id: id, parentID: parentNumber.flatMap { idMap[$0] },
+                kind: row["kind"] as? String ?? "block", title: row["title"] as? String ?? "Untitled",
+                body: body, uri: uri, tags: tags, bookmarked: row["bookmarked"] as? Bool ?? false,
+                position: row["position"] as? Int ?? 0,
+                createdAt: Date(timeIntervalSince1970: created / 1000),
+                updatedAt: Date(timeIntervalSince1970: updated / 1000),
+                deletedAt: deleted.map { Date(timeIntervalSince1970: $0 / 1000) }
+            ))
+            if let history = row["history"] as? [[String: Any]] {
+                for entry in history {
+                    let saved = (entry["savedAt"] as? NSNumber)?.doubleValue ?? created
+                    restoredSnapshots.append(ScribeSnapshot(itemID: id, title: entry["title"] as? String ?? "",
+                        body: entry["body"] as? String ?? "", savedAt: Date(timeIntervalSince1970: saved / 1000)))
+                }
+            }
+        }
+        nodes = restored; snapshots = restoredSnapshots; save()
+    }
+
+    private func portableTags(_ tags: String, ids: [UUID: Int64]) -> String {
+        guard let token = tags.split(separator: ";").first(where: { $0.hasPrefix("target:") }),
+              let uuid = UUID(uuidString: String(token.dropFirst(7))), let numeric = ids[uuid] else { return tags }
+        return tags.replacingOccurrences(of: "target:\(uuid.uuidString)", with: "target:\(numeric)")
     }
 
     func history(for id: UUID) -> [ScribeSnapshot] { snapshots.filter { $0.itemID == id }.sorted { $0.savedAt > $1.savedAt } }
