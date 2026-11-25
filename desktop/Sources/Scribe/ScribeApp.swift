@@ -55,7 +55,7 @@ struct ScribeRootView: View {
     private var tagEntries: [(name: String, count: Int)] {
         let counts = library.visibleNodes
             .flatMap { $0.tags.split(whereSeparator: { $0 == ";" || $0 == "," }).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } }
-            .filter { !$0.isEmpty && !$0.hasPrefix("type:") && !$0.hasPrefix("target:") && !$0.hasPrefix("dueAt:") && !$0.hasPrefix("due:") && !$0.hasPrefix("interval:") && !$0.hasPrefix("ease:") && !$0.hasPrefix("reviewedAt:") && !$0.hasPrefix("notificationID:") && !$0.hasPrefix("minutes:") && !$0.hasPrefix("completedAt:") && !$0.hasPrefix("deck:") }
+            .filter { !$0.isEmpty && !$0.hasPrefix("type:") && !$0.hasPrefix("target:") && !$0.hasPrefix("dueAt:") && !$0.hasPrefix("due:") && !$0.hasPrefix("interval:") && !$0.hasPrefix("ease:") && !$0.hasPrefix("reviewedAt:") && !$0.hasPrefix("notificationID:") && !$0.hasPrefix("minutes:") && !$0.hasPrefix("completedAt:") && !$0.hasPrefix("deck:") && !$0.hasPrefix("wordGoal:") }
             .reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
         return counts.map { (name: $0.key, count: $0.value) }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
