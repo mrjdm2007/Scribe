@@ -910,7 +910,7 @@ struct ScribeMacRoot: View {
                         .buttonStyle(.borderedProminent).tint(gold).disabled(cloudBusy)
                         Text(cloudStatus).font(.caption).foregroundStyle(.secondary)
                     }
-                    Text("Run supabase/schema.sql in your project first. Your password is used only for this sync and is not saved.")
+                    Text("Run supabase/schema.sql in your project first. After sign-in, Scribe syncs every 6 hours while the app is open. The refresh session is stored in macOS Keychain; your password is not saved.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(4)
             }
