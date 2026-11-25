@@ -124,7 +124,7 @@ struct DesktopWorkbenchView: View {
                         group = key
                         from = groups[key]!.first!
                         to = groups[key]!.dropFirst().first ?? groups[key]!.first!
-                    }.buttonStyle(.borderedProminent).tint(group == key ? .accentColor : .secondary.opacity(0.2))
+                    }.buttonStyle(.borderedProminent).tint(group == key ? Color.accentColor : Color.gray.opacity(0.2))
                 }
             }
             TextField("Value", text: $amount).textFieldStyle(.roundedBorder).frame(maxWidth: 300)
