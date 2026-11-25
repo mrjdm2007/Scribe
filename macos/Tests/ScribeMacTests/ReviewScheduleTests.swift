@@ -122,4 +122,11 @@ final class ReviewScheduleTests: XCTestCase {
                        "Backup contains a circular notebook hierarchy.")
     }
 
+    func testSnapshotThrottleAvoidsOneVersionPerTypingPause() {
+        XCTAssertTrue(shouldCreateSnapshot(previousBody: "old", nextBody: "new", latestSnapshotAt: 0, now: 100_000))
+        XCTAssertFalse(shouldCreateSnapshot(previousBody: "old", nextBody: "newer", latestSnapshotAt: 90_000, now: 100_000))
+        XCTAssertTrue(shouldCreateSnapshot(previousBody: "old", nextBody: "newer", latestSnapshotAt: 30_000, now: 100_000))
+        XCTAssertFalse(shouldCreateSnapshot(previousBody: "same", nextBody: "same", latestSnapshotAt: 0, now: 100_000))
+    }
+
 }
