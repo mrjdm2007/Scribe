@@ -92,8 +92,8 @@ struct ScribeIntelligenceView: View {
             return
         }
         let studentMessage = question
-        let priorTurns = conversation.suffix(8).joined(separator: "\\n\\n")
-        let conversationPrompt = (priorTurns.isEmpty ? "" : priorTurns + "\\n\\n") + "STUDENT: " + studentMessage
+        let priorTurns = conversation.suffix(8).joined(separator: "\n\n")
+        let conversationPrompt = (priorTurns.isEmpty ? "" : priorTurns + "\n\n") + "STUDENT: " + studentMessage
         busy = true; errorMessage = ""; answer = ""
         defer { busy = false }
         do {
