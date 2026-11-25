@@ -45,6 +45,9 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
     var revealed by remember(next?.id) { mutableStateOf(false) }
     var create by remember { mutableStateOf(false) }
     var editingCard by remember { mutableStateOf<ScribeItem?>(null) }
+    var manageDeck by remember { mutableStateOf(false) }
+    var deckRename by remember { mutableStateOf("") }
+    var deckMerge by remember { mutableStateOf("") }
     val upcoming = visibleCards.count { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) > now }
     val todayStart = Calendar.getInstance().apply {
         timeInMillis = now
@@ -55,8 +58,15 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("SPACED REPETITION", color = FlashMuted, fontSize = 10.sp, letterSpacing = 1.4.sp)
         Text("Flashcards", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            decks.forEach { deck -> FilterChip(selected = selectedDeck == deck, onClick = { selectedDeck = deck }, label = { Text(deck) }) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                decks.forEach { deck -> FilterChip(selected = selectedDeck == deck, onClick = { selectedDeck = deck }, label = { Text(deck) }) }
+            }
+            TextButton(enabled = selectedDeck != "All decks", onClick = {
+                deckRename = selectedDeck
+                deckMerge = decks.firstOrNull { it != "All decks" && it != selectedDeck } ?: ""
+                manageDeck = true
+            }) { Text("Manage") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatPill("DUE NOW", due.size.toString(), Modifier.weight(1f))
@@ -150,6 +160,48 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
             containerColor = Color(0xFF202125)
         )
     }
+    if (manageDeck) {
+        AlertDialog(
+            onDismissRequest = { manageDeck = false },
+            title = { Text("Manage deck") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(deckRename, { deckRename = it }, label = { Text("Rename deck") }, singleLine = true)
+                    OutlinedTextField(deckMerge, { deckMerge = it }, label = { Text("Merge into deck") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(enabled = deckRename.isNotBlank() && deckRename.trim() != selectedDeck, onClick = {
+                        cards.filter { deckOf(it) == selectedDeck }.forEach { card ->
+                            val retained = card.tags.split(";").filterNot { it.startsWith("deck:") || it.startsWith("subject:") }
+                            vm.update(card, tags = (retained + "deck:" + deckRename.trim().replace(";", " ")).joinToString(";"))
+                        }
+                        selectedDeck = deckRename.trim()
+                        manageDeck = false
+                    }) { Text("Rename") }
+                    TextButton(enabled = deckMerge.isNotBlank() && deckMerge.trim() != selectedDeck, onClick = {
+                        cards.filter { deckOf(it) == selectedDeck }.forEach { card ->
+                            val retained = card.tags.split(";").filterNot { it.startsWith("deck:") || it.startsWith("subject:") }
+                            vm.update(card, tags = (retained + "deck:" + deckMerge.trim().replace(";", " ")).joinToString(";"))
+                        }
+                        selectedDeck = deckMerge.trim()
+                        manageDeck = false
+                    }) { Text("Merge") }
+                    TextButton(
+                        onClick = {
+                            cards.filter { deckOf(it) == selectedDeck }.forEach { vm.removeTree(it) }
+                            selectedDeck = "All decks"
+                            manageDeck = false
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text("Delete deck and cards") }
+                }
+            },
+            dismissButton = { TextButton(onClick = { manageDeck = false }) { Text("Close") } }
+        )
+    }
+
     editingCard?.let { card ->
         var front by remember(card.id) { mutableStateOf(card.title) }
         var back by remember(card.id) { mutableStateOf(card.body) }
