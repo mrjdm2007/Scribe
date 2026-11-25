@@ -405,9 +405,10 @@ private fun EquationComposer(vm: ScribeViewModel) {
         OutlinedTextField(formulaTitle, { formulaTitle = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Formula name") })
         OutlinedTextField(latex, { latex = it }, modifier = Modifier.fillMaxWidth(), minLines = 3, label = { Text("Equation / LaTeX source") })
         Card(colors = CardDefaults.cardColors(containerColor = ToolPanel), shape = RoundedCornerShape(14.dp)) {
-            Column(Modifier.padding(14.dp)) {
-                Text("LIVE SOURCE PREVIEW", color = ToolMuted, fontSize = 9.sp, letterSpacing = 1.sp)
-                Text(latex.ifBlank { "Your equation will appear here" }, color = ToolGold, style = MaterialTheme.typography.titleLarge)
+            Column(Modifier.padding(10.dp)) {
+                Text("RENDERED EQUATION", color = ToolMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+                MathJaxPreview(latex.ifBlank { "\\text{Your equation will appear here}" },
+                    Modifier.fillMaxWidth().heightIn(min = 70.dp, max = 180.dp))
             }
         }
         Text("SYMBOLS", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
@@ -439,7 +440,7 @@ private fun EquationComposer(vm: ScribeViewModel) {
                 }
             }
         }
-        Text("This pad stores LaTeX source and provides a symbol keyboard. It does not yet typeset equations visually.", color = ToolMuted, fontSize = 11.sp)
+        Text("Equations are rendered with MathJax when online. Your original LaTeX source remains saved and readable when offline.", color = ToolMuted, fontSize = 11.sp)
     }
 }
 

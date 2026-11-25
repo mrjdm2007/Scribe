@@ -28,8 +28,17 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun update(item: ScribeItem, title: String = item.title, body: String = item.body, uri: String = item.uri, tags: String = item.tags, bookmarked: Boolean = item.bookmarked) {
         viewModelScope.launch {
-            if (item.kind == "block" && item.body != body) dao.snapshot(NoteSnapshot(itemId = item.id, title = item.title, body = item.body))
-            dao.update(item.copy(title = title, body = body, uri = uri, tags = tags, bookmarked = bookmarked, updatedAt = System.currentTimeMillis()))
+            val now = System.currentTimeMillis()
+            val contentChanged = item.title != title || item.body != body
+            if (contentChanged) {
+                // Keep the same 60-second snapshot cadence on Android and macOS.
+                // Snapshot the previous state before applying the edit.
+                val lastSnapshotAt = dao.latestSnapshotAt(item.id)
+                if (lastSnapshotAt == null || now - lastSnapshotAt >= 60_000L) {
+                    dao.snapshot(NoteSnapshot(itemId = item.id, title = item.title, body = item.body, savedAt = now))
+                }
+            }
+            dao.update(item.copy(title = title, body = body, uri = uri, tags = tags, bookmarked = bookmarked, updatedAt = now))
         }
     }
     fun removeTree(item: ScribeItem) {

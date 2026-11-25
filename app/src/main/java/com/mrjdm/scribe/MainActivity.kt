@@ -106,6 +106,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             scope.launch(Dispatchers.IO) {
                 val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment"
                 val ext = context.contentResolver.getType(uri).orEmpty()
+                if (!ext.startsWith("image/") && ext != "application/pdf") return@launch
                 val file = File(context.filesDir, "attachments").apply { mkdirs() }
                 val target = File(file, "${System.currentTimeMillis()}_${name.substringAfterLast(':').replace('/', '_')}")
                 val copied = runCatching {
@@ -125,46 +126,79 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch(Dispatchers.IO) {
-            val all = vm.all()
-            val array = JSONArray()
-            all.forEach { item -> array.put(JSONObject().apply {
-                put("id", item.id); put("parentId", item.parentId ?: JSONObject.NULL); put("kind", item.kind)
-                put("title", item.title); put("body", item.body); put("uri", item.uri); put("tags", item.tags)
-                put("bookmarked", item.bookmarked); put("position", item.position); put("createdAt", item.createdAt); put("updatedAt", item.updatedAt)
-                put("deletedAt", item.deletedAt ?: JSONObject.NULL)
-                if (item.uri.isNotBlank()) {
-                    val attachment = File(item.uri)
-                    if (attachment.isFile) put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
+            try {
+                val all = vm.all()
+                val array = JSONArray()
+                all.forEach { item ->
+                    val row = JSONObject().apply {
+                        put("id", item.id); put("parentId", item.parentId ?: JSONObject.NULL); put("kind", item.kind)
+                        put("title", item.title); put("body", item.body); put("uri", item.uri); put("tags", item.tags)
+                        put("bookmarked", item.bookmarked); put("position", item.position); put("createdAt", item.createdAt); put("updatedAt", item.updatedAt)
+                        put("deletedAt", item.deletedAt ?: JSONObject.NULL)
+                    }
+                    if (item.uri.isNotBlank()) {
+                        val attachment = File(item.uri)
+                        check(attachment.isFile) { "Cannot export backup: missing attachment ${attachment.name}. Reattach it before exporting." }
+                        val declaredType = item.tags.substringAfter("type:", "").substringBefore(';').substringBefore(',')
+                        check(declaredType == "image" || declaredType == "pdf") { "Unsupported attachment type in ${attachment.name}." }
+                        row.put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
+                    }
+                    val history = JSONArray()
+                    vm.snapshots(item.id).first().forEach { snapshot ->
+                        history.put(JSONObject().apply {
+                            put("title", snapshot.title)
+                            put("body", snapshot.body)
+                            put("savedAt", snapshot.savedAt)
+                        })
+                    }
+                    row.put("history", history)
+                    array.put(row)
                 }
-                val history = JSONArray()
-                vm.snapshots(item.id).first().forEach { snapshot ->
-                    history.put(JSONObject().apply {
-                        put("title", snapshot.title)
-                        put("body", snapshot.body)
-                        put("savedAt", snapshot.savedAt)
-                    })
-                }
-                put("history", history)
-            }) }
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(array.toString(2)) }
+                val output = context.contentResolver.openOutputStream(uri) ?: error("Could not open the backup destination.")
+                output.bufferedWriter().use { it.write(array.toString(2)) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { integrityReport = "Backup export failed. No backup was written.\n\n${error.localizedMessage ?: "Unknown error"}" }
+            }
         }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch(Dispatchers.IO) {
-            runCatching {
-                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "[]"
+            try {
+                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Could not read the selected backup.")
                 val array = JSONArray(raw)
+                val ids = (0 until array.length()).map { array.getJSONObject(it).optLong("id") }
+                require(ids.all { it > 0 } && ids.toSet().size == ids.size) { "Backup contains missing or duplicate item IDs." }
+                val idSet = ids.toSet()
+                for (i in 0 until array.length()) {
+                    val row = array.getJSONObject(i)
+                    require(row.isNull("parentId") || row.optLong("parentId") in idSet) { "Backup contains a broken notebook parent reference." }
+                }
                 val restoredSnapshots = mutableListOf<NoteSnapshot>()
                 val restored = buildList {
                     for (i in 0 until array.length()) {
                         val o = array.getJSONObject(i)
                         val encodedAttachment = o.optString("attachmentBase64")
-                        val restoredUri = if (encodedAttachment.isNotBlank()) {
+                        val originalUri = o.optString("uri")
+                        val originalExtension = File(originalUri).extension.lowercase(Locale.ROOT)
+                        val declaredType = o.optString("tags").split(';', ',').firstOrNull { it.trim().startsWith("type:") }
+                            ?.substringAfter(':')?.trim().orEmpty()
+                        val isPhoto = declaredType == "image" || originalExtension in setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "tif", "tiff", "avif")
+                        val isPdf = declaredType == "pdf" || originalExtension == "pdf"
+                        val hasAttachmentMarker = originalUri.isNotBlank() || declaredType == "image" || declaredType == "pdf" || encodedAttachment.isNotBlank()
+                        var restoredUri = ""
+                        if (hasAttachmentMarker) {
+                            require(encodedAttachment.isNotBlank() && (isPhoto || isPdf)) {
+                                "Backup is missing valid photo/PDF data for item ${o.optLong("id")}. Export a fresh full backup from the source device."
+                            }
+                            val bytes = Base64.decode(encodedAttachment, Base64.DEFAULT)
+                            require(bytes.isNotEmpty()) { "Backup contains an empty attachment." }
                             val directory = File(context.filesDir, "attachments").apply { mkdirs() }
-                            val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}")
-                            target.writeBytes(Base64.decode(encodedAttachment, Base64.DEFAULT))
-                            target.absolutePath
-                        } else o.optString("uri")
+                            val suffix = originalExtension.takeIf { it.matches(Regex("[A-Za-z0-9]{1,8}")) }?.let { ".$it" } ?: if (isPdf) ".pdf" else ".jpg"
+                            val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}$suffix")
+                            target.writeBytes(bytes)
+                            restoredUri = target.absolutePath
+                        }
                         val itemId = o.optLong("id")
                         val history = o.optJSONArray("history") ?: JSONArray()
                         for (h in 0 until history.length()) {
@@ -180,6 +214,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     }
                 }
                 vm.restore(restored, restoredSnapshots)
+                withContext(Dispatchers.Main) { integrityReport = "Backup restored successfully.\n\nImported ${restored.size} notebook items and ${restoredSnapshots.size} history entries." }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { integrityReport = "Backup restore failed. Your existing library was not replaced.\n\n${error.localizedMessage ?: "Unknown error"}" }
             }
         }
     }
@@ -226,8 +263,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         },
         bottomBar = {
             if (!isWide) NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
-                listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
-                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                listOf("Library", "Saved", "Study", "Ask Notes", "Tools", "Settings").forEach { label ->
+                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "Ask Notes" -> Icons.Rounded.Search; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
                         icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
@@ -239,8 +276,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             if (isWide) {
                 NavigationRail(containerColor = Color(0xFF17181B), contentColor = Gold) {
                     Spacer(Modifier.height(12.dp))
-                    listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
-                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                    listOf("Library", "Saved", "Study", "Ask Notes", "Tools", "Settings").forEach { label ->
+                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "Ask Notes" -> Icons.Rounded.Search; else -> Icons.Rounded.Settings }
                         NavigationRailItem(selected = tab == label, onClick = { tab = label; stack = emptyList() }, icon = { Icon(icon, null) }, label = { Text(label, fontSize = 10.sp) })
                     }
                 }
@@ -251,7 +288,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 "Library" -> {
                     if (current?.kind == "page") {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
-                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
+                            attachmentPicker.launch(arrayOf("image/*", "application/pdf"))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -264,6 +301,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                         }
                         Spacer(Modifier.height(12.dp))
                         if (current.kind == "topic") {
+                            TopicWordGoalCard(current, children, vm)
+                            Spacer(Modifier.height(12.dp))
                             Text("PAGES", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(10.dp))
                         } else {
@@ -313,6 +352,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
                 "Study" -> FlashcardsScreen(vm)
+                "Ask Notes" -> LocalNotesAssistantScreen(vm)
                 "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
@@ -379,8 +419,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             text = { if (history.isEmpty()) Text("Earlier versions appear here as you edit text blocks.") else LazyColumn { items(history) { snap ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Text(SimpleDateFormat("dd MMM yyyy · HH:mm", Locale.getDefault()).format(Date(snap.savedAt)), color = Gold)
+                    Text(snap.title, fontWeight = FontWeight.Medium, maxLines = 1)
                     Text(snap.body, maxLines = 3, color = Muted)
-                    TextButton(onClick = { vm.update(item, body = snap.body); showHistory = null }) { Text("Restore this version") }
+                    TextButton(onClick = { vm.update(item, title = snap.title, body = snap.body); showHistory = null }) { Text("Restore this version") }
                 }
             } } }, confirmButton = { TextButton(onClick = { showHistory = null }) { Text("Close") } })
     }
@@ -403,8 +444,62 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 }
 
 @Composable
+private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: ScribeViewModel) {
+    var allItems by remember(topic.id) { mutableStateOf(emptyList<ScribeItem>()) }
+    var goalDraft by remember(topic.id) {
+        mutableStateOf(topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
+            ?.substringAfter(':') ?: "500")
+    }
+    var savedGoal by remember(topic.id) {
+        mutableIntStateOf(topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
+            ?.substringAfter(':')?.toIntOrNull()?.coerceAtLeast(0) ?: 0)
+    }
+    LaunchedEffect(topic.id, pages.map { it.id }) {
+        allItems = vm.all()
+    }
+    val words = TopicWordCount.count(allItems, topic.id)
+    val goal = savedGoal
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1C20)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("TOPIC WORD GOAL", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+                    Text(if (goal > 0) "$words / $goal words" else "$words words", color = Gold, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedTextField(goalDraft, { goalDraft = it.filter(Char::isDigit).take(6) },
+                    modifier = Modifier.width(105.dp), singleLine = true, label = { Text("Target") }, colors = fieldColors())
+                TextButton(onClick = {
+                    val target = goalDraft.toIntOrNull()?.coerceIn(0, 100_000) ?: 0
+                    val tags = topic.tags.split(';', ',').map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
+                    vm.update(topic, tags = (tags + if (target > 0) listOf("wordGoal:$target") else emptyList()).joinToString(";"))
+                    savedGoal = target
+                    goalDraft = if (target > 0) target.toString() else "500"
+                }) { Text("Save", color = Gold) }
+            }
+            if (goal > 0) {
+                LinearProgressIndicator(
+                    progress = { (words.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(), color = Gold, trackColor = Color(0xFF38352F)
+                )
+                Text(if (words >= goal) "Word goal completed" else "${goal - words} words remaining",
+                    color = Muted, fontSize = 11.sp)
+                TextButton(onClick = {
+                    val tags = topic.tags.split(';', ',').map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
+                    vm.update(topic, tags = tags.joinToString(";"))
+                    savedGoal = 0
+                    goalDraft = "500"
+                }) { Text("Disable goal", color = Muted, fontSize = 11.sp) }
+            } else {
+                Text("Track writing progress across every page in this topic.", color = Muted, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onExport: () -> Unit) {
     val blocks by vm.children(page.id).collectAsState(initial = emptyList())
+    val pageInsights = remember(blocks) { PageInsights.calculate(blocks) }
     val topics by vm.kind("topic").collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
@@ -425,6 +520,22 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         OutlinedTextField(value = pageTitle, onValueChange = { pageTitle = it; vm.update(page, title = it) },
             modifier = Modifier.fillMaxWidth(), textStyle = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
             placeholder = { Text("Page title") }, singleLine = true, colors = fieldColors(), shape = RoundedCornerShape(12.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1C20)), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("${pageInsights.wordCount} words", color = Gold, fontWeight = FontWeight.SemiBold)
+                    Text("Writing", color = Muted, fontSize = 10.sp)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(if (pageInsights.estimatedReadingMinutes == 0) "—" else "${pageInsights.estimatedReadingMinutes} min", color = Gold, fontWeight = FontWeight.SemiBold)
+                    Text("Read time", color = Muted, fontSize = 10.sp)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(pageInsights.attachmentCount.toString(), color = Gold, fontWeight = FontWeight.SemiBold)
+                    Text("Attachments", color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("${blocks.size} CONTENT BLOCKS", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
@@ -448,7 +559,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
             if (blocks.isEmpty()) item { EmptyState("A blank page", "Add rich text, equations, diagrams, images, PDFs, tables and more.") }
             item {
                 OutlinedButton(onClick = onAttach, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF or document")
+                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach photo or PDF")
                 }
             }
         }
@@ -502,7 +613,9 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
             if (preview != null) Image(bitmap = preview, contentDescription = item.title, modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp))
             if (item.uri.isNotBlank() && preview == null) Text(File(item.uri).name, color = Gold, fontSize = 12.sp)
             if (item.body.isNotBlank()) {
-                if (type == "equation" || type == "code") {
+                if (type == "equation") {
+                    MathJaxPreview(item.body, Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 150.dp))
+                } else if (type == "code") {
                     Text(item.body, color = Color(0xFFE0CDAA), fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
                 } else {
                     Text(styledBody(item.body), color = Muted, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
@@ -637,8 +750,10 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("*", "*") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("I", fontStyle = FontStyle.Italic) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("__", "__") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("U", textDecoration = TextDecoration.Underline) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~", "~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("S", textDecoration = TextDecoration.LineThrough) }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("`", "`") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Code", fontFamily = FontFamily.Monospace) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("## ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("H2") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("- ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("List") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("> ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Quote") }
             }
             OutlinedTextField(bodyValue, { bodyValue = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags") }, colors = fieldColors())

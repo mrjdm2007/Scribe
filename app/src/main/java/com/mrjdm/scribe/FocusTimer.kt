@@ -8,11 +8,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mrjdm.scribe.data.ScribeViewModel
+import com.mrjdm.scribe.data.StudyProgress
 import kotlinx.coroutines.delay
 
 private val FocusGold = Color(0xFFD5B98C)
@@ -22,8 +24,17 @@ private val FocusMuted = Color(0xFF96938D)
 /** Foreground focus timer. Completed sessions are stored locally in the study history. */
 @Composable
 fun FocusTimer(vm: ScribeViewModel) {
+    val context = LocalContext.current
+    val sessions by vm.kind("study_session").collectAsState(initial = emptyList())
+    val preferences = remember { context.getSharedPreferences("scribe_study", android.content.Context.MODE_PRIVATE) }
+    var dailyGoalMinutes by remember { mutableIntStateOf(preferences.getInt("daily_goal_minutes", 60)) }
     var durationMinutes by remember { mutableIntStateOf(25) }
     var remainingSeconds by remember { mutableIntStateOf(25 * 60) }
+    val nowMillis = System.currentTimeMillis()
+    val todayMinutes = StudyProgress.todayMinutes(sessions, nowMillis)
+    val weeklySessions = StudyProgress.sessionsThisWeek(sessions, nowMillis)
+    val weeklyMinutes = weeklySessions.sumOf { StudyProgress.sessionMinutes(it.tags) }
+    val streak = StudyProgress.streakDays(sessions, nowMillis)
     var running by remember { mutableStateOf(false) }
     var sessionLabel by remember { mutableStateOf("Focused study") }
     var completed by remember { mutableIntStateOf(0) }
@@ -49,6 +60,44 @@ fun FocusTimer(vm: ScribeViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("FOCUS MODE", color = FocusMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
         Text("Make time for deep work.", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Card(colors = CardDefaults.cardColors(containerColor = FocusPanel), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("TODAY'S STUDY GOAL", color = FocusMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+                        Text("$todayMinutes / $dailyGoalMinutes min", color = FocusGold, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("🔥 $streak day${if (streak == 1) "" else "s"}", color = FocusGold, fontWeight = FontWeight.SemiBold)
+                        Text("study streak", color = FocusMuted, fontSize = 10.sp)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(30, 60, 90, 120).forEach { value ->
+                        FilterChip(selected = dailyGoalMinutes == value, onClick = {
+                            dailyGoalMinutes = value
+                            preferences.edit().putInt("daily_goal_minutes", value).apply()
+                        }, label = { Text("$value min", fontSize = 10.sp) })
+                    }
+                }
+                LinearProgressIndicator(
+                    progress = { (todayMinutes.toFloat() / dailyGoalMinutes.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(), color = FocusGold, trackColor = Color(0xFF38352F)
+                )
+                Text(if (todayMinutes >= dailyGoalMinutes) "Daily goal completed" else "${dailyGoalMinutes - todayMinutes} min left today",
+                    color = FocusMuted, fontSize = 11.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("THIS WEEK", color = FocusMuted, fontSize = 9.sp)
+                        Text("${weeklyMinutes / 60}h ${weeklyMinutes % 60}m", color = FocusGold, fontWeight = FontWeight.SemiBold)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("SESSIONS THIS WEEK", color = FocusMuted, fontSize = 9.sp)
+                        Text(weeklySessions.size.toString(), color = FocusGold, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
         OutlinedTextField(sessionLabel, { sessionLabel = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("Session / subject") }, singleLine = true)
         Card(colors = CardDefaults.cardColors(containerColor = FocusPanel), shape = RoundedCornerShape(24.dp),
@@ -101,7 +150,7 @@ fun FocusTimer(vm: ScribeViewModel) {
                 }
             }
         }
-        Text("The timer runs while Scribe remains open. Completed sessions are saved locally; background alarms are not used.",
+        Text("The timer runs while Scribe remains open. Completed sessions are saved locally and included in your daily goal, streak and weekly statistics.",
             color = FocusMuted, fontSize = 11.sp, lineHeight = 16.sp)
     }
 }
