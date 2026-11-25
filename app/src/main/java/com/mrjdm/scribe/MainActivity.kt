@@ -91,10 +91,20 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
     var stack by remember { mutableStateOf(listOf<ScribeItem>()) }
     var savedStackIds by rememberSaveable { mutableStateOf("") }
+    var recentItems by remember { mutableStateOf<List<ScribeItem>>(emptyList()) }
+    fun recordRecent(item: ScribeItem) {
+        if (item.kind !in listOf("course", "chapter", "topic", "page", "block")) return
+        recentItems = (listOf(item) + recentItems.filterNot { it.id == item.id }).take(6)
+        context.getSharedPreferences("scribe_navigation", Context.MODE_PRIVATE).edit()
+            .putString("recent_ids", recentItems.joinToString(",") { it.id.toString() }).apply()
+    }
     var navigationReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val restoredIds = savedStackIds.split(",").mapNotNull { it.toLongOrNull() }
         if (restoredIds.isNotEmpty()) stack = restoredIds.mapNotNull { vm.get(it) }
+        val storedRecent = context.getSharedPreferences("scribe_navigation", Context.MODE_PRIVATE)
+            .getString("recent_ids", "").orEmpty().split(",").mapNotNull { it.toLongOrNull() }
+        recentItems = storedRecent.mapNotNull { vm.get(it) }.filter { it.deletedAt == null }
         navigationReady = true
     }
     LaunchedEffect(stack, navigationReady) {
@@ -284,12 +294,12 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             when (tab) {
                 "Library" -> {
                     if (current?.kind == "page") {
-                        PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
+                        PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> recordRecent(linked); stack = listOf(linked) }, onAttach = {
                             attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current?.kind == "topic") {
                         TopicNotebook(current, vm, onBack = { stack = stack.dropLast(1) },
-                            onOpenPage = { page -> stack = stack + page },
+                            onOpenPage = { page -> recordRecent(page); stack = stack + page },
                             onAttach = { attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*")) })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -308,7 +318,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             Text("YOUR ${current.kind.uppercase()}S", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Spacer(Modifier.height(10.dp))
                         }
-                        ItemList(children, onClick = { stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move, onMergePage = vm::mergePageWithNext, onSplitPage = vm::splitPage)
+                        ItemList(children, onClick = { recordRecent(it); stack = stack + it }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree, onDuplicate = vm::duplicate, onMove = vm::move, onMergePage = vm::mergePageWithNext, onSplitPage = vm::splitPage)
                         if (children.isEmpty()) EmptyState(if (current.kind == "topic") "No pages yet" else "A quiet space to begin", "Use + to add your first ${if (current.kind == "topic") "page" else "item"}.")
                     } else {
                         Text("SCRIBE", color = Gold, fontSize = 11.sp, letterSpacing = 4.sp, fontWeight = FontWeight.Bold)
@@ -339,13 +349,29 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                 }
                             } } }
                         } else {
+                            if (recentItems.isNotEmpty()) {
+                                Text("RECENTLY OPENED", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    recentItems.forEach { recent ->
+                                        Surface(onClick = { stack = listOf(recent) }, shape = RoundedCornerShape(12.dp),
+                                            color = Color(0xFF202126), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))) {
+                                            Column(Modifier.widthIn(min = 120.dp, max = 180.dp).padding(12.dp)) {
+                                                Text(recent.title, maxLines = 1, fontWeight = FontWeight.Medium)
+                                                Text(recent.kind.replaceFirstChar { it.uppercase() }, color = Muted, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(18.dp))
+                            }
                             Spacer(Modifier.height(22.dp))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text("Your courses", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                                 Text("${children.size} NOTEBOOKS", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
                             }
                             Spacer(Modifier.height(12.dp))
-                            ItemList(children.filter { it.kind == "course" }, onClick = { stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
+                            ItemList(children.filter { it.kind == "course" }, onClick = { recordRecent(it); stack = listOf(it) }, onBookmark = vm::toggleBookmark, onEdit = { editItem = it }, onDelete = vm::removeTree)
                             if (children.isEmpty()) EmptyState("Start your library", "Create a course to begin building your knowledge vault.")
                             Spacer(Modifier.height(12.dp))
                             OutlinedButton(onClick = { quickCapture = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {

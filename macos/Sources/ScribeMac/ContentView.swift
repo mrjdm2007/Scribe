@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ScribeMacRoot: View {
     @EnvironmentObject private var store: ScribeStore
     @AppStorage("scribe.dailyStudyGoalMinutes") private var dailyGoalMinutes = 60
+    @AppStorage("scribe.recentItemIDs") private var recentItemIDs = ""
     @State private var showingImport = false
     @State private var showingExport = false
     @State private var showingPDFImport = false
@@ -146,6 +147,13 @@ struct ScribeMacRoot: View {
         .sheet(isPresented: $showingTrash) { trashSheet }
         .sheet(item: $historyItem) { item in historySheet(item) }
         .fileExporter(isPresented: $showingExport, document: BackupDocument(data: (try? store.backupData()) ?? Data("[]".utf8)), contentType: .json, defaultFilename: "Scribe-backup") { _ in }
+        .onChange(of: store.selectedID) { value in
+            guard let value, let item = store.items.first(where: { $0.id == value }),
+                  ["course", "chapter", "topic", "page", "block"].contains(item.kind) else { return }
+            var ids = recentItemIDs.split(separator: ",").compactMap { Int64($0) }
+            ids.removeAll { $0 == value }
+            recentItemIDs = ([value] + ids).prefix(6).map(String.init).joined(separator: ",")
+        }
         .onChange(of: store.focusSearch) { value in
             if value { searchFocused = true; store.focusSearch = false }
         }
@@ -169,6 +177,28 @@ struct ScribeMacRoot: View {
     private var library: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic notebook").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import attachment", systemImage: "paperclip") } }
+            if store.searchText.isEmpty && store.selected == nil {
+                let recentIDs = recentItemIDs.split(separator: ",").compactMap { Int64($0) }
+                let recentItems = recentIDs.compactMap { id in store.items.first(where: { $0.id == id && $0.deletedAt == nil }) }
+                if !recentItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("RECENTLY OPENED").font(.caption.bold()).foregroundStyle(.secondary)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(recentItems) { item in
+                                    Button { store.selectedID = item.id } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(item.title).lineLimit(1).font(.subheadline.weight(.medium))
+                                            Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary)
+                                        }.frame(width: 150, alignment: .leading).padding(12)
+                                            .background(panel, in: RoundedRectangle(cornerRadius: 12))
+                                    }.buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             HStack(spacing: 12) {
                 if store.searchText.isEmpty {
                     hierarchy(parent: nil, title: "Courses")
