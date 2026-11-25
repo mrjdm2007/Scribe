@@ -426,7 +426,7 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
     }
     val pageIDs = pages.map { it.id }.toSet()
     val words = allItems.asSequence()
-        .filter { it.parentId in pageIDs && it.uri.isBlank() && !it.tags.contains("type:image") && !it.tags.contains("type:pdf") }
+        .filter { it.parentId != null && it.parentId in pageIDs && it.uri.isBlank() && !it.tags.contains("type:image") && !it.tags.contains("type:pdf") }
         .sumOf { it.body.trim().split(Regex("\\s+")).count { word -> word.isNotBlank() } }
     val goal = topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
         ?.substringAfter(':')?.toIntOrNull()?.coerceAtLeast(0) ?: 0
