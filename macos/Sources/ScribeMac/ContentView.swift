@@ -731,7 +731,7 @@ struct ScribeMacRoot: View {
                     Button(trashSelectedIDs.count == deleted.count ? "Clear selection" : "Select all") {
                         trashSelectedIDs = trashSelectedIDs.count == deleted.count ? [] : Set(deleted.map { $0.id })
                     }
-                    Text("\\(trashSelectedIDs.count) selected").font(.caption).foregroundStyle(.secondary)
+                    Text(String(trashSelectedIDs.count) + " selected").font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Restore") {
                         deleted.filter { trashSelectedIDs.contains($0.id) }.forEach { store.restoreFromTrash($0) }
