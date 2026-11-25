@@ -1432,6 +1432,7 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                 }
                 annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${pageIndex + 1}") }.forEach { note ->
                     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF24272D))) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f).padding(9.dp)) {
                             Text(note.title, color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             if (editingAnnotationId == note.id) {
@@ -1462,6 +1463,7 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                         }
                         IconButton(onClick = { vm.removeTree(note) }) {
                             Icon(Icons.Rounded.Delete, contentDescription = "Delete annotation", tint = Muted)
+                        }
                         }
                     }
                 }
