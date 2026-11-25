@@ -162,7 +162,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                         val encodedAttachment = o.optString("attachmentBase64")
                         val restoredUri = if (encodedAttachment.isNotBlank()) {
                             val directory = File(context.filesDir, "attachments").apply { mkdirs() }
-                            val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}")
+                            val originalExtension = File(o.optString("uri")).extension
+                                .takeIf { it.matches(Regex("[A-Za-z0-9]{1,8}")) }
+                            val suffix = originalExtension?.let { ".$it" } ?: ""
+                            val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}$suffix")
                             target.writeBytes(Base64.decode(encodedAttachment, Base64.DEFAULT))
                             target.absolutePath
                         } else o.optString("uri")
