@@ -5,8 +5,7 @@ import UserNotifications
 
 public func belongsToTrashBatch(_ candidateDeletedAt: Int64?, rootDeletedAt: Int64?) -> Bool {
     guard let candidateDeletedAt, let rootDeletedAt else { return false }
-    let delta = candidateDeletedAt - rootDeletedAt
-    return (-5_000...5_000).contains(delta)
+    return abs(Double(candidateDeletedAt) - Double(rootDeletedAt)) <= 5_000
 }
 
 public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {

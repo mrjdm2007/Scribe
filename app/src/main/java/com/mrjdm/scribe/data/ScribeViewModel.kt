@@ -9,8 +9,7 @@ import kotlinx.coroutines.launch
 
 internal fun belongsToTrashBatch(candidateDeletedAt: Long?, rootDeletedAt: Long?): Boolean {
     if (candidateDeletedAt == null || rootDeletedAt == null) return false
-    val delta = candidateDeletedAt - rootDeletedAt
-    return delta in -5_000L..5_000L
+    return kotlin.math.abs(candidateDeletedAt.toDouble() - rootDeletedAt.toDouble()) <= 5_000.0
 }
 
 class ScribeViewModel(app: Application) : AndroidViewModel(app) {

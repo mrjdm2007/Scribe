@@ -103,5 +103,9 @@ class ReviewScheduleTest {
         )
         assertEquals("subject:Math;completedAt:200", completedReminder(original, 200).tags)
     }
+    @Test fun restoreBatchIncludesOnlyItemsDeletedWithParent() {
+        assertEquals(true, com.mrjdm.scribe.data.belongsToTrashBatch(100_002, 100_000))
+        assertEquals(false, com.mrjdm.scribe.data.belongsToTrashBatch(90_000, 100_000))
+        assertEquals(false, com.mrjdm.scribe.data.belongsToTrashBatch(null, 100_000))
+    }
 }
-

@@ -85,4 +85,9 @@ final class ReviewScheduleTests: XCTestCase {
     func testHugeFlashcardIntervalsAreSafelyCapped() {
         XCTAssertEqual(nextReviewIntervalDays(Int64.max, rating: 3), 365)
     }
+    func testTrashRestoreBatchDoesNotRevivePreviouslyDeletedChildren() {
+        XCTAssertTrue(belongsToTrashBatch(100_002, rootDeletedAt: 100_000))
+        XCTAssertFalse(belongsToTrashBatch(90_000, rootDeletedAt: 100_000))
+        XCTAssertFalse(belongsToTrashBatch(nil, rootDeletedAt: 100_000))
+    }
 }
