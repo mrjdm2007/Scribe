@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ScribeCore
 import UniformTypeIdentifiers
 
@@ -21,6 +22,8 @@ struct ScribeMacRoot: View {
     @State private var reviewedCardIDs: Set<Int64> = []
     @State private var formulaQuery = ""
     @State private var topicSearchQuery = ""
+    @State private var topicSearchIndex = 0
+    @State private var editorSelection = NSRange(location: 0, length: 0)
     @FocusState private var searchFocused: Bool
 
     private let gold = Color(red: 0.84, green: 0.72, blue: 0.55)
@@ -84,6 +87,7 @@ struct ScribeMacRoot: View {
         .onChange(of: store.focusSearch) { value in
             if value { searchFocused = true; store.focusSearch = false }
         }
+        .onChange(of: topicSearchQuery) { _ in topicSearchIndex = 0 }
         .preferredColorScheme(.dark)
     }
     private func icon(for tool: ScribeTool) -> String {
@@ -176,7 +180,13 @@ struct ScribeMacRoot: View {
                     let matches = item.body.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(topicSearchQuery) }
                     let matchingBlocks = store.children(of: item.id).filter { $0.title.localizedCaseInsensitiveContains(topicSearchQuery) || $0.body.localizedCaseInsensitiveContains(topicSearchQuery) }
                     if !topicSearchQuery.isEmpty {
-                        Text("\(matches.count + matchingBlocks.count) matching lines and note elements").font(.caption).foregroundStyle(.secondary)
+                        let wordMatches = searchRanges(in: item.body, query: topicSearchQuery)
+                        HStack {
+                            Text("\(wordMatches.count) word matches · \(matchingBlocks.count) note elements").font(.caption).foregroundStyle(.secondary)
+                            Spacer()
+                            Button { topicSearchIndex = max(0, topicSearchIndex - 1) } label: { Image(systemName: "chevron.up") }.disabled(wordMatches.isEmpty)
+                            Button { topicSearchIndex = min(max(0, wordMatches.count - 1), topicSearchIndex + 1) } label: { Image(systemName: "chevron.down") }.disabled(wordMatches.isEmpty)
+                        }
                         ForEach(Array(matches.prefix(5).enumerated()), id: \.offset) { entry in
                             Text(entry.element).font(.caption).lineLimit(2).padding(.horizontal, 8)
                         }
@@ -189,12 +199,13 @@ struct ScribeMacRoot: View {
                     }
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
-                            Button("B") { appendMarkup("**text**") }.fontWeight(.bold)
-                            Button("I") { appendMarkup("*text*") }.italic()
-                            Button("U") { appendMarkup("__text__") }
-                            Button("Heading") { appendMarkup("## Heading") }
-                            Button("List") { appendMarkup("- List item") }
-                            Button("Code") { appendMarkup("~~~code~~~") }
+                            Button("B") { applyMarkup("**", "**") }.fontWeight(.bold)
+                            Button("I") { applyMarkup("*", "*") }.italic()
+                            Button("U") { applyMarkup("__", "__") }
+                            Button("S") { applyMarkup("~~", "~~") }
+                            Button("Heading") { applyMarkup("## ", "") }
+                            Button("List") { applyMarkup("- ", "") }
+                            Button("Code") { applyMarkup("~~~", "~~~") }
                         }.buttonStyle(.bordered).controlSize(.small)
                     }
                     Text("Notes use portable Markdown text, preserving line breaks and formatting markers across Android, Mac and window resizing.").font(.caption).foregroundStyle(.secondary)
@@ -206,7 +217,21 @@ struct ScribeMacRoot: View {
                         Text("OCR text is saved in this attachment's note body.").font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
-                    TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    if item.kind == "topic" {
+                        MarkdownEditor(
+                            text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item, body: $0) }),
+                            selection: $editorSelection,
+                            searchQuery: topicSearchQuery,
+                            matchIndex: topicSearchIndex
+                        )
+                        .frame(minHeight: 340)
+                        .padding(8)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) }))
+                            .font(.system(size: 15)).scrollContentBackground(.hidden).padding(8)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
                 }
                 HStack {
                     Button { store.update(item, bookmarked: !item.bookmarked) } label: {
@@ -221,10 +246,31 @@ struct ScribeMacRoot: View {
             } else { VStack(spacing: 10) { Image(systemName: "text.book.closed").font(.system(size: 34)); Text("Select a course, topic or page").font(.headline); Text("Your notes and study material will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity) }
         }.padding(14).frame(minWidth: 440, maxWidth:.infinity,maxHeight:.infinity).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:14)).overlay(RoundedRectangle(cornerRadius:14).stroke(.white.opacity(0.10),lineWidth:1)).shadow(color:.black.opacity(0.24),radius:16,x:0,y:8)
     }
-    private func appendMarkup(_ marker: String) {
+    private func searchRanges(in text: String, query: String) -> [NSRange] {
+        guard !query.isEmpty else { return [] }
+        let source = text as NSString
+        var cursor = 0
+        var found: [NSRange] = []
+        while cursor < source.length {
+            let range = source.range(of: query, options: [.caseInsensitive],
+                range: NSRange(location: cursor, length: source.length - cursor))
+            if range.location == NSNotFound || range.length == 0 { break }
+            found.append(range)
+            cursor = range.location + range.length
+        }
+        return found
+    }
+    private func applyMarkup(_ prefix: String, _ suffix: String) {
         guard let item = store.selected else { return }
-        let separator = item.body.isEmpty || item.body.hasSuffix("\n") ? "" : "\n"
-        store.update(item, body: item.body + separator + marker)
+        let source = item.body as NSString
+        let location = min(max(0, editorSelection.location), source.length)
+        let length = min(max(0, editorSelection.length), source.length - location)
+        let selected = source.substring(with: NSRange(location: location, length: length))
+        let placeholder = selected.isEmpty ? "text" : selected
+        let replacement = prefix + placeholder + suffix
+        let updated = source.replacingCharacters(in: NSRange(location: location, length: length), with: replacement)
+        store.update(item, body: updated)
+        editorSelection = NSRange(location: location + (prefix as NSString).length, length: (placeholder as NSString).length)
     }
     private var flashcards: some View {
         VStack(alignment:.leading,spacing:16) {
