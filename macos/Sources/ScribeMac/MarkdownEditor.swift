@@ -1,5 +1,5 @@
 import SwiftUI
-import AppKit
+import WebKit
 
 struct MarkdownEditor: NSViewRepresentable {
     @Binding var text: String
@@ -9,85 +9,85 @@ struct MarkdownEditor: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = true
-        scroll.autohidesScrollers = false
-        scroll.drawsBackground = false
-        let editor = NSTextView()
-        editor.delegate = context.coordinator
-        editor.isRichText = false
-        editor.isAutomaticQuoteSubstitutionEnabled = false
-        editor.isAutomaticDashSubstitutionEnabled = false
-        editor.isVerticallyResizable = true
-        editor.isHorizontallyResizable = false
-        editor.autoresizingMask = [.width]
-        editor.textContainer?.widthTracksTextView = true
-        editor.textContainerInset = NSSize(width: 10, height: 12)
-        editor.font = NSFont.systemFont(ofSize: 15)
-        editor.textColor = .labelColor
-        editor.backgroundColor = .clear
-        editor.string = text
-        scroll.documentView = editor
-        return scroll
-    }
-
-    func updateNSView(_ scroll: NSScrollView, context: Context) {
-        guard let editor = scroll.documentView as? NSTextView else { return }
-        if editor.string != text { editor.string = text }
-        let fullRange = NSRange(location: 0, length: (editor.string as NSString).length)
-        editor.textStorage?.removeAttribute(.backgroundColor, range: fullRange)
-        let matches = ranges(in: editor.string, query: searchQuery)
-        for range in matches {
-            editor.textStorage?.addAttribute(.backgroundColor,
-                value: NSColor.systemYellow.withAlphaComponent(0.32), range: range)
-        }
-        if !matches.isEmpty {
-            let index = min(max(0, matchIndex), matches.count - 1)
-            let signature = searchQuery + "|" + String(index)
-            if context.coordinator.lastSearchSignature != signature {
-                let selected = matches[index]
-                editor.setSelectedRange(selected)
-                editor.scrollRangeToVisible(selected)
-                context.coordinator.lastSearchSignature = signature
-            }
-        } else {
-            context.coordinator.lastSearchSignature = ""
-            let safeLocation = min(max(0, selection.location), (editor.string as NSString).length)
-            if editor.selectedRange().location != safeLocation {
-                editor.setSelectedRange(NSRange(location: safeLocation, length: 0))
-            }
-        }
+    func makeNSView(context: Context) -> WKWebView {
+        let controller = WKUserContentController()
+        controller.add(context.coordinator, name: "scribeEditor")
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController = controller
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.setValue(false, forKey: "drawsBackground")
         context.coordinator.parent = self
+        context.coordinator.lastMarkdown = text
+        view.loadHTMLString(Self.html, baseURL: URL(string: "https://scribe.local/"))
+        let initial = Self.javascriptString(text)
+        view.evaluateJavaScript("window.setMarkdown && window.setMarkdown(\(initial));")
+        return view
     }
 
-    private func ranges(in value: String, query: String) -> [NSRange] {
-        guard !query.isEmpty else { return [] }
-        let source = value as NSString
-        var cursor = 0
-        var result: [NSRange] = []
-        while cursor < source.length {
-            let range = source.range(of: query, options: [.caseInsensitive],
-                range: NSRange(location: cursor, length: source.length - cursor))
-            if range.location == NSNotFound || range.length == 0 { break }
-            result.append(range)
-            cursor = range.location + range.length
+    func updateNSView(_ view: WKWebView, context: Context) {
+        context.coordinator.parent = self
+        if context.coordinator.lastMarkdown != text {
+            context.coordinator.lastMarkdown = text
+            let value = Self.javascriptString(text)
+            view.evaluateJavaScript("window.setMarkdown && window.setMarkdown(\(value));")
         }
-        return result
+        if !searchQuery.isEmpty {
+            let query = Self.javascriptString(searchQuery)
+            view.evaluateJavaScript("window.findText && window.findText(\(query), \(max(0, matchIndex)));")
+        }
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    private static func javascriptString(_ value: String) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: [value], options: [.fragmentsAllowed])) ?? Data("[\"\"]".utf8)
+        let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
+        return String(array.dropFirst().dropLast())
+    }
+
+    private static let html = """
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+<style>
+:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;padding:16px;background:transparent;color:CanvasText;font:15px/1.7 -apple-system,BlinkMacSystemFont,sans-serif}
+#editor{min-height:320px;outline:none;overflow-wrap:anywhere}#editor:empty:before{content:"Start writing…";opacity:.5}
+h1,h2,h3{line-height:1.25;color:CanvasText}blockquote{border-left:3px solid #c5a778;padding-left:12px;opacity:.8;margin-left:0}
+pre,code{font-family:ui-monospace,monospace;background:color-mix(in srgb,CanvasText 10%,transparent);padding:3px;border-radius:4px}
+pre{padding:12px;overflow:auto}pre code{background:transparent}table{border-collapse:collapse;width:100%}td,th{border:1px solid color-mix(in srgb,CanvasText 30%,transparent);padding:6px 9px}
+a{color:#b18a52}#editor mark{background:#f2d36b;color:#242424}
+</style></head><body><div id="editor" contenteditable="true" spellcheck="true"></div>
+<script>
+const editor=document.getElementById("editor");let lastMarkdown="";
+function md(n){
+ if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType!==1)return "";
+ const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
+ if(t==="br")return "\\n";if(t==="strong"||t==="b")return "**"+c()+"**";if(t==="em"||t==="i")return "*"+c()+"*";
+ if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
+ if(/^h[1-6]$/.test(t))return "#".repeat(+t[1])+" "+c().trim()+"\\n\\n";
+ if(t==="blockquote")return c().trim().split("\\n").map(x=>"> "+x).join("\\n")+"\\n\\n";
+ if(t==="pre")return "    "+(n.innerText||n.textContent||"").replace(/\\n/g,"\\n    ")+"\\n\\n";
+ if(t==="a")return "["+c()+"]("+n.getAttribute("href")+")";
+ if(t==="li")return (n.parentElement&&n.parentElement.tagName==="OL"?(Array.from(n.parentElement.children).indexOf(n)+1)+". ":"- ")+c().trim()+"\\n";
+ if(t==="ul"||t==="ol")return Array.from(n.children).map(md).join("")+"\\n";
+ if(t==="p"||t==="div")return c().trim()+"\\n\\n";if(t==="hr")return "\\n---\\n\\n";
+ if(t==="td"||t==="th")return c().trim()+" | ";if(t==="tr")return "| "+Array.from(n.children).map(md).join("")+"\\n";
+ if(t==="table")return c()+"\\n";return c();
+}
+function toMarkdown(){return Array.from(editor.childNodes).map(md).join("").replace(/\\n{3,}/g,"\\n\\n").trim();}
+function publish(){const value=toMarkdown();if(value!==lastMarkdown){lastMarkdown=value;window.webkit.messageHandlers.scribeEditor.postMessage(value);}}
+window.setMarkdown=function(value){if(value===lastMarkdown)return;lastMarkdown=value;const parser=window.markdownit?window.markdownit({html:false,linkify:false,typographer:false}).enable("table"):null;editor.innerHTML=parser?parser.render(value):"<pre>"+value.replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</pre>";};
+window.findText=function(query,index){if(!query)return;const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let node,found=[];while(node=walker.nextNode()){let at=0;while((at=node.textContent.indexOf(query,at))>=0){found.push({node:node,at:at});at+=query.length;}}if(found.length){const item=found[Math.min(index,found.length-1)];const range=document.createRange();range.setStart(item.node,item.at);range.setEnd(item.node,item.at+query.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);range.startContainer.parentElement.scrollIntoView({block:"center"});}};
+editor.addEventListener("input",publish);editor.addEventListener("blur",publish);
+</script></body></html>
+"""
+
+    final class Coordinator: NSObject, WKScriptMessageHandler {
         var parent: MarkdownEditor
-        var lastSearchSignature = ""
-        init(_ parent: MarkdownEditor) { self.parent = parent }
-        func textDidChange(_ notification: Notification) {
-            guard let editor = notification.object as? NSTextView else { return }
-            parent.text = editor.string
-        }
-        func textViewDidChangeSelection(_ notification: Notification) {
-            guard let editor = notification.object as? NSTextView else { return }
-            parent.selection = editor.selectedRange()
+        var lastMarkdown = ""
+        init(_ parent: MarkdownEditor) { self.parent = parent; self.lastMarkdown = parent.text }
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let value = message.body as? String else { return }
+            lastMarkdown = value
+            parent.text = value
+            parent.selection = NSRange(location: (value as NSString).length, length: 0)
         }
     }
 }
