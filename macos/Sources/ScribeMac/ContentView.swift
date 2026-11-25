@@ -1083,7 +1083,7 @@ private struct FlashcardDeckManagerSheet: View {
 }
 
 
-private struct LatexPreviewView: NSViewRepresentable {
+struct LatexPreviewView: NSViewRepresentable {
     let source: String
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> WKWebView {
