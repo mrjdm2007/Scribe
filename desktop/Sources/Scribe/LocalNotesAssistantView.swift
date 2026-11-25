@@ -2,6 +2,13 @@ import SwiftUI
 
 /// API-key-free notebook retrieval: local search, explicit notebook scope, and traceable note citations.
 /// This view never reads attachment bytes or OCR/PDF-extracted text.
+private struct LocalNoteResult: Identifiable {
+    let node: ScribeNode
+    let score: Int
+    let citation: String
+    var id: UUID { node.id }
+}
+
 struct LocalNotesAssistantView: View {
     @EnvironmentObject private var library: ScribeLibrary
     @State private var question = ""
@@ -11,7 +18,7 @@ struct LocalNotesAssistantView: View {
         question.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 1 }
     }
 
-    private var results: [(node: ScribeNode, score: Int, citation: String)] {
+    private var results: [LocalNoteResult] {
         guard !words.isEmpty else { return [] }
         let visible = library.visibleNodes.filter { node in
             guard node.uri.isEmpty else { return false }
@@ -26,7 +33,7 @@ struct LocalNotesAssistantView: View {
                 total + (title.contains(word) ? 5 : 0) + (body.contains(word) ? 2 : 0) + (tags.contains(word) ? 1 : 0)
             }
             guard score > 0 else { return nil }
-            return (node, score, citationPath(for: node))
+            return LocalNoteResult(node: node, score: score, citation: citationPath(for: node))
         }.sorted {
             $0.score == $1.score ? $0.node.updatedAt > $1.node.updatedAt : $0.score > $1.score
         }.prefix(20).map { $0 }
@@ -107,7 +114,7 @@ struct LocalNotesAssistantView: View {
                 } else if results.isEmpty {
                     VStack(alignment: .leading, spacing: 6) { Label("No matching notes", systemImage: "doc.text.magnifyingglass").font(.headline); Text("Try different keywords or expand the selected notebook context.").foregroundStyle(.secondary) }
                 } else {
-                    ForEach(results, id: \.node.id) { result in
+                    ForEach(results) { result in
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(result.node.title.isEmpty ? result.node.kind.capitalized : result.node.title)
