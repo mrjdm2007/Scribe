@@ -222,6 +222,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                 Column(Modifier.fillMaxSize().padding(22.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("READING MODE", color = Color(0xFFD5B98C), fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { reading = false; aiOpen = true }) { Text("Ask AI") }
                         TextButton(onClick = { reading = false }) { Text("Done") }
                     }
                     Text(item.title, style = MaterialTheme.typography.headlineMedium, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold)
