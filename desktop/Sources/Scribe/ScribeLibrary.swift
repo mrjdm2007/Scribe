@@ -296,7 +296,8 @@ final class ScribeLibrary: ObservableObject {
         let backup = try JSONDecoder.scribe.decode(ScribeBackup.self, from: data)
         guard backup.schemaVersion == 1 else { throw CocoaError(.fileReadCorruptFile) }
         let ids = Set(backup.items.map(\.id))
-        guard backup.items.allSatisfy({ $0.parentID == nil || ids.contains($0.parentID!) }),
+        let attachmentIDs = Set(backup.attachments.map(\.nodeID))
+        guard backup.items.allSatisfy({ ($0.parentID == nil || ids.contains($0.parentID!)) && ($0.uri.isEmpty || attachmentIDs.contains($0.id)) }),
               backup.attachments.allSatisfy({ attachment in
                   let type = UTType(filenameExtension: URL(fileURLWithPath: attachment.filename).pathExtension)
                   return ids.contains(attachment.nodeID) && Data(base64Encoded: attachment.dataBase64) != nil &&
