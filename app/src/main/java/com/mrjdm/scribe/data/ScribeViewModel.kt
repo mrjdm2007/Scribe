@@ -24,6 +24,8 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun get(id: Long) = dao.byId(id)
     fun observe(id: Long) = dao.observeById(id)
     suspend fun all() = dao.allItems()
+    suspend fun syncSupabase(url: String, anonKey: String, email: String, password: String): String =
+        ScribeSupabaseSync(getApplication(), dao).sync(url, anonKey, email, password)
 
     fun add(parentId: Long?, kind: String, title: String, body: String = "", uri: String = "", tags: String = "", done: (Long) -> Unit = {}) {
         viewModelScope.launch {

@@ -109,7 +109,8 @@ internal class ScribeSupabaseSync(
                 while (iterator.hasNext()) {
                     val row = iterator.next()
                     val cloud = row.optString("cloud_id")
-                    val data = row.optJSONObject("payload") ?: run { iterator.remove(); continue }
+                    val data = row.optJSONObject("payload")
+                    if (data == null) { iterator.remove(); continue }
                     val parentCloud = data.optString("parentCloudId").takeIf { it.isNotBlank() && it != "null" }
                     if (parentCloud != null && !localByCloud.containsKey(parentCloud)) continue
                     val parentLocal = parentCloud?.let { localByCloud[it]?.id }
