@@ -316,11 +316,62 @@ struct NodeEditorView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Text("Notebook contents").font(.headline).foregroundStyle(.secondary)
-                List(library.children(of: item.id)) { child in
-                    NavigationLink(value: child.id) { Label(child.title, systemImage: symbol(child.kind)) }
+                Text(item.kind == "page" ? "Page content" : "Notebook contents")
+                    .font(.headline).foregroundStyle(.secondary)
+                if item.kind == "page" {
+                    VStack(spacing: 8) {
+                        ForEach(library.children(of: item.id)) { child in
+                            HStack(spacing: 10) {
+                                NavigationLink(value: child.id) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Label(child.title, systemImage: symbol(child.kind))
+                                            .font(.body.weight(.medium))
+                                        if !child.body.isEmpty {
+                                            Text(child.body)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                        } else if child.tags.contains("type:pdf") {
+                                            Text("PDF · Read only").font(.caption).foregroundStyle(.secondary)
+                                        } else if child.tags.contains("type:image") {
+                                            Text("Photo attachment").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                Button {
+                                    library.toggleBookmark(child.id)
+                                } label: {
+                                    Image(systemName: child.bookmarked ? "bookmark.fill" : "bookmark")
+                                        .foregroundStyle(child.bookmarked ? Color.accentColor : Color.secondary)
+                                }
+                                .buttonStyle(.borderless)
+                                .help(child.bookmarked ? "Remove bookmark" : "Bookmark block")
+                                Menu {
+                                    Button("Move up") { library.move(child.id, offset: -1) }
+                                    Button("Move down") { library.move(child.id, offset: 1) }
+                                    Button("Duplicate") { _ = library.duplicate(child.id) }
+                                    Divider()
+                                    Button("Move to Trash", role: .destructive) { library.moveToTrash(child.id) }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle").foregroundStyle(.secondary)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .help("Block actions")
+                            }
+                            .padding(11)
+                            .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 11))
+                        }
+                    }
+                    .frame(minHeight: 80)
+                } else {
+                    List(library.children(of: item.id)) { child in
+                        NavigationLink(value: child.id) { Label(child.title, systemImage: symbol(child.kind)) }
+                    }
+                    .frame(minHeight: 160)
                 }
-                .frame(minHeight: 160)
             }
             HStack {
                 if item.kind == "page" {
