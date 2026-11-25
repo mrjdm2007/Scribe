@@ -3,6 +3,12 @@ import SwiftUI
 import Combine
 import UserNotifications
 
+public func independentCopyTags(_ tags: String) -> String {
+    tags.split(separator: ";").map(String.init)
+        .filter { !$0.isEmpty && !$0.hasPrefix("cloud_id:") }
+        .joined(separator: ";")
+}
+
 public func belongsToTrashBatch(_ candidateDeletedAt: Int64?, rootDeletedAt: Int64?) -> Bool {
     guard let candidateDeletedAt, let rootDeletedAt else { return false }
     return abs(Double(candidateDeletedAt) - Double(rootDeletedAt)) <= 5_000
@@ -146,6 +152,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             nextID += 1
             copy.parentId = parentId
             copy.title = isRoot ? source.title + " copy" : source.title
+            copy.tags = independentCopyTags(source.tags)
             copy.position = children(of: parentId).count
             copy.createdAt = now
             copy.updatedAt = now

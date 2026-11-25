@@ -90,4 +90,8 @@ final class ReviewScheduleTests: XCTestCase {
         XCTAssertFalse(belongsToTrashBatch(90_000, rootDeletedAt: 100_000))
         XCTAssertFalse(belongsToTrashBatch(nil, rootDeletedAt: 100_000))
     }
+    func testDuplicatedItemsDoNotReuseCloudIdentity() {
+        XCTAssertEqual(independentCopyTags("subject:ECE;cloud_id:abc-123;priority:high"), "subject:ECE;priority:high")
+        XCTAssertEqual(independentCopyTags("cloud_id:abc-123"), "")
+    }
 }

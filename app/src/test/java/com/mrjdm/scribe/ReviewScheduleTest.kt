@@ -108,4 +108,8 @@ class ReviewScheduleTest {
         assertEquals(false, com.mrjdm.scribe.data.belongsToTrashBatch(90_000, 100_000))
         assertEquals(false, com.mrjdm.scribe.data.belongsToTrashBatch(null, 100_000))
     }
+    @Test fun duplicatedItemsDoNotReuseCloudIdentity() {
+        assertEquals("subject:ECE;priority:high", com.mrjdm.scribe.data.independentCopyTags("subject:ECE;cloud_id:abc-123;priority:high"))
+        assertEquals("", com.mrjdm.scribe.data.independentCopyTags("cloud_id:abc-123"))
+    }
 }

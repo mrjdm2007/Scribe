@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+internal fun independentCopyTags(tags: String): String =
+    tags.split(";").filter { it.isNotBlank() && !it.startsWith("cloud_id:") }.joinToString(";")
+
 internal fun belongsToTrashBatch(candidateDeletedAt: Long?, rootDeletedAt: Long?): Boolean {
     if (candidateDeletedAt == null || rootDeletedAt == null) return false
     return kotlin.math.abs(candidateDeletedAt.toDouble() - rootDeletedAt.toDouble()) <= 5_000.0
@@ -93,6 +96,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
                 val position = dao.children(newParentId).first().size
                 val newId = dao.insert(source.copy(id = 0, parentId = newParentId,
                     title = if (isRoot) source.title + " copy" else source.title,
+                    tags = independentCopyTags(source.tags),
                     position = position, createdAt = System.currentTimeMillis(),
                     updatedAt = System.currentTimeMillis(), deletedAt = null))
                 all.filter { it.parentId == source.id }.sortedBy { it.position }.forEach { child ->
@@ -233,6 +237,10 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
                 val all = dao.allItems()
                 suspend fun deleteTree(id: Long) {
                     all.filter { it.parentId == id }.forEach { deleteTree(it.id) }
+                    all.firstOrNull { it.id == id }?.tags?.split(";")
+                        ?.firstOrNull { it.startsWith("cloud_id:") }
+                        ?.substringAfter("cloud_id:")?.takeIf { it.isNotBlank() }
+                        ?.let { dao.enqueueCloudDeletion(CloudDeletion(it)) }
                     dao.deleteSnapshotsForItem(id)
                     dao.deleteId(id)
                 }
