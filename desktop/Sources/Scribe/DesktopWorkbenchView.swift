@@ -424,7 +424,7 @@ private struct CircuitSymbolPreview: View {
             default:
                 symbol.move(to: CGPoint(x: size.width * 0.36, y: y))
                 for index in 0...5 { symbol.addLine(to: CGPoint(x: size.width * (0.39 + Double(index) * 0.05), y: y + (index.isMultiple(of: 2) ? -16 : 16))) }
-                symbol.addLine(to: CGPoint(x: size.width * 0.64, y: y)
+                symbol.addLine(to: CGPoint(x: size.width * 0.64, y: y))
             }
             context.stroke(symbol, with: .color(.accentColor), style: StrokeStyle(lineWidth: 2, lineJoin: .round))
         }
