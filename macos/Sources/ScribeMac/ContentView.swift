@@ -144,6 +144,10 @@ struct ScribeMacRoot: View {
                                     store.update(item, bookmarked: !item.bookmarked)
                                 }
                                 Button("Duplicate with contents") { store.duplicateTree(item) }
+                                if item.kind == "page" {
+                                    Button("Split page into two") { store.splitPage(item) }
+                                    Button("Merge with next page") { store.mergePageWithNext(item) }
+                                }
                                 Button("Move up") { store.move(item, direction: -1) }
                                 Button("Move down") { store.move(item, direction: 1) }
                                 Button("Delete", role: .destructive) { store.remove(item) }

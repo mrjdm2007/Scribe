@@ -141,6 +141,53 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         persist()
     }
 
+    public func splitPage(_ page: ScribeItem) {
+        guard page.kind == "page" else { return }
+        let blocks = children(of: page.id)
+        guard blocks.count >= 2 else { return }
+        let siblings = children(of: page.parentId)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let newPage = ScribeItem(
+            id: nextID, parentId: page.parentId, kind: "page",
+            title: page.title + " · Part 2", position: siblings.count,
+            createdAt: now, updatedAt: now
+        )
+        nextID += 1
+        items.append(newPage)
+        for (index, block) in blocks.dropFirst((blocks.count + 1) / 2).enumerated() {
+            guard let itemIndex = items.firstIndex(where: { $0.id == block.id }) else { continue }
+            items[itemIndex].parentId = newPage.id
+            items[itemIndex].position = index
+            items[itemIndex].updatedAt = now
+        }
+        selectedID = newPage.id
+        persist()
+    }
+
+    public func mergePageWithNext(_ page: ScribeItem) {
+        guard page.kind == "page" else { return }
+        let siblings = children(of: page.parentId)
+        guard let index = siblings.firstIndex(where: { $0.id == page.id }),
+              siblings.indices.contains(index + 1) else { return }
+        let next = siblings[index + 1]
+        guard next.kind == "page" else { return }
+        let existing = children(of: page.id)
+        let incoming = children(of: next.id)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        for (offset, block) in incoming.enumerated() {
+            guard let itemIndex = items.firstIndex(where: { $0.id == block.id }) else { continue }
+            items[itemIndex].parentId = page.id
+            items[itemIndex].position = existing.count + offset
+            items[itemIndex].updatedAt = now
+        }
+        if let nextIndex = items.firstIndex(where: { $0.id == next.id }) {
+            items[nextIndex].deletedAt = now
+            items[nextIndex].updatedAt = now
+        }
+        selectedID = page.id
+        persist()
+    }
+
     public func move(_ item: ScribeItem, direction: Int) {
         guard direction == -1 || direction == 1 else { return }
         let siblings = children(of: item.parentId)
