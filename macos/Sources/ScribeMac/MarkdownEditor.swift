@@ -39,7 +39,7 @@ struct MarkdownEditor: NSViewRepresentable {
     private static func javascriptString(_ value: String) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: [value], options: [.fragmentsAllowed])) ?? Data("[\"\"]".utf8)
         let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
-        return String(array.dropFirst().dropLast())
+        return String(array.dropFirst().dropLast()).replacingOccurrences(of: "</", with: "<\\/")
     }
 
     private static let html = """
