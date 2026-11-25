@@ -1091,7 +1091,7 @@ private fun RichMarkdownEditor(value: String, onValueChange: (String, Int, Int) 
 <style>body{margin:0;padding:12px;background:transparent;color:#e8e3da;font:16px/1.7 sans-serif}#editor{min-height:320px;outline:none;overflow-wrap:anywhere}#editor:empty:before{content:"Start writing…";color:#888}h1,h2,h3{color:#f0d8ad}blockquote{border-left:3px solid #d5b98c;padding-left:12px}pre,code{background:#24272d;padding:4px;border-radius:5px}table{border-collapse:collapse}td,th{border:1px solid #555;padding:5px}</style>
 </head><body><div id="editor" contenteditable="true" spellcheck="true"></div><script>
 const e=document.getElementById("editor");let last="";
-function escapeText(value){return value.replace(/[\\\x60*_{}\[\]()#+.!|>-]/g,"\\\\function inlineCode(value){");}
+function escapeText(value){const special=String.fromCharCode(92)+"`*_{}[]()#+.!|>~-";const slash=String.fromCharCode(92);return Array.from(value).map(ch=>special.includes(ch)?slash+ch:ch).join("");}
 function inlineCode(value){const runs=value.match(/\x60+/g)||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence="\x60".repeat(longest+1);const pad=value.startsWith(" ")||value.endsWith(" ")?" ":"";return fence+pad+value+pad+fence;}
 function md(n){if(n.nodeType===3)return escapeText(n.nodeValue||"");if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
 if(t==="br")return "\n";if(t==="b"||t==="strong")return "**"+c()+"**";if(t==="i"||t==="em")return "*"+c()+"*";if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
