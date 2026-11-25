@@ -350,7 +350,16 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             } } }
                         } else {
                             if (recentItems.isNotEmpty()) {
-                                Text("RECENTLY OPENED", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("RECENTLY OPENED", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                                    Spacer(Modifier.weight(1f))
+                                    TextButton(onClick = {
+                                        recentItems = emptyList()
+                                        context.getSharedPreferences("scribe_navigation", Context.MODE_PRIVATE).edit().remove("recent_ids").apply()
+                                    }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                                        Text("Clear", color = Muted, fontSize = 11.sp)
+                                    }
+                                }
                                 Spacer(Modifier.height(8.dp))
                                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     recentItems.forEach { recent ->

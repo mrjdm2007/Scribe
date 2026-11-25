@@ -182,7 +182,12 @@ struct ScribeMacRoot: View {
                 let recentItems = recentIDs.compactMap { id in store.items.first(where: { $0.id == id && $0.deletedAt == nil }) }
                 if !recentItems.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("RECENTLY OPENED").font(.caption.bold()).foregroundStyle(.secondary)
+                        HStack {
+                            Text("RECENTLY OPENED").font(.caption.bold()).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Clear") { recentItemIDs = "" }.font(.caption)
+                                .buttonStyle(.plain).foregroundStyle(.secondary)
+                        }
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(recentItems) { item in
