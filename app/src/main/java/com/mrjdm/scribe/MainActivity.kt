@@ -1540,7 +1540,7 @@ private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: 
                     page.annotations.add(note)
                 }
                 else -> {
-                    val square = com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquare()
+                    val square = com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquareCircle(com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquareCircle.SUB_TYPE_SQUARE)
                     square.rectangle = rect
                     square.color = color
                     square.contents = annotation.body
