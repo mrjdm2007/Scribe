@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import AppKit
+import PDFKit
 
 @main
 struct ScribeApp: App {
@@ -212,26 +213,143 @@ struct NodeEditorView: View {
 }
 
 struct DesktopToolsView: View {
+    @EnvironmentObject private var library: ScribeLibrary
+    @State private var tool = "Converter"
     @State private var value = "1"
     @State private var from = "m"
     @State private var to = "cm"
     @State private var formula = "sin(x)"
     @State private var label = "New formula"
-    private let units: [String: Double] = ["m":1,"cm":0.01,"mm":0.001,"km":1000,"V":1,"mV":0.001,"kV":1000,"A":1,"mA":0.001,"Hz":1,"kHz":1000,"MHz":1_000_000,"W":1,"mW":0.001,"kW":1000,"s":1,"ms":0.001,"min":60,"h":3600,"Ω":1,"kΩ":1000,"MΩ":1_000_000]
+    @State private var question = ""
+    @State private var answer = ""
+    @State private var cardFront = ""
+    @State private var cardBack = ""
+    @State private var tableRows = "3"
+    @State private var tableColumns = "3"
+    @State private var graphRange = 6.28
+    private let units: [String: Double] = ["m":1,"cm":0.01,"mm":0.001,"km":1000,"V":1,"mV":0.001,"kV":1000,"A":1,"mA":0.001,"µA":0.000001,"Hz":1,"kHz":1000,"MHz":1_000_000,"GHz":1_000_000_000,"W":1,"mW":0.001,"kW":1000,"s":1,"ms":0.001,"min":60,"h":3600,"Ω":1,"kΩ":1000,"MΩ":1_000_000,"F":1,"µF":0.000001,"nF":0.000000001,"pF":0.000000000001,"J":1,"kJ":1000,"Wh":3600,"kWh":3600000,"m/s":1,"km/h":1.0/3.6,"C":1,"mC":0.001,"µC":0.000001,"H":1,"mH":0.001,"µH":0.000001]
+    private var graphValues: [CGFloat] {
+        (0...160).map { i in
+            let x = -graphRange + (2 * graphRange * Double(i) / 160)
+            let y: Double
+            switch formula.trimmingCharacters(in: .whitespaces).lowercased() {
+            case "cos(x)": y = cos(x)
+            case "x": y = x
+            case "x^2": y = x*x
+            case "1/x": y = abs(x) < 0.05 ? .nan : 1/x
+            case "exp(x)": y = min(exp(x), 10)
+            default: y = sin(x)
+            }
+            return y.isFinite ? CGFloat(y) : .nan
+        }
+    }
     var body: some View {
-        Form {
-            Section("Engineering unit converter") {
-                TextField("Value", text: $value)
-                Picker("From", selection: $from) { ForEach(units.keys.sorted(), id: \.self) { Text($0).tag($0) } }
-                Picker("To", selection: $to) { ForEach(units.keys.sorted(), id: \.self) { Text($0).tag($0) } }
-                if let n = Double(value), let a = units[from], let b = units[to] { Text("\(n * a / b, format: .number.precision(.significantDigits(1...8))) \(to)").font(.title2) }
+        VStack(alignment: .leading, spacing: 18) {
+            Picker("Tool", selection: $tool) {
+                Text("Converter").tag("Converter")
+                Text("Formulas").tag("Formulas")
+                Text("Graph").tag("Graph")
+                Text("Questions").tag("Questions")
+                Text("Flashcards").tag("Flashcards")
+                Text("Tables").tag("Tables")
+                Text("Diagrams").tag("Diagrams")
+            }.pickerStyle(.segmented)
+            Form {
+                if tool == "Converter" {
+                    Section("Engineering unit converter") {
+                        TextField("Value", text: $value)
+                        Picker("From", selection: $from) { ForEach(units.keys.sorted(), id: \.self) { Text($0).tag($0) } }
+                        Picker("To", selection: $to) { ForEach(units.keys.sorted(), id: \.self) { Text($0).tag($0) } }
+                        if let n = Double(value), let a = units[from], let b = units[to] {
+                            Text("\(n * a / b, format: .number.precision(.significantDigits(1...8))) \(to)").font(.title2)
+                        }
+                    }
+                } else if tool == "Formulas" {
+                    Section("Formula shelf") {
+                        TextField("Formula name", text: $label)
+                        TextField("Equation / LaTeX source", text: $formula)
+                        Button("Save formula") { _ = library.add(kind: "formula", title: label, body: formula, tags: "source:latex") }
+                    }
+                    Section("Saved formulas") {
+                        ForEach(library.visibleNodes.filter { $0.kind == "formula" }) { item in
+                            VStack(alignment: .leading) { Text(item.title); Text(item.body).foregroundStyle(.secondary) }
+                        }
+                    }
+                } else if tool == "Graph" {
+                    Section("Function plotter") {
+                        TextField("Function: sin(x), cos(x), x, x^2, 1/x, exp(x)", text: $formula)
+                        Slider(value: $graphRange, in: 1...30)
+                        Text("Range: ±\(graphRange, specifier: "%.1f")")
+                        GraphPreview(values: graphValues)
+                        Button("Save graph formula") { _ = library.add(kind: "formula", title: "y = \(formula)", body: "y = \(formula)\nRange ±\(graphRange)", tags: "type:graph-formula") }
+                    }
+                } else if tool == "Questions" {
+                    Section("Question bank entry") {
+                        TextField("Question", text: $question, axis: .vertical)
+                        TextField("Answer / explanation", text: $answer, axis: .vertical)
+                        Button("Save question") { _ = library.add(kind: "question", title: question, body: answer, tags: "type:question"); question = ""; answer = "" }
+                            .disabled(question.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    Section("Saved questions") {
+                        ForEach(library.visibleNodes.filter { $0.kind == "question" }) { item in
+                            VStack(alignment: .leading) { Text(item.title); Text(item.body).foregroundStyle(.secondary) }
+                        }
+                    }
+                } else if tool == "Flashcards" {
+                    Section("Create flashcard") {
+                        TextField("Front", text: $cardFront)
+                        TextField("Back", text: $cardBack)
+                        Button("Save flashcard") { _ = library.add(kind: "flashcard", title: cardFront, body: cardBack, tags: "type:flashcard"); cardFront = ""; cardBack = "" }
+                            .disabled(cardFront.isEmpty || cardBack.isEmpty)
+                    }
+                    Section("Your flashcards") {
+                        ForEach(library.visibleNodes.filter { $0.kind == "flashcard" }) { item in
+                            VStack(alignment: .leading) { Text(item.title); Text(item.body).foregroundStyle(.secondary) }
+                        }
+                    }
+                } else if tool == "Tables" {
+                    Section("Scientific table") {
+                        TextField("Rows", text: $tableRows)
+                        TextField("Columns", text: $tableColumns)
+                        Button("Create table block") {
+                            let rows = min(max(Int(tableRows) ?? 3, 1), 30)
+                            let columns = min(max(Int(tableColumns) ?? 3, 1), 20)
+                            let text = (0..<rows).map { _ in Array(repeating: "", count: columns).joined(separator: "\t") }.joined(separator: "\n")
+                            _ = library.add(kind: "block", title: "Scientific table", body: text, tags: "type:table")
+                        }
+                    }
+                } else {
+                    Section("Diagram starters") {
+                        Button("Create concept map outline") { _ = library.add(kind: "diagram", title: "Concept map", body: "Main idea\n  ├─ Concept A\n  └─ Concept B", tags: "type:concept-map") }
+                        Button("Create circuit sketch notes") { _ = library.add(kind: "diagram", title: "Circuit sketch", body: "Components:\nConnections:\nReference values:", tags: "type:circuit-sketch") }
+                    }
+                }
+            }.formStyle(.grouped)
+        }.padding(24).navigationTitle("Study tools")
+    }
+}
+
+struct GraphPreview: View {
+    let values: [CGFloat]
+    var body: some View {
+        Canvas { context, size in
+            let mid = size.height / 2
+            var axes = Path()
+            axes.move(to: CGPoint(x: 0, y: mid)); axes.addLine(to: CGPoint(x: size.width, y: mid))
+            axes.move(to: CGPoint(x: size.width / 2, y: 0)); axes.addLine(to: CGPoint(x: size.width / 2, y: size.height))
+            context.stroke(axes, with: .color(.secondary.opacity(0.5)), lineWidth: 1)
+            var path = Path()
+            var started = false
+            for (i, value) in values.enumerated() {
+                let x = size.width * CGFloat(i) / CGFloat(max(values.count - 1, 1))
+                let y = mid - value * size.height / 12
+                if value.isFinite && y >= 0 && y <= size.height {
+                    if !started { path.move(to: CGPoint(x: x, y: y)); started = true }
+                    else { path.addLine(to: CGPoint(x: x, y: y)) }
+                } else { started = false }
             }
-            Section("Formula shelf") {
-                TextField("Formula name", text: $label)
-                TextField("Equation / LaTeX source", text: $formula)
-                Text("Formula source is saved as text; visual typesetting is not yet available.").font(.caption).foregroundStyle(.secondary)
-            }
-        }.formStyle(.grouped).padding(24).navigationTitle("Study tools")
+            context.stroke(path, with: .color(.accentColor), lineWidth: 2)
+        }.frame(height: 220).background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
