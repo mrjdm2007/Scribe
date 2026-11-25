@@ -495,6 +495,7 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
     }
 }
 
+@Composable
 private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onExport: () -> Unit) {
     val blocks by vm.children(page.id).collectAsState(initial = emptyList())
     val pageInsights = remember(blocks) { PageInsights.calculate(blocks) }
