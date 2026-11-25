@@ -45,6 +45,6 @@ object TextOnlyAIContext {
         if (item.kind != "block") return false
         val type = item.tags.split(';', ',').firstOrNull { it.trim().startsWith("type:") }
             ?.trim()?.removePrefix("type:")
-        return type in attachmentTypes
+        return type != null && type in attachmentTypes
     }
 }
