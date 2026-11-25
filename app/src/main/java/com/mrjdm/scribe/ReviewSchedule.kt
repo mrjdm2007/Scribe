@@ -20,7 +20,7 @@ fun nextReviewIntervalDays(currentDays: Long, rating: Int): Long {
 private const val FLASHCARD_DAY_MILLIS = 86_400_000L
 
 fun flashcardReviewTags(tags: String, rating: Int, nowMillis: Long): String {
-    val oldInterval = tags.split(";").firstOrNull { it.startsWith("interval:") }?.substringAfter(":")?.toDoubleOrNull()?.let { kotlin.math.ceil(it).toLong() } ?: 1L
+    val oldInterval = tags.split(";").firstOrNull { it.startsWith("interval:") }?.substringAfter(":")?.toDoubleOrNull()?.takeIf { it.isFinite() }?.coerceIn(1.0, 365.0)?.let { kotlin.math.ceil(it).toLong() } ?: 1L
     val days = nextReviewIntervalDays(oldInterval, rating)
     val offset = days * FLASHCARD_DAY_MILLIS
     val dueAt = if (nowMillis > Long.MAX_VALUE - offset) Long.MAX_VALUE else nowMillis + offset

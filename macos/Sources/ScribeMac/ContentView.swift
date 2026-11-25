@@ -22,7 +22,6 @@ struct ScribeMacRoot: View {
     @State private var converterUnit = "mA"
     @State private var converterTarget = "A"
     @State private var revealed = false
-    @State private var reviewedCardIDs: Set<Int64> = []
     @State private var formulaQuery = ""
     @State private var topicSearchQuery = ""
     @State private var topicSearchIndex = 0
@@ -350,7 +349,7 @@ struct ScribeMacRoot: View {
             }
             let upcomingCount = cards.count - dueCards.count
             Text("\(dueCards.count) due now · \(upcomingCount) upcoming").foregroundStyle(.secondary)
-            if let card = dueCards.first(where: { !reviewedCardIDs.contains($0.id) }) {
+            if let card = dueCards.first {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
                 }.padding(30).background(panel,in:RoundedRectangle(cornerRadius:20))
@@ -359,7 +358,7 @@ struct ScribeMacRoot: View {
             Spacer()
         }.padding(24)
     }
-    private func reviewButton(_ title:String,_ rating:Int,_ card:ScribeItem)->some View { Button(title) { store.review(card,rating:rating); reviewedCardIDs.insert(card.id); revealed=false }.buttonStyle(.bordered) }
+    private func reviewButton(_ title:String,_ rating:Int,_ card:ScribeItem)->some View { Button(title) { store.review(card,rating:rating); revealed=false }.buttonStyle(.bordered) }
     private var focus: some View {
         let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Calendar.current.startOfDay(for: Date())
         let weeklySessions = store.items.filter { $0.kind == "study_session" && $0.deletedAt == nil && Date(timeIntervalSince1970: Double($0.createdAt) / 1000) >= weekStart }

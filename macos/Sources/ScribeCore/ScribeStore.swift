@@ -17,7 +17,8 @@ public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
 }
 
 public func flashcardReviewTags(_ tags: String, rating: Int, nowMillis: Int64) -> String {
-    let oldValue = tags.split(separator: ";").first(where: { $0.hasPrefix("interval:") }).flatMap { Double($0.dropFirst("interval:".count)) } ?? 1
+    let parsedValue = tags.split(separator: ";").first(where: { $0.hasPrefix("interval:") }).flatMap { Double($0.dropFirst("interval:".count)) } ?? 1
+    let oldValue = parsedValue.isFinite ? min(365, max(1, parsedValue)) : 1
     let days = nextReviewIntervalDays(Int64(ceil(oldValue)), rating: rating)
     let offset = days * 86_400_000
     let dueAt = nowMillis > Int64.max - offset ? Int64.max : nowMillis + offset
