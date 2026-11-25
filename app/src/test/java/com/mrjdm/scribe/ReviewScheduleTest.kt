@@ -39,8 +39,6 @@ class ReviewScheduleTest {
     @Test fun unknownRatingDoesNotChangeInterval() {
         assertEquals(7L, nextReviewIntervalDays(7, 99))
     }
-}
-
 
     @Test fun studyGoalCountsOnlySessionsOnTheSelectedLocalDay() {
         val day = java.time.LocalDate.of(2026, 11, 25)
@@ -75,3 +73,4 @@ class ReviewScheduleTest {
             createdAt = today.minusDays(2).atTime(10, 0).atZone(zone).toInstant().toEpochMilli())
         assertEquals(0, StudyProgress.currentStreakDays(listOf(session), today, zone))
     }
+}

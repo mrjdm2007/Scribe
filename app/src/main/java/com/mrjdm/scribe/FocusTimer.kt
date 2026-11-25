@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.mrjdm.scribe.data.ScribeViewModel
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -27,6 +28,11 @@ private val FocusMuted = Color(0xFF96938D)
 /** Foreground focus timer. Completed sessions are stored locally in the study history. */
 @Composable
 fun FocusTimer(vm: ScribeViewModel) {
+    val context = LocalContext.current
+    val preferences = remember { context.getSharedPreferences("scribe_preferences", 0) }
+    var dailyGoalMinutes by remember {
+        mutableIntStateOf(preferences.getInt("daily_study_goal_minutes", 60).coerceIn(30, 240))
+    }
     var durationMinutes by remember { mutableIntStateOf(25) }
     var remainingSeconds by remember { mutableIntStateOf(25 * 60) }
     var running by remember { mutableStateOf(false) }
@@ -134,13 +140,29 @@ fun FocusTimer(vm: ScribeViewModel) {
                         Text("study streak", color = FocusMuted, fontSize = 10.sp)
                     }
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(30, 60, 90, 120).forEach { value ->
+                        FilterChip(
+                            selected = dailyGoalMinutes == value,
+                            onClick = {
+                                dailyGoalMinutes = value
+                                preferences.edit().putInt("daily_study_goal_minutes", value).apply()
+                            },
+                            label = { Text("$value min", fontSize = 10.sp) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
                 LinearProgressIndicator(
-                    progress = { (todayMinutes / 60f).coerceIn(0f, 1f) },
+                    progress = { (todayMinutes.toFloat() / dailyGoalMinutes).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth(), color = FocusGold,
                     trackColor = Color(0xFF38352F)
                 )
-                Text(if (todayMinutes >= 60) "Daily goal completed" else "${60 - todayMinutes} min left to reach today's goal",
-                    color = FocusMuted, fontSize = 11.sp)
+                Text(
+                    if (todayMinutes >= dailyGoalMinutes) "Daily goal completed"
+                    else "${dailyGoalMinutes - todayMinutes} min left to reach today's goal",
+                    color = FocusMuted, fontSize = 11.sp
+                )
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

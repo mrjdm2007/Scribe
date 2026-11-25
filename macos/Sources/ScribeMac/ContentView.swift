@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 struct ScribeMacRoot: View {
     @EnvironmentObject private var store: ScribeStore
+    @AppStorage("scribe.dailyStudyGoalMinutes") private var dailyGoalMinutes = 60
     @State private var showingImport = false
     @State private var showingExport = false
     @State private var showingPDFImport = false
@@ -382,8 +383,15 @@ struct ScribeMacRoot: View {
                         Text("study streak").font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                ProgressView(value: Double(min(todayMinutes, 60)), total: 60).tint(gold)
-                Text(todayMinutes >= 60 ? "Daily goal completed" : "\(60 - todayMinutes) min left to reach today's goal")
+                HStack(spacing: 6) {
+                    ForEach([30, 60, 90, 120], id: \.self) { minutes in
+                        Button("(minutes) min") { dailyGoalMinutes = minutes }
+                            .buttonStyle(.bordered)
+                            .tint(dailyGoalMinutes == minutes ? gold : .secondary)
+                    }
+                }
+                ProgressView(value: Double(min(todayMinutes, dailyGoalMinutes)), total: Double(dailyGoalMinutes)).tint(gold)
+                Text(todayMinutes >= dailyGoalMinutes ? "Daily goal completed" : "(dailyGoalMinutes - todayMinutes) min left to reach today's goal")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
             HStack(spacing: 12) {
