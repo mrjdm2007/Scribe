@@ -302,12 +302,15 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         },
         floatingActionButton = {
-            if (tab == "Library" && current?.kind != "page" && current?.kind != "topic") {
-                FloatingActionButton(onClick = {
-                    createKind = when(current?.kind) { null -> "course"; "course" -> "chapter"; "chapter" -> "topic"; "topic" -> "page"; else -> "course" }
-                    showCreate = true
-                }, containerColor = Gold, contentColor = Color(0xFF211B12)) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Add")
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (tab == "Library") ScribeFloatingStudyTools(current)
+                if (tab == "Library" && current?.kind != "page" && current?.kind != "topic") {
+                    FloatingActionButton(onClick = {
+                        createKind = when(current?.kind) { null -> "course"; "course" -> "chapter"; "chapter" -> "topic"; "topic" -> "page"; else -> "course" }
+                        showCreate = true
+                    }, containerColor = Gold, contentColor = Color(0xFF211B12)) {
+                        Icon(Icons.Rounded.Add, contentDescription = "Add")
+                    }
                 }
             }
         },
