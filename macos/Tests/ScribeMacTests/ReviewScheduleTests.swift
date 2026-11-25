@@ -38,3 +38,41 @@ final class ReviewScheduleTests: XCTestCase {
         XCTAssertEqual(roundTrip.first?.history?.first?.savedAt, 123)
     }
 }
+
+
+    func testDailyStudyGoalSumsOnlySessionsOnTheSelectedDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = calendar.date(from: DateComponents(year: 2026, month: 11, day: 25))!
+        let sessions = [
+            ScribeItem(id: 1, kind: "study_session", title: "ECE", tags: "minutes:25",
+                createdAt: Int64(calendar.date(byAdding: .hour, value: 9, to: day)!.timeIntervalSince1970 * 1000)),
+            ScribeItem(id: 2, kind: "study_session", title: "Math", tags: "minutes:35",
+                createdAt: Int64(calendar.date(byAdding: .hour, value: 13, to: day)!.timeIntervalSince1970 * 1000)),
+            ScribeItem(id: 3, kind: "study_session", title: "Yesterday", tags: "minutes:60",
+                createdAt: Int64(calendar.date(byAdding: .day, value: -1, to: day)!.timeIntervalSince1970 * 1000))
+        ]
+        XCTAssertEqual(ScribeStudyProgress.minutesStudied(on: day, sessions: sessions, calendar: calendar), 60)
+    }
+
+    func testStudyStreakIncludesConsecutiveDaysAndYesterdayStart() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let today = calendar.date(from: DateComponents(year: 2026, month: 11, day: 25))!
+        let sessions = (-1 ... -3).map { offset in
+            ScribeItem(id: Int64(abs(offset)), kind: "study_session", title: "Study",
+                tags: "minutes:25",
+                createdAt: Int64(calendar.date(byAdding: .day, value: offset, to: today)!.timeIntervalSince1970 * 1000))
+        }
+        XCTAssertEqual(ScribeStudyProgress.currentStreakDays(sessions: sessions, today: today, calendar: calendar), 3)
+    }
+
+    func testStudyStreakExpiresAfterTwoMissedDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let today = calendar.date(from: DateComponents(year: 2026, month: 11, day: 25))!
+        let old = calendar.date(byAdding: .day, value: -2, to: today)!
+        let session = ScribeItem(id: 1, kind: "study_session", title: "Study", tags: "minutes:25",
+            createdAt: Int64(old.timeIntervalSince1970 * 1000))
+        XCTAssertEqual(ScribeStudyProgress.currentStreakDays(sessions: [session], today: today, calendar: calendar), 0)
+    }

@@ -40,3 +40,38 @@ class ReviewScheduleTest {
         assertEquals(7L, nextReviewIntervalDays(7, 99))
     }
 }
+
+
+    @Test fun studyGoalCountsOnlySessionsOnTheSelectedLocalDay() {
+        val day = java.time.LocalDate.of(2026, 11, 25)
+        val zone = java.time.ZoneId.of("UTC")
+        val sessions = listOf(
+            com.mrjdm.scribe.data.ScribeItem(id = 1, kind = "study_session", title = "ECE",
+                tags = "minutes:25", createdAt = day.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()),
+            com.mrjdm.scribe.data.ScribeItem(id = 2, kind = "study_session", title = "Math",
+                tags = "minutes:35", createdAt = day.atTime(13, 0).atZone(zone).toInstant().toEpochMilli()),
+            com.mrjdm.scribe.data.ScribeItem(id = 3, kind = "study_session", title = "Yesterday",
+                tags = "minutes:60", createdAt = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli())
+        )
+        assertEquals(60, StudyProgress.minutesStudied(sessions, day, zone))
+    }
+
+    @Test fun studyStreakAllowsYesterdayAsLatestStudyDay() {
+        val today = java.time.LocalDate.of(2026, 11, 25)
+        val zone = java.time.ZoneId.of("UTC")
+        val sessions = listOf(today.minusDays(1), today.minusDays(2), today.minusDays(3)).mapIndexed { index, date ->
+            com.mrjdm.scribe.data.ScribeItem(id = index.toLong() + 1, kind = "study_session",
+                title = "Study", tags = "minutes:25",
+                createdAt = date.atTime(10, 0).atZone(zone).toInstant().toEpochMilli())
+        }
+        assertEquals(3, StudyProgress.currentStreakDays(sessions, today, zone))
+    }
+
+    @Test fun studyStreakExpiresAfterTwoMissedDays() {
+        val today = java.time.LocalDate.of(2026, 11, 25)
+        val zone = java.time.ZoneId.of("UTC")
+        val session = com.mrjdm.scribe.data.ScribeItem(id = 1, kind = "study_session",
+            title = "Study", tags = "minutes:25",
+            createdAt = today.minusDays(2).atTime(10, 0).atZone(zone).toInstant().toEpochMilli())
+        assertEquals(0, StudyProgress.currentStreakDays(listOf(session), today, zone))
+    }

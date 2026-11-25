@@ -368,6 +368,24 @@ struct ScribeMacRoot: View {
             HStack { ForEach([15,25,45,60],id:\.self) { m in Button("\(m) min") { store.focusMinutes=m;store.remaining=m*60 }.disabled(store.isRunning) } }
             HStack { Button(store.isRunning ? "Pause":"Start") { store.startTimer() }.buttonStyle(.borderedProminent).tint(gold); Button("Reset") { store.resetTimer() } }
             Text("\(store.completedSessions) completed this visit").foregroundStyle(.secondary)
+            let todayMinutes = ScribeStudyProgress.minutesStudied(on: Date(), sessions: store.items)
+            let studyStreak = ScribeStudyProgress.currentStreakDays(sessions: store.items, today: Date())
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TODAY'S STUDY GOAL").font(.caption.bold()).foregroundStyle(.secondary)
+                        Text("\(todayMinutes) / 60 min").font(.title2.bold()).foregroundStyle(gold)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("🔥 \(studyStreak) day\(studyStreak == 1 ? "" : "s")").font(.headline).foregroundStyle(gold)
+                        Text("study streak").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                ProgressView(value: Double(min(todayMinutes, 60)), total: 60).tint(gold)
+                Text(todayMinutes >= 60 ? "Daily goal completed" : "\(60 - todayMinutes) min left to reach today's goal")
+                    .font(.caption).foregroundStyle(.secondary)
+            }.padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("THIS WEEK").font(.caption.bold()).foregroundStyle(.secondary)

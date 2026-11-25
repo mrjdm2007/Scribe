@@ -18,6 +18,7 @@ import java.util.Calendar
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.time.LocalDate
 
 private val FocusGold = Color(0xFFD5B98C)
 private val FocusPanel = Color(0xFF1B1C20)
@@ -39,6 +40,9 @@ fun FocusTimer(vm: ScribeViewModel) {
     }.timeInMillis
     val weeklySessions = savedSessions.filter { it.createdAt >= weekStart && it.deletedAt == null }
     val weeklyMinutes = weeklySessions.sumOf { it.tags.substringAfter("minutes:", "").substringBefore(";").toIntOrNull() ?: 0 }
+    val today = LocalDate.now()
+    val todayMinutes = StudyProgress.minutesStudied(savedSessions, today)
+    val studyStreak = StudyProgress.currentStreakDays(savedSessions, today)
 
     LaunchedEffect(running) {
         if (running) {
@@ -113,6 +117,30 @@ fun FocusTimer(vm: ScribeViewModel) {
                     Text("${weeklySessions.size}", color = FocusGold, fontWeight = FontWeight.SemiBold)
                     Text("Completed this week", color = FocusMuted, fontSize = 11.sp)
                 }
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = FocusPanel),
+            shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("TODAY'S STUDY GOAL", color = FocusMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+                        Text("$todayMinutes / 60 min", color = FocusGold, fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleLarge)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("🔥 $studyStreak day${if (studyStreak == 1) "" else "s"}",
+                            color = FocusGold, fontWeight = FontWeight.SemiBold)
+                        Text("study streak", color = FocusMuted, fontSize = 10.sp)
+                    }
+                }
+                LinearProgressIndicator(
+                    progress = { (todayMinutes / 60f).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(), color = FocusGold,
+                    trackColor = Color(0xFF38352F)
+                )
+                Text(if (todayMinutes >= 60) "Daily goal completed" else "${60 - todayMinutes} min left to reach today's goal",
+                    color = FocusMuted, fontSize = 11.sp)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
