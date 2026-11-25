@@ -117,23 +117,16 @@ struct AcademicToolsView: View {
                     body: "y = " + graphExpression + "\nRange: ±" + graphRange + " (radians for trigonometric functions)",
                     tags: "type:graph", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
-            Text("Supported functions: sin(x), cos(x), tan(x), x, x^2, 1/x and exp(x). Trigonometric functions use radians.")
+            Text("Supports x, pi, e, + − × ÷, powers, parentheses, sin, cos, tan, sqrt, abs, ln, log and exp. Trigonometric functions use radians.")
                 .font(.caption).foregroundStyle(.secondary)
             Spacer()
         }
     }
 
     private func graphValue(_ x: Double) -> Double? {
-        switch graphExpression.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "sin(x)": return sin(x)
-        case "cos(x)": return cos(x)
-        case "tan(x)": return min(max(tan(x), -5), 5)
-        case "x": return x
-        case "x^2": return x * x
-        case "1/x": return abs(x) < 0.0001 ? nil : 1 / x
-        case "exp(x)": return min(max(exp(x), -10), 10)
-        default: return nil
-        }
+        guard let value = ScribeMathExpression.evaluate(graphExpression, x: x),
+              abs(value) <= 6 else { return nil }
+        return value
     }
 
     private var equations: some View {

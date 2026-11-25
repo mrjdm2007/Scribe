@@ -133,7 +133,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     ext == "application/pdf" -> "pdf"
                     else -> "file"
                 }
-                vm.add(current.id, "block", name, body = "Attached file", uri = target.absolutePath, tags = "type:$kind")
+                val indexedText = if (kind == "pdf") runCatching { indexPdfText(target) }.getOrDefault("") else ""
+                val attachmentBody = if (indexedText.isBlank()) "Attached file" else "PDF text index (on-device OCR)\n\n$indexedText"
+                vm.add(current.id, "block", name, body = attachmentBody, uri = target.absolutePath,
+                    tags = if (kind == "pdf") "type:pdf;ocr:indexed" else "type:$kind")
             }
         }
     }
