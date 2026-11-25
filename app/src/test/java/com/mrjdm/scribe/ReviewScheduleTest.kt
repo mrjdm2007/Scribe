@@ -112,4 +112,19 @@ class ReviewScheduleTest {
         assertEquals("subject:ECE;priority:high", com.mrjdm.scribe.data.independentCopyTags("subject:ECE;cloud_id:abc-123;priority:high"))
         assertEquals("", com.mrjdm.scribe.data.independentCopyTags("cloud_id:abc-123"))
     }
+    @Test fun contentSnapshotsAreCreatedOnlyWhenBodyChanges() {
+        assertEquals(true, com.mrjdm.scribe.data.shouldSnapshotBody("old", "new"))
+        assertEquals(false, com.mrjdm.scribe.data.shouldSnapshotBody("same", "same"))
+    }
+
+    @Test fun bulkTaggingPreservesExistingMetadataAndAvoidsDuplicates() {
+        assertEquals("subject:ECE;bulk:review;priority:high;exam", com.mrjdm.scribe.data.appendTag("subject:ECE;bulk:review;priority:high", "exam"))
+        assertEquals("subject:ECE;bulk:review", com.mrjdm.scribe.data.appendTag("subject:ECE;bulk:review", "bulk:review"))
+    }
+
+    @Test fun bulkTaggingSanitizesSeparatorsAndIgnoresBlankTags() {
+        assertEquals("subject:ECE;revision notes", com.mrjdm.scribe.data.appendTag("subject:ECE", " revision; notes "))
+        assertEquals("subject:ECE", com.mrjdm.scribe.data.appendTag("subject:ECE", "  "))
+    }
+
 }
