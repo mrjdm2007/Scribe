@@ -401,6 +401,14 @@ struct NodeEditorView: View {
                         Text(snap.title).font(.headline)
                         Text(snap.body).lineLimit(4).foregroundStyle(.secondary)
                         Text(snap.savedAt.formatted()).font(.caption).foregroundStyle(.tertiary)
+                        Button("Restore this version") {
+                            var restored = item
+                            restored.title = snap.title
+                            restored.body = snap.body
+                            library.update(restored)
+                            item = restored
+                            showHistory = false
+                        }.buttonStyle(.bordered)
                     }
                 }.navigationTitle("Version history").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showHistory = false } } }
             }.frame(minWidth: 480, minHeight: 360)
