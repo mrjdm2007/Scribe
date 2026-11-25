@@ -163,9 +163,17 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch(Dispatchers.IO) {
-            runCatching {
-                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "[]"
+            try {
+                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Could not read the selected backup.")
                 val array = JSONArray(raw)
+                val ids = (0 until array.length()).map { array.getJSONObject(it).optLong("id") }
+                require(ids.all { it > 0 } && ids.toSet().size == ids.size) { "Backup contains missing or duplicate item IDs." }
+                val idSet = ids.toSet()
+                for (i in 0 until array.length()) {
+                    val row = array.getJSONObject(i)
+                    require(row.isNull("parentId") || row.optLong("parentId") in idSet) { "Backup contains a broken notebook parent reference." }
+                }
                 val restoredSnapshots = mutableListOf<NoteSnapshot>()
                 val restored = buildList {
                     for (i in 0 until array.length()) {
@@ -173,16 +181,24 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                         val encodedAttachment = o.optString("attachmentBase64")
                         val originalUri = o.optString("uri")
                         val originalExtension = File(originalUri).extension.lowercase(Locale.ROOT)
-                        val declaredType = o.optString("tags").substringAfter("type:", "").substringBefore(';').substringBefore(',')
+                        val declaredType = o.optString("tags").split(';', ',').firstOrNull { it.trim().startsWith("type:") }
+                            ?.substringAfter(':')?.trim().orEmpty()
                         val isPhoto = declaredType == "image" || originalExtension in setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "tif", "tiff", "avif")
                         val isPdf = declaredType == "pdf" || originalExtension == "pdf"
-                        val restoredUri = if (encodedAttachment.isNotBlank() && (isPhoto || isPdf)) {
+                        val hasAttachmentMarker = originalUri.isNotBlank() || declaredType == "image" || declaredType == "pdf" || encodedAttachment.isNotBlank()
+                        var restoredUri = ""
+                        if (hasAttachmentMarker) {
+                            require(encodedAttachment.isNotBlank() && (isPhoto || isPdf)) {
+                                "Backup is missing valid photo/PDF data for item ${o.optLong("id")}. Export a fresh full backup from the source device."
+                            }
+                            val bytes = Base64.decode(encodedAttachment, Base64.DEFAULT)
+                            require(bytes.isNotEmpty()) { "Backup contains an empty attachment." }
                             val directory = File(context.filesDir, "attachments").apply { mkdirs() }
                             val suffix = originalExtension.takeIf { it.matches(Regex("[A-Za-z0-9]{1,8}")) }?.let { ".$it" } ?: if (isPdf) ".pdf" else ".jpg"
                             val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}$suffix")
-                            target.writeBytes(Base64.decode(encodedAttachment, Base64.DEFAULT))
-                            target.absolutePath
-                        } else ""
+                            target.writeBytes(bytes)
+                            restoredUri = target.absolutePath
+                        }
                         val itemId = o.optLong("id")
                         val history = o.optJSONArray("history") ?: JSONArray()
                         for (h in 0 until history.length()) {
@@ -198,6 +214,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     }
                 }
                 vm.restore(restored, restoredSnapshots)
+                withContext(Dispatchers.Main) { integrityReport = "Backup restored successfully.\n\nImported ${restored.size} notebook items and ${restoredSnapshots.size} history entries." }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { integrityReport = "Backup restore failed. Your existing library was not replaced.\n\n${error.localizedMessage ?: "Unknown error"}" }
             }
         }
     }
