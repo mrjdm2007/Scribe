@@ -1,5 +1,11 @@
 package com.mrjdm.scribe
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,6 +35,7 @@ private val FocusMuted = Color(0xFF96938D)
 @Composable
 fun FocusTimer(vm: ScribeViewModel) {
     val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val preferences = remember { context.getSharedPreferences("scribe_preferences", 0) }
     var dailyGoalMinutes by remember {
         mutableIntStateOf(preferences.getInt("daily_study_goal_minutes", 60).coerceIn(30, 240))
@@ -115,6 +122,9 @@ fun FocusTimer(vm: ScribeViewModel) {
                             preferences.edit().putLong("focus_end_at", endAt).putInt("focus_duration_minutes", durationMinutes).apply()
                             FocusTimerAlarm.schedule(context, endAt, sessionLabel.ifBlank { "Focused study" })
                             running = true
+                            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
                         }
                     },
                         colors = ButtonDefaults.buttonColors(containerColor = FocusGold, contentColor = Color(0xFF211B12))) {
