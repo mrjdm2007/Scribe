@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 
-func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
+public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
     let current = max(1, currentDays)
     let next: Int64
     switch rating {
@@ -15,7 +15,7 @@ func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
     return min(365, max(1, next))
 }
 
-struct ScribeItem: Identifiable, Codable, Hashable {
+public struct ScribeItem: Identifiable, Codable, Hashable {
     var id: Int64
     var parentId: Int64?
     var kind: String
@@ -28,26 +28,26 @@ struct ScribeItem: Identifiable, Codable, Hashable {
     var createdAt: Int64
     var updatedAt: Int64
     var deletedAt: Int64?
-    var interval: Int64 { Int64(tags.range(of: #"interval:[0-9]+"#, options: .regularExpression).map { String(tags[$0].dropFirst(9)) } ?? "1") ?? 1 }
+    public var interval: Int64 { Int64(tags.range(of: #"interval:[0-9]+"#, options: .regularExpression).map { String(tags[$0].dropFirst(9)) } ?? "1") ?? 1 }
 
     enum CodingKeys: String, CodingKey { case id, parentId, kind, title, body, uri, tags, bookmarked, position, createdAt, updatedAt, deletedAt }
-    init(id: Int64, parentId: Int64? = nil, kind: String, title: String, body: String = "", uri: String = "", tags: String = "", bookmarked: Bool = false, position: Int = 0, createdAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000), updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000), deletedAt: Int64? = nil) {
+    public init(id: Int64, parentId: Int64? = nil, kind: String, title: String, body: String = "", uri: String = "", tags: String = "", bookmarked: Bool = false, position: Int = 0, createdAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000), updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000), deletedAt: Int64? = nil) {
         self.id=id; self.parentId=parentId; self.kind=kind; self.title=title; self.body=body; self.uri=uri; self.tags=tags; self.bookmarked=bookmarked; self.position=position; self.createdAt=createdAt; self.updatedAt=updatedAt; self.deletedAt=deletedAt
     }
 }
 
-struct ScribeHistoryEntry: Codable, Hashable {
-    var title: String
-    var body: String
-    var savedAt: Int64
+public struct ScribeHistoryEntry: Codable, Hashable {
+    public var title: String
+    public var body: String
+    public var savedAt: Int64
 }
 struct ScribeHistoryArchive: Codable {
     var itemId: Int64
     var entries: [ScribeHistoryEntry]
 }
 struct BackupRecord: Codable {
-    var id: Int64; var parentId: Int64?; var kind: String; var title: String; var body: String; var uri: String; var tags: String
-    var bookmarked: Bool; var position: Int; var createdAt: Int64; var updatedAt: Int64; var deletedAt: Int64?
+    public var id: Int64; var parentId: Int64?; var kind: String; var title: String; var body: String; var uri: String; var tags: String
+    public var bookmarked: Bool; var position: Int; var createdAt: Int64; var updatedAt: Int64; var deletedAt: Int64?
     var history: [ScribeHistoryEntry]? = nil
     var attachmentBase64: String? = nil
 }
@@ -56,13 +56,13 @@ enum CodableValue: Codable { case string(String), integer(Int64), bool(Bool), nu
     func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); switch self { case .string(let v): try c.encode(v); case .integer(let v): try c.encode(v); case .bool(let v): try c.encode(v); case .null: try c.encodeNil() } }
 }
 
-enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings"; var id: String { rawValue } }
+public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings"; var id: String { rawValue } }
 
-@MainActor final class ScribeStore: ObservableObject {
-    @Published var items: [ScribeItem] = []
-    @Published var snapshots: [Int64: [ScribeHistoryEntry]] = [:]
-    @Published var selectedID: Int64?
-    @Published var activeTool: ScribeTool = .library
+@MainActor public final class ScribeStore: ObservableObject {
+    @Published public var items: [ScribeItem] = []
+    @Published public var snapshots: [Int64: [ScribeHistoryEntry]] = [:]
+    @Published public var selectedID: Int64?
+    @Published public var activeTool: ScribeTool = .library
     @Published var focusSearch = false
     @Published var searchText = ""
     @Published var focusMinutes = 25
@@ -75,7 +75,7 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
     private let fileURL: URL
     private let historyURL: URL
 
-    init() {
+    public init() {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let folder = root.appendingPathComponent("Scribe", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -88,40 +88,40 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
             snapshots = Dictionary(uniqueKeysWithValues: archives.map { ($0.itemId, $0.entries) })
         }
     }
-    var selected: ScribeItem? { items.first { $0.id == selectedID } }
-    var visibleItems: [ScribeItem] {
+    public var selected: ScribeItem? { items.first { $0.id == selectedID } }
+    public var visibleItems: [ScribeItem] {
         let active = items.filter { $0.deletedAt == nil }
         guard !searchText.isEmpty else { return active }
         return active.filter { $0.title.localizedCaseInsensitiveContains(searchText) || $0.body.localizedCaseInsensitiveContains(searchText) || $0.tags.localizedCaseInsensitiveContains(searchText) }
     }
-    func children(of parent: Int64?) -> [ScribeItem] { visibleItems.filter { $0.parentId == parent }.sorted { $0.position < $1.position } }
-    func create(kind: String, title: String, parentId: Int64? = nil, body: String = "", tags: String = "", uri: String = "") {
+    public func children(of parent: Int64?) -> [ScribeItem] { visibleItems.filter { $0.parentId == parent }.sorted { $0.position < $1.position } }
+    public func create(kind: String, title: String, parentId: Int64? = nil, body: String = "", tags: String = "", uri: String = "") {
         let siblings = children(of: parentId)
         let item = ScribeItem(id: nextID, parentId: parentId, kind: kind, title: title, body: body, uri: uri, tags: tags, position: siblings.count)
         nextID += 1; items.append(item); selectedID = item.id; activeTool = .library; persist()
     }
-    func update(_ item: ScribeItem, title: String? = nil, body: String? = nil, tags: String? = nil, bookmarked: Bool? = nil) {
+    public func update(_ item: ScribeItem, title: String? = nil, body: String? = nil, tags: String? = nil, bookmarked: Bool? = nil) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[index].title = title ?? item.title; items[index].body = body ?? item.body
         items[index].tags = tags ?? item.tags; items[index].bookmarked = bookmarked ?? item.bookmarked
         items[index].updatedAt = Int64(Date().timeIntervalSince1970 * 1000); persist()
     }
-    func remove(_ item: ScribeItem) {
+    public func remove(_ item: ScribeItem) {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         func mark(_ id: Int64) { for child in items where child.parentId == id && child.deletedAt == nil { mark(child.id) }; if let i = items.firstIndex(where: { $0.id == id }) { items[i].deletedAt = now } }
         mark(item.id); persist()
     }
-    func review(_ item: ScribeItem, rating: Int) {
+    public func review(_ item: ScribeItem, rating: Int) {
         let next = nextReviewIntervalDays(item.interval, rating: rating)
         let tags = item.tags.replacingOccurrences(of: #"interval:[0-9]+"#, with: "interval:\(next)", options: .regularExpression)
         update(item, tags: tags.contains("interval:") ? tags : tags + ";interval:\(next)")
     }
-    func persist() {
+    public func persist() {
         if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) }
         let archives = snapshots.map { ScribeHistoryArchive(itemId: $0.key, entries: $0.value) }
         if let data = try? JSONEncoder().encode(archives) { try? data.write(to: historyURL, options: .atomic) }
     }
-    func backupData() throws -> Data {
+    public func backupData() throws -> Data {
         let records = items.map { item -> BackupRecord in
             var record = BackupRecord(id: item.id, parentId: item.parentId, kind: item.kind, title: item.title, body: item.body, uri: item.uri, tags: item.tags, bookmarked: item.bookmarked, position: item.position, createdAt: item.createdAt, updatedAt: item.updatedAt, deletedAt: item.deletedAt, history: snapshots[item.id] ?? [])
             if !item.uri.isEmpty, let attachment = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
@@ -131,10 +131,10 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
         }
         return try JSONEncoder().encode(records)
     }
-    func exportBackup(to url: URL) throws {
+    public func exportBackup(to url: URL) throws {
         try backupData().write(to: url, options: .atomic)
     }
-    func importBackup(from url: URL) throws {
+    public func importBackup(from url: URL) throws {
         let records = try JSONDecoder().decode([BackupRecord].self, from: Data(contentsOf: url))
         let attachments = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
         try FileManager.default.createDirectory(at: attachments, withIntermediateDirectories: true)
@@ -149,7 +149,7 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
         }
         nextID = (items.map(\.id).max() ?? 0) + 1; persist()
     }
-    func startTimer() {
+    public func startTimer() {
         guard !isRunning else { isRunning = false; timer?.invalidate(); return }
         isRunning = true
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -165,6 +165,6 @@ enum ScribeTool: String, CaseIterable, Identifiable { case library = "Library", 
             }
         }
     }
-    func resetTimer() { timer?.invalidate(); isRunning = false; remaining = focusMinutes * 60 }
+    public func resetTimer() { timer?.invalidate(); isRunning = false; remaining = focusMinutes * 60 }
     deinit { timer?.invalidate() }
 }

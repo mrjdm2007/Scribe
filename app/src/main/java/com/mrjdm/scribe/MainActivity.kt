@@ -556,7 +556,7 @@ private fun TopicNotebook(
                 }
             }
             if (pages.isNotEmpty()) {
-                item { Text("OLDER PAGES", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp) }
+                item { Text("LEGACY NOTES", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp) }
                 items(pages, key = { it.id }) { page ->
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable { onOpenPage(page) },
@@ -567,7 +567,7 @@ private fun TopicNotebook(
                     ) {
                         ListItem(
                             headlineContent = { Text(page.title) },
-                            supportingContent = { Text("Previously created page · tap to open", color = Muted) },
+                            supportingContent = { Text("Older imported note · tap to open", color = Muted) },
                             leadingContent = { Icon(Icons.Rounded.Article, null, tint = Gold) },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )

@@ -116,11 +116,19 @@ struct ScribeMacRoot: View {
     private func hierarchy(parent: Int64?, title: String) -> some View {
         VStack(alignment: .leading) {
             Text(title.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
-            List(store.children(of: parent), selection: $store.selectedID) { item in
-                HStack { Image(systemName: item.kind == "page" ? "doc.text" : "folder").foregroundStyle(gold); VStack(alignment: .leading) { Text(item.title); Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary) }; Spacer(); if item.bookmarked { Image(systemName:"bookmark.fill").foregroundStyle(gold) } }
-                    .tag(item.id)
-                    .contextMenu { Button("Bookmark") { store.update(item, bookmarked: !item.bookmarked) }; Button("Delete", role: .destructive) { store.remove(item) } }
-            }.listStyle(.inset)
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(store.children(of: parent)) { item in
+                        Button { store.selectedID = item.id } label: { hierarchyRow(item) }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Bookmark") { store.update(item, bookmarked: !item.bookmarked) }
+                                Button("Delete", role: .destructive) { store.remove(item) }
+                            }
+                    }
+                }
+            }
+            .frame(minHeight: 120)
             HStack {
                 if parent == nil {
                     Button("New course") { store.create(kind: "course", title: "Untitled course") }
@@ -133,6 +141,21 @@ struct ScribeMacRoot: View {
             }
         }.padding(12).frame(minWidth: 200).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.08), lineWidth: 1)).shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 6)
     }
+    private func hierarchyRow(_ item: ScribeItem) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: item.kind == "page" ? "doc.text" : "folder").foregroundStyle(gold)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title).lineLimit(1)
+                Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+            if item.bookmarked { Image(systemName: "bookmark.fill").foregroundStyle(gold) }
+        }
+        .padding(.horizontal, 9).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(store.selectedID == item.id ? gold.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private var editor: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let item = store.selected {
@@ -250,7 +273,14 @@ struct ScribeMacRoot: View {
         guard let v=Double(converterValue), let a=scale[converterUnit], let b=scale[converterTarget], a.group==b.group else { return "—" }
         return String(format:"%.8g %@",v*a.factor/b.factor,converterTarget)
     }
-    private var scale: [String:(factor:Double,group:String)] { ["mA":(0.001,"I"),"A":(1,"I"),"kA":(1000,"I"),"mV":(0.001,"V"),"V":(1,"V"),"kV":(1000,"V"),"Ω":(1,"R"),"kΩ":(1000,"R"),"MΩ":(1e6,"R"),"nF":(1e-9,"C"),"µF":(1e-6,"C"),"mF":(1e-3,"C"),"F":(1,"C)] }
+    private var scale: [String: (factor: Double, group: String)] {
+        [
+            "mA": (0.001, "I"), "A": (1, "I"), "kA": (1000, "I"),
+            "mV": (0.001, "V"), "V": (1, "V"), "kV": (1000, "V"),
+            "Ω": (1, "R"), "kΩ": (1000, "R"), "MΩ": (1e6, "R"),
+            "nF": (1e-9, "C"), "µF": (1e-6, "C"), "mF": (1e-3, "C"), "F": (1, "C")
+        ]
+    }
     private var backup: some View {
         VStack(alignment:.leading,spacing:16) {
             Text("Backup & settings").font(.largeTitle.bold())
