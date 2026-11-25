@@ -1,25 +1,24 @@
-import androidx.compose.foundation.BorderStroke
+package com.mrjdm.scribe.ui
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.Modifier
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-package com.mrjdm.scribe.ui
-
 
 private val ScribeColors = darkColorScheme(
     primary = Color(0xFFD9BD91),
@@ -46,7 +45,7 @@ private val ScribeType = Typography(
     displayLarge = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 38.sp, lineHeight = 44.sp, letterSpacing = (-1.1).sp),
     headlineLarge = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, lineHeight = 38.sp, letterSpacing = (-0.7).sp),
     headlineMedium = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = (-0.35).sp),
-    headlineSmall = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp),
+    headlineSmall = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = (-0.35).sp),
     titleLarge = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, lineHeight = 27.sp),
     titleMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp),
     bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 15.sp, lineHeight = 24.sp),
@@ -67,35 +66,33 @@ fun ScribeTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = ScribeColors, typography = ScribeType, shapes = ScribeShapes, content = content)
 }
 
-
-/** Layered translucent surface with a soft top reflection and champagne edge. */
-fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier = this
-    .shadow(15.dp, shape, clip = false)
-    .background(
-        Brush.linearGradient(
-            listOf(
-                Color(0xFF343941).copy(alpha = 0.82f),
-                Color(0xFF20242A).copy(alpha = 0.94f),
-                Color(0xFF15181D).copy(alpha = 0.98f)
-            )
-        ),
-        shape
-    )
-    .drawWithContent {
-        drawContent()
-        drawRect(
+/** Restrained glass treatment with readable fill, a soft lift and a fine reflective edge. */
+fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier =
+    this
+        .shadow(14.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.30f))
+        .background(
             Brush.verticalGradient(
-                colors = listOf(Color.White.copy(alpha = 0.105f), Color.White.copy(alpha = 0.018f), Color.Transparent),
-                endY = size.height * 0.48f
-            )
+                listOf(
+                    Color(0xFF343840).copy(alpha = 0.94f),
+                    Color(0xFF22262D).copy(alpha = 0.97f),
+                    Color(0xFF191C22).copy(alpha = 0.99f)
+                )
+            ),
+            shape
         )
-    }
-    .border(
-        BorderStroke(
+        .drawWithContent {
+            drawContent()
+            drawRect(
+                Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.105f), Color.White.copy(alpha = 0.018f), Color.Transparent),
+                    endY = size.height * 0.48f
+                )
+            )
+        }
+        .border(
             1.dp,
             Brush.linearGradient(
-                listOf(Color.White.copy(alpha = 0.27f), Color.White.copy(alpha = 0.045f), Color(0xFFD9BD91).copy(alpha = 0.20f))
-            )
-        ),
-        shape
-    )
+                listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.055f), Color(0xFFD9BD91).copy(alpha = 0.16f))
+            ),
+            shape
+        )
