@@ -47,7 +47,8 @@ struct AcademicToolsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 16) {
             Text("Academic tools").font(.largeTitle.bold())
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -70,9 +71,11 @@ struct AcademicToolsView: View {
                 default: diagrams
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(24)
         }
-        .padding(24)
     }
 
     private var graph: some View {
