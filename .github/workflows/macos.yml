@@ -10,9 +10,6 @@ on:
       - "desktop/**"
       - ".github/workflows/macos.yml"
   workflow_dispatch:
-concurrency:
-  group: scribe-macos-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
 jobs:
   build:
     runs-on: macos-14
