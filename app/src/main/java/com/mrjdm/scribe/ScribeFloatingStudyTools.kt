@@ -100,6 +100,11 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
             Spacer(Modifier.width(6.dp))
             Text(clock, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
         }
+        FilledTonalButton(onClick = { aiOpen = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+            Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("AI tutor", fontSize = 11.sp)
+        }
         if (item != null && item.kind in listOf("topic", "page", "block")) {
             FilledTonalButton(onClick = {
                 reading = true
