@@ -113,6 +113,22 @@ struct ScribeMacRoot: View {
                     .buttonStyle(.borderedProminent).tint(gold).padding()
                     .keyboardShortcut("n", modifiers: .command)
             }
+            .background {
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    LinearGradient(colors: [.white.opacity(0.075), .clear, gold.opacity(0.025)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                Rectangle()
+                    .fill(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.015)],
+                                         startPoint: .top, endPoint: .bottom))
+                    .frame(width: 1)
+                    .padding(.vertical, 12)
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 14, x: 5, y: 0)
             .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 310)
         } detail: {
             Group {
