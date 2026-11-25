@@ -496,7 +496,6 @@ struct ScribeMacRoot: View {
                             Button("Display math") { applyMarkup("$\n", "\n$") }
                             Button("Quote") { applyMarkup("> ", "") }
                             Button("Link") { applyMarkup("[", "](https://)") }
-                            Button("1. List") { applyMarkup("1. ", "") }
                             Button("Table") { applyMarkup("| ", " |  |") }
                             Button(showLatexPreview ? "Edit" : "Preview") { showLatexPreview.toggle() }
                             Menu("Templates") {
