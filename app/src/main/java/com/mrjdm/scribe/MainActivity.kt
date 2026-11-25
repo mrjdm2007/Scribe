@@ -779,8 +779,9 @@ private fun TopicNotebook(
                         if (showLatexPreview) {
                             LatexPreviewWebView(noteValue.text, Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 620.dp))
                         } else {
-                            RichMarkdownEditor(value = noteValue.text, onValueChange = { edited ->
-                                noteValue = TextFieldValue(edited, TextRange(edited.length))
+                            RichMarkdownEditor(value = noteValue.text, onValueChange = { edited, start, length ->
+                                val safeStart = start.coerceIn(0, edited.length)
+                                noteValue = TextFieldValue(edited, TextRange(safeStart, (safeStart + length).coerceIn(safeStart, edited.length)))
                             }, modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp, max = 680.dp))
                         }
                     }
@@ -1053,7 +1054,7 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
 
 
 @Composable
-private fun RichMarkdownEditor(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun RichMarkdownEditor(value: String, onValueChange: (String, Int, Int) -> Unit, modifier: Modifier = Modifier) {
     val latestCallback by rememberUpdatedState(onValueChange)
     AndroidView(modifier = modifier, factory = { context ->
         WebView(context).apply {
@@ -1063,8 +1064,8 @@ private fun RichMarkdownEditor(value: String, onValueChange: (String) -> Unit, m
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             val target = this
             addJavascriptInterface(object {
-                @JavascriptInterface fun onMarkdownChanged(markdown: String) {
-                    target.post { target.tag = markdown; latestCallback(markdown) }
+                @JavascriptInterface fun onMarkdownChanged(markdown: String, start: Int, length: Int) {
+                    target.post { target.tag = markdown; latestCallback(markdown, start, length) }
                 }
             }, "ScribeEditor")
             val initial = org.json.JSONObject.quote(value)
@@ -1080,9 +1081,10 @@ if(/^h[1-6]$/.test(t))return "#".repeat(+t[1])+" "+c()+"\n\n";if(t==="blockquote
 if(t==="pre")return "    "+(n.innerText||"").replace(/\n/g,"\n    ")+"\n\n";if(t==="a")return "["+c()+"]("+n.getAttribute("href")+")";
 if(t==="li")return (n.parentElement.tagName==="OL"?"1. ":"- ")+c().trim()+"\n";if(t==="ul"||t==="ol")return Array.from(n.children).map(md).join("")+"\n";
 if(t==="p"||t==="div")return c().trim()+"\n\n";if(t==="hr")return "\n---\n\n";return c();}
-function send(){const v=Array.from(e.childNodes).map(md).join("").replace(/\n{3,}/g,"\n\n").trim();if(v!==last){last=v;if(window.ScribeEditor)window.ScribeEditor.onMarkdownChanged(v);}}
+function offsets(){const sel=window.getSelection();if(!sel||!sel.rangeCount||!e.contains(sel.anchorNode))return {start:last.length,length:0};const before=document.createRange();before.selectNodeContents(e);before.setEnd(sel.anchorNode,sel.anchorOffset);return {start:md(before.cloneContents()).length,length:md(sel.getRangeAt(0).cloneContents()).length};}
+function send(){const v=Array.from(e.childNodes).map(md).join("").replace(/\n{3,}/g,"\n\n").trim();const r=offsets();if(v!==last)last=v;if(window.ScribeEditor)window.ScribeEditor.onMarkdownChanged(v,r.start,r.length);}
 window.setMarkdown=function(v){if(v===last)return;last=v;const p=window.markdownit?window.markdownit({html:false}).enable("table"):null;e.innerHTML=p?p.render(v):"<pre>"+v.replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</pre>";};
-e.addEventListener("input",send);e.addEventListener("blur",send);window.setMarkdown($initial);
+e.addEventListener("input",send);e.addEventListener("keyup",send);e.addEventListener("mouseup",send);e.addEventListener("blur",send);document.addEventListener("selectionchange",()=>{if(document.activeElement===e)send();});window.setMarkdown($initial);
 </script></body></html>
 """.trimIndent()
             loadDataWithBaseURL("https://scribe.local/", html, "text/html", "UTF-8", null)
