@@ -108,6 +108,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     }
     var navigationReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
+        val cloudPrefs = context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE)
+        cloudUrl = cloudPrefs.getString("url", ScribeCloudConfig.SUPABASE_URL).orEmpty()
+        cloudKey = cloudPrefs.getString("anon_key", ScribeCloudConfig.SUPABASE_ANON_KEY).orEmpty()
         val restoredIds = savedStackIds.split(",").mapNotNull { it.toLongOrNull() }
         if (restoredIds.isNotEmpty()) stack = restoredIds.mapNotNull { vm.get(it) }
         val storedRecent = context.getSharedPreferences("scribe_navigation", Context.MODE_PRIVATE)
@@ -132,6 +135,13 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var quickCapture by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
+    var showCloudSync by remember { mutableStateOf(false) }
+    var cloudUrl by remember { mutableStateOf(ScribeCloudConfig.SUPABASE_URL) }
+    var cloudKey by remember { mutableStateOf(ScribeCloudConfig.SUPABASE_ANON_KEY) }
+    var cloudEmail by remember { mutableStateOf("") }
+    var cloudPassword by remember { mutableStateOf("") }
+    var cloudStatus by remember { mutableStateOf("") }
+    var cloudBusy by remember { mutableStateOf(false) }
     var trashSelectedIds by remember { mutableStateOf(setOf<Long>()) }
     var integrityReport by remember { mutableStateOf<String?>(null) }
     val current = stack.lastOrNull()
@@ -453,6 +463,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     SettingsRow(Icons.Rounded.CloudUpload, "Export full backup", "Save courses, notes and organisation as JSON") { backupLauncher.launch("Scribe-backup.json") }
                     SettingsRow(Icons.Rounded.CloudDownload, "Restore backup", "Replace this library from a Scribe backup") { restoreLauncher.launch(arrayOf("application/json", "text/*")) }
                     SettingsRow(Icons.Rounded.DeleteSweep, "Recently deleted", "Restore or permanently remove deleted notes") { showTrash = true }
+                    SettingsRow(Icons.Rounded.CloudUpload, "Cloud sync", "Connect your Supabase project and sync across devices") { showCloudSync = true }
                     SettingsRow(Icons.Rounded.VerifiedUser, "Check library integrity", "Find missing attachments and duplicate entries") {
                         scope.launch {
                             val all = vm.all()
@@ -464,7 +475,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                         }
                     }
                     SettingsRow(Icons.Rounded.Info, "About Scribe", "Offline-first academic notebook · v1.1") {}
-                    Text("All notes are stored locally on this device. Keep regular backups to protect your work.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 18.dp))
+                    Text("Notes remain available offline. Cloud sync is optional; keep regular backups as an additional safeguard.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 18.dp))
                 }
             }
             }
@@ -518,6 +529,38 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 }
             } } }, confirmButton = { TextButton(onClick = { showHistory = null }) { Text("Close") } })
     }
+
+    if (showCloudSync) AlertDialog(
+        onDismissRequest = { if (!cloudBusy) showCloudSync = false },
+        title = { Text("Supabase cloud sync") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
+                Text("Enter your Supabase project details. Your password is used only for this sync and is not saved.", color = Muted, fontSize = 12.sp)
+                OutlinedTextField(cloudUrl, { cloudUrl = it }, label = { Text("Project URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(cloudKey, { cloudKey = it }, label = { Text("Anon / publishable key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(cloudEmail, { cloudEmail = it }, label = { Text("Account email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(cloudPassword, { cloudPassword = it }, label = { Text("Account password") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (cloudStatus.isNotBlank()) Text(cloudStatus, color = if (cloudStatus.startsWith("Sync failed")) Color(0xFFE49A91) else Gold, fontSize = 12.sp)
+                if (cloudBusy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !cloudBusy, onClick = {
+                val cleanUrl = cloudUrl.trim().trimEnd('/')
+                context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE).edit()
+                    .putString("url", cleanUrl).putString("anon_key", cloudKey.trim()).apply()
+                cloudBusy = true
+                cloudStatus = "Connecting and syncing…"
+                scope.launch {
+                    val result = runCatching { vm.syncSupabase(cleanUrl, cloudKey.trim(), cloudEmail.trim(), cloudPassword) }
+                    cloudStatus = result.fold({ it }, { "Sync failed: ${it.localizedMessage ?: "Unknown error"}" })
+                    cloudPassword = ""
+                    cloudBusy = false
+                }
+            }) { Text("Sync now", color = Gold) }
+        },
+        dismissButton = { TextButton(enabled = !cloudBusy, onClick = { showCloudSync = false }) { Text("Close") } }
+    )
     if (showTrash) AlertDialog(onDismissRequest = { showTrash = false }, title = { Text("Recently deleted") },
         text = {
             if (trash.isEmpty()) Text("Your trash is empty.")
