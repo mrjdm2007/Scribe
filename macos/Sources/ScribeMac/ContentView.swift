@@ -15,6 +15,7 @@ struct ScribeMacRoot: View {
     @State private var historyItem: ScribeItem?
     @State private var showingFlashcardComposer = false
     @State private var editingFlashcard: ScribeItem?
+    @State private var showingDeckManager = false
     @State private var flashcardQuestion = ""
     @State private var flashcardAnswer = ""
     @State private var flashcardDeck = "General"
@@ -112,6 +113,32 @@ struct ScribeMacRoot: View {
         }
         .sheet(item: $editingFlashcard) { card in
             FlashcardEditSheet(card: card) { title, body, tags in store.update(card, title: title, body: body, tags: tags) }
+        }
+        .sheet(isPresented: $showingDeckManager) {
+            let deckCards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil && flashcardDeckName($0) == flashcardDeckFilter }
+            FlashcardDeckManagerSheet(
+                deck: flashcardDeckFilter,
+                cards: deckCards,
+                availableDecks: Array(Set(store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }.map(flashcardDeckName))).sorted(),
+                onRename: { name, cards in
+                    cards.forEach { card in
+                        let retained = card.tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("deck:") && !$0.hasPrefix("subject:") }
+                        store.update(card, tags: (retained + ["deck:" + name]).joined(separator: ";"))
+                    }
+                    flashcardDeckFilter = name
+                },
+                onMerge: { target, cards in
+                    cards.forEach { card in
+                        let retained = card.tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("deck:") && !$0.hasPrefix("subject:") }
+                        store.update(card, tags: (retained + ["deck:" + target]).joined(separator: ";"))
+                    }
+                    flashcardDeckFilter = target
+                },
+                onDelete: { cards in
+                    cards.forEach { store.remove($0) }
+                    flashcardDeckFilter = "All decks"
+                }
+            )
         }
         .sheet(isPresented: $showingTrash) { trashSheet }
         .sheet(item: $historyItem) { item in historySheet(item) }
@@ -370,6 +397,7 @@ struct ScribeMacRoot: View {
                 Picker("Deck", selection: $flashcardDeckFilter) {
                     ForEach(decks, id: \.self) { Text($0).tag($0) }
                 }.frame(maxWidth: 180)
+                Button("Manage") { showingDeckManager = true }.disabled(flashcardDeckFilter == "All decks")
             }
             if let card = dueCards.first {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }; Button("Edit flashcard") { editingFlashcard = card }.buttonStyle(.bordered)
@@ -622,5 +650,49 @@ private struct FlashcardEditSheet: View {
                 dismiss()
             }.disabled(question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).buttonStyle(.borderedProminent) }
         }.padding(22).frame(width: 440, height: 340)
+    }
+}
+
+private struct FlashcardDeckManagerSheet: View {
+    let deck: String
+    let cards: [ScribeItem]
+    let availableDecks: [String]
+    let onRename: (String, [ScribeItem]) -> Void
+    let onMerge: (String, [ScribeItem]) -> Void
+    let onDelete: ([ScribeItem]) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var newName: String
+    @State private var target: String
+
+    init(deck: String, cards: [ScribeItem], availableDecks: [String], onRename: @escaping (String, [ScribeItem]) -> Void, onMerge: @escaping (String, [ScribeItem]) -> Void, onDelete: @escaping ([ScribeItem]) -> Void) {
+        self.deck = deck
+        self.cards = cards
+        self.availableDecks = availableDecks
+        self.onRename = onRename
+        self.onMerge = onMerge
+        self.onDelete = onDelete
+        _newName = State(initialValue: deck)
+        _target = State(initialValue: availableDecks.first(where: { $0 != deck }) ?? "General")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Manage deck").font(.title2.bold())
+            Text(deck + " · " + String(cards.count) + " cards").foregroundStyle(.secondary)
+            TextField("New deck name", text: $newName).textFieldStyle(.roundedBorder)
+            Button("Rename deck") {
+                onRename(newName.trimmingCharacters(in: .whitespacesAndNewlines), cards)
+                dismiss()
+            }.disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newName == deck)
+            if !availableDecks.filter({ $0 != deck }).isEmpty {
+                Picker("Merge into", selection: $target) {
+                    ForEach(availableDecks.filter { $0 != deck }, id: \.self) { Text($0).tag($0) }
+                }
+                Button("Merge deck") { onMerge(target, cards); dismiss() }
+            }
+            Divider()
+            Button("Delete deck and its cards", role: .destructive) { onDelete(cards); dismiss() }
+            HStack { Spacer(); Button("Close") { dismiss() } }
+        }.padding(22).frame(width: 420)
     }
 }
