@@ -54,6 +54,31 @@ struct ScribeFloatingStudyTimer: View {
     }
 }
 
+
+ // Compact timer remains visible in the distraction-free reader while the
+ // global floating panel is covered by the reading sheet.
+private struct ScribeReadingTimerStatus: View {
+    @AppStorage("scribe.focus.runningSince") private var runningSince = 0.0
+    @AppStorage("scribe.focus.elapsedBeforeRun") private var elapsedBeforeRun = 0.0
+    private var elapsed: TimeInterval {
+        elapsedBeforeRun + (runningSince > 0 ? max(0, Date().timeIntervalSince1970 - runningSince) : 0)
+    }
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "timer").foregroundStyle(Color(red: 0.84, green: 0.72, blue: 0.55))
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                let seconds = Int(elapsed)
+                Text(String(format: "%02d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60))
+                    .font(.system(.caption, design: .monospaced)).monospacedDigit()
+            }
+            Button(runningSince > 0 ? "Pause" : "Resume") {
+                if runningSince > 0 { elapsedBeforeRun = elapsed; runningSince = 0 }
+                else { runningSince = Date().timeIntervalSince1970 }
+            }.buttonStyle(.borderless)
+        }
+    }
+}
+
 /// Read-only, distraction-free rendering. It never writes to the underlying note.
 
 struct ScribeReadingTimerChip: View {
@@ -102,7 +127,12 @@ struct ScribeReadingMode: View {
                 }.frame(maxWidth: 760, alignment: .leading).padding(.horizontal, 34).padding(.vertical, 42)
             }
             .background(Color(nsColor: .windowBackgroundColor))
-            .toolbar { ToolbarItem(placement: .primaryAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    ScribeReadingTimerStatus()
+                }
+                ToolbarItem(placement: .primaryAction) { Button("Done") { dismiss() } }
+            }
         }.frame(minWidth: 560, minHeight: 520)
     }
 }
