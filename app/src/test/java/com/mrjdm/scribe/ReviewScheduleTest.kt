@@ -83,7 +83,6 @@ class ReviewScheduleTest {
     @Test fun hugeIntervalsAreSafelyCappedBeforeMultiplication() {
         assertEquals(365L, nextReviewIntervalDays(Long.MAX_VALUE, 3))
     }
-}
 
     @Test fun markDoneCompletesReminderWithoutMovingItToTrash() {
         val original = com.mrjdm.scribe.data.ScribeItem(
@@ -104,3 +103,4 @@ class ReviewScheduleTest {
         )
         assertEquals("subject:Math;completedAt:200", completedReminder(original, 200).tags)
     }
+}
