@@ -20,7 +20,10 @@ struct DesktopStudyView: View {
     private var cards: [ScribeNode] { library.visibleNodes.filter { $0.kind == "flashcard" }.sorted { $0.createdAt < $1.createdAt } }
     private var dueCards: [ScribeNode] {
         cards.filter { card in
-            let due = flashTag("dueAt", in: card.tags).flatMap(Double.init).map { Date(timeIntervalSince1970: $0 / 1000) } ?? .distantPast
+            let raw = flashTag("dueAt", in: card.tags) ?? flashTag("due", in: card.tags)
+            let value = raw.flatMap(Double.init) ?? 0
+            // Both Android formats are milliseconds since epoch. Treat legacy missing values as due.
+            let due = value > 10_000_000_000 ? Date(timeIntervalSince1970: value / 1000) : Date(timeIntervalSince1970: value)
             return due <= .now
         }
     }
@@ -53,7 +56,7 @@ struct DesktopStudyView: View {
                         Button("Save") {
                             let body = cardFront.trimmingCharacters(in: .whitespacesAndNewlines) + "\n---ANSWER---\n" + cardBack.trimmingCharacters(in: .whitespacesAndNewlines)
                             _ = library.add(kind: "flashcard", title: cardFront.trimmingCharacters(in: .whitespacesAndNewlines), body: body,
-                                            tags: "deck:\(deck);interval:0;dueAt:0;ease:2.5")
+                                            tags: "deck:\(deck);interval:1;dueAt:0;due:0;ease:2.5")
                             cardFront = ""; cardBack = ""; showCreateCard = false
                         }.disabled(cardFront.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cardBack.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
@@ -98,6 +101,7 @@ struct DesktopStudyView: View {
                         Text("How well did you remember it?").font(.headline)
                         HStack {
                             reviewButton("Again", tint: .red) { schedule(card, rating: 0) }
+                            reviewButton("Hard", tint: .orange) { schedule(card, rating: 1) }
                             reviewButton("Good", tint: .accentColor) { schedule(card, rating: 2) }
                             reviewButton("Easy", tint: .green) { schedule(card, rating: 3) }
                         }
@@ -212,24 +216,31 @@ struct DesktopStudyView: View {
     }
 
     private func schedule(_ card: ScribeNode, rating: Int) {
-        let oldInterval = Double(flashTag("interval", in: card.tags) ?? "0") ?? 0
-        let oldEase = Double(flashTag("ease", in: card.tags) ?? "2.5") ?? 2.5
-        let interval: Double
-        let easeDelta: Double
+        // Match Android's ReviewSchedule exactly so a deck has the same due dates on both platforms.
+        let oldRaw = Double(flashTag("interval", in: card.tags) ?? "1") ?? 1
+        let currentDays = max(1, Int(ceil(oldRaw)))
+        let nextDays: Int
         switch rating {
-        case 0: interval = 0.006; easeDelta = -0.2
-        case 2: interval = oldInterval < 1 ? 1 : oldInterval * oldEase; easeDelta = 0
-        default: interval = oldInterval < 1 ? 4 : oldInterval * oldEase * 1.3; easeDelta = 0.15
+        case 0: nextDays = 1
+        case 1: nextDays = Int(ceil(Double(currentDays) * 1.2))
+        case 2: nextDays = Int(ceil(Double(currentDays) * 2.0))
+        case 3: nextDays = Int(ceil(Double(currentDays) * 3.0))
+        default: nextDays = currentDays
         }
-        let newEase = min(max(oldEase + easeDelta, 1.3), 3.0)
-        let dueAt = Date.now.timeIntervalSince1970 * 1000 + interval * 86_400_000
+        let interval = min(max(nextDays, 1), 365)
+        let reviewedAt = Date.now.timeIntervalSince1970 * 1000
+        let dueAt = Int64(reviewedAt + Double(interval) * 86_400_000)
         var fields = card.tags.split(separator: ";").map(String.init).filter {
-            !$0.hasPrefix("dueAt:") && !$0.hasPrefix("interval:") && !$0.hasPrefix("ease:")
+            !$0.hasPrefix("dueAt:") && !$0.hasPrefix("due:") &&
+            !$0.hasPrefix("interval:") && !$0.hasPrefix("reviewedAt:")
         }
-        fields.append("dueAt:\(Int64(dueAt))")
+        // Android's two study surfaces consume different due-key names; write both.
+        fields.append("dueAt:\(dueAt)")
+        fields.append("due:\(dueAt)")
         fields.append("interval:\(interval)")
-        fields.append("ease:\(newEase)")
-        var updated = card; updated.tags = fields.joined(separator: ";")
+        fields.append("reviewedAt:\(Int64(reviewedAt))")
+        var updated = card
+        updated.tags = fields.joined(separator: ";")
         library.update(updated)
         activeCardID = nil; revealed = false
     }
