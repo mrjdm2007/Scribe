@@ -160,7 +160,23 @@ struct ScribeMacRoot: View {
                 store.update(item, tags: (clean + (goal > 0 ? ["wordGoal:\(goal)"] : [])).joined(separator: ";"))
             }
         } message: { Text("Track progress toward a word-count target for this topic.") }
-        .fileImporter(isPresented: $showingImport, allowedContentTypes: [.json]) { result in if case .success(let url) = result { _ = url.startAccessingSecurityScopedResource(); defer { url.stopAccessingSecurityScopedResource() }; try? store.importBackup(from: url) } }
+        .fileImporter(isPresented: $showingImport, allowedContentTypes: [.json]) { result in
+            switch result {
+            case .success(let url):
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    try store.importBackup(from: url)
+                    integrityReport = "Backup restored successfully. Your library and version history were imported."
+                } catch {
+                    integrityReport = "Backup restore failed. Your existing library was not replaced.\n\n\(error.localizedDescription)"
+                }
+                showingIntegrityReport = true
+            case .failure(let error):
+                integrityReport = "Backup selection failed.\n\n\(error.localizedDescription)"
+                showingIntegrityReport = true
+            }
+        }
         .fileImporter(isPresented: $showingPDFImport, allowedContentTypes: [.pdf, .image, .plainText]) { result in
             guard case .success(let source) = result else { return }
             let access = source.startAccessingSecurityScopedResource()
