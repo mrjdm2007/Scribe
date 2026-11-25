@@ -21,7 +21,7 @@ internal class ScribeSupabaseSync(
     private val context: Context,
     private val dao: ScribeDao
 ) {
-    suspend fun sync(url: String, anonKey: String, email: String, password: String): String =
+    suspend fun sync(url: String, anonKey: String, email: String, password: String = "", refreshToken: String? = null): String =
         withContext(Dispatchers.IO) {
             require(url.startsWith("https://")) { "Enter a valid HTTPS Supabase project URL." }
             require(anonKey.isNotBlank() && email.isNotBlank() && password.isNotBlank()) {
@@ -50,10 +50,20 @@ internal class ScribeSupabaseSync(
                     return response
                 } finally { connection.disconnect() }
             }
-            val auth = JSONObject(request("auth/v1/token?grant_type=password", "POST",
-                JSONObject().put("email", email).put("password", password).toString()))
+            val authBody = if (!refreshToken.isNullOrBlank()) {
+                JSONObject().put("refresh_token", refreshToken).toString()
+            } else {
+                JSONObject().put("email", email).put("password", password).toString()
+            }
+            val grant = if (!refreshToken.isNullOrBlank()) "refresh_token" else "password"
+            val auth = JSONObject(request("auth/v1/token?grant_type=$grant", "POST", authBody))
             val token = auth.getString("access_token")
             val userId = auth.getJSONObject("user").getString("id")
+            val nextRefreshToken = auth.optString("refresh_token").takeIf { it.isNotBlank() }
+            if (nextRefreshToken != null) {
+                ScribeCloudSession.save(context, root, anonKey, email, nextRefreshToken)
+                ScribeCloudSession.schedule(context)
+            }
             fun requestBytes(path: String, method: String, body: ByteArray? = null, token: String? = null,
                              contentType: String = "application/octet-stream", upsert: Boolean = false): ByteArray {
                 val connection = URL("$root/$path").openConnection() as HttpURLConnection
