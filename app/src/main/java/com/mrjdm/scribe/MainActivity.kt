@@ -60,6 +60,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -541,7 +542,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 OutlinedTextField(cloudUrl, { cloudUrl = it }, label = { Text("Project URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(cloudKey, { cloudKey = it }, label = { Text("Anon / publishable key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(cloudEmail, { cloudEmail = it }, label = { Text("Account email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(cloudPassword, { cloudPassword = it }, label = { Text("Account password") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(cloudPassword, { cloudPassword = it }, label = { Text("Account password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
                 if (cloudStatus.isNotBlank()) Text(cloudStatus, color = if (cloudStatus.startsWith("Sync failed")) Color(0xFFE49A91) else Gold, fontSize = 12.sp)
                 if (cloudBusy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
             }
