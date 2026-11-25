@@ -210,7 +210,7 @@ struct AcademicToolsView: View {
             TextField("Question", text: $question, axis: .vertical).lineLimit(2...4).textFieldStyle(.roundedBorder)
             TextField("Topic / subject", text: $topic).textFieldStyle(.roundedBorder)
             ForEach(options.indices, id: \\.self) { index in
-                TextField("Option \\(Character(UnicodeScalar(65 + index)!))", text: Binding(
+                TextField("Option \\(["A", "B", "C", "D"][index])", text: Binding(
                     get: { options[index] },
                     set: { options[index] = $0 }
                 )).textFieldStyle(.roundedBorder)
@@ -261,7 +261,7 @@ struct AcademicToolsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Text(card.title).font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
                 ForEach(parsed.options.indices, id: \\.self) { index in
-                    let letter = String(UnicodeScalar(65 + index)!)
+                    let letter = ["A", "B", "C", "D"][index]
                     Text(parsed.options[index])
                         .frame(maxWidth: .infinity, alignment: .leading).padding(12)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))

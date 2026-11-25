@@ -84,7 +84,7 @@ struct ScribePDFPreview: NSViewRepresentable {
                     page.addAnnotation(annotation)
                 }
             }
-            document.write(to: url ?? document.documentURL ?? URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Scribe-annotations.pdf"))
+            if let destination = url { _ = document.write(to: destination) }
         }
 
         func addNote(_ text: String, in view: PDFView) {
