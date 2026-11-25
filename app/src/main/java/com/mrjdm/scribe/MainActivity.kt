@@ -1291,6 +1291,8 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
     var annotationText by remember(item.id) { mutableStateOf("") }
     var annotationStart by remember(item.id) { mutableStateOf<Offset?>(null) }
     var annotationEnd by remember(item.id) { mutableStateOf<Offset?>(null) }
+    var editingAnnotationId by remember(item.id) { mutableStateOf<Long?>(null) }
+    var editingAnnotationText by remember(item.id) { mutableStateOf("") }
     val annotations by vm.children(item.id).collectAsState(initial = emptyList())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1430,9 +1432,33 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                 }
                 annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${pageIndex + 1}") }.forEach { note ->
                     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF24272D))) {
-                        Column(Modifier.fillMaxWidth().padding(9.dp)) {
+                        Column(Modifier.weight(1f).padding(9.dp)) {
                             Text(note.title, color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            Text(note.body, fontSize = 12.sp, maxLines = 3)
+                            if (editingAnnotationId == note.id) {
+                                OutlinedTextField(
+                                    value = editingAnnotationText,
+                                    onValueChange = { editingAnnotationText = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = 1, maxLines = 4,
+                                    label = { Text("Annotation text") },
+                                    colors = fieldColors()
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    TextButton(onClick = {
+                                        vm.update(note, body = editingAnnotationText)
+                                        editingAnnotationId = null
+                                    }) { Text("Save") }
+                                    TextButton(onClick = { editingAnnotationId = null }) { Text("Cancel") }
+                                }
+                            } else {
+                                Text(note.body, fontSize = 12.sp, maxLines = 3)
+                            }
+                        }
+                        if (editingAnnotationId != note.id) {
+                            IconButton(onClick = {
+                                editingAnnotationId = note.id
+                                editingAnnotationText = note.body
+                            }) { Icon(Icons.Rounded.Edit, contentDescription = "Edit annotation", tint = Muted) }
                         }
                         IconButton(onClick = { vm.removeTree(note) }) {
                             Icon(Icons.Rounded.Delete, contentDescription = "Delete annotation", tint = Muted)
