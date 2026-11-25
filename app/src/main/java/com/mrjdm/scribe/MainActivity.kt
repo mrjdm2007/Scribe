@@ -793,8 +793,7 @@ private fun TopicNotebook(
 private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onExport: () -> Unit) {
     val blocks by vm.children(page.id).collectAsState(initial = emptyList())
     val topics by vm.kind("topic").collectAsState(initial = emptyList())
-    var allItems by remember(page.id) { mutableStateOf(emptyList<ScribeItem>()) }
-    LaunchedEffect(page.id) { allItems = vm.all() }
+    val allItems by vm.observeAllItems().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
     var showLinkPicker by remember { mutableStateOf(false) }
@@ -827,6 +826,28 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                         Text(source.title, maxLines = 1)
                     }
                 }
+            }
+        }
+        val outgoingLinkBlocks = allItems.filter { it.parentId == page.id && it.tags.contains("type:crosslink") }
+        val outgoingTargets = outgoingLinkBlocks.mapNotNull { block ->
+            block.tags.substringAfter("target:", "").substringBefore(";").substringBefore(",").toLongOrNull()
+        }
+        val resolvedTargets = outgoingTargets.distinct().mapNotNull { targetId -> allItems.firstOrNull { it.id == targetId } }
+        val brokenLinkCount = outgoingTargets.count { targetId -> allItems.none { it.id == targetId } }
+        if (outgoingLinkBlocks.isNotEmpty() || backlinkBlocks.isNotEmpty()) {
+            Text("${outgoingLinkBlocks.size} outgoing · ${backlinkBlocks.size} incoming links", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 5.dp))
+        }
+        if (resolvedTargets.isNotEmpty() || brokenLinkCount > 0) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                Text("LINKS IN THIS TOPIC", color = Muted, fontSize = 10.sp, letterSpacing = 1.4.sp)
+                resolvedTargets.forEach { target ->
+                    TextButton(onClick = { onOpenTopic(target) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)) {
+                        Icon(Icons.Rounded.Link, null, tint = Gold, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(target.title, maxLines = 1)
+                    }
+                }
+                if (brokenLinkCount > 0) Text("$brokenLinkCount broken topic link(s) · target may have been deleted", color = Color(0xFFE0A45C), fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp, top = 3.dp))
             }
         }
         OutlinedTextField(value = pageTitle, onValueChange = { pageTitle = it; vm.update(page, title = it) },

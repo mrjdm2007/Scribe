@@ -36,6 +36,8 @@ data class NoteSnapshot(
 
 @Dao
 interface ScribeDao {
+    @Query("SELECT * FROM scribe_items WHERE deletedAt IS NULL ORDER BY id")
+    fun observeAllItems(): Flow<List<ScribeItem>>
     @Query("SELECT * FROM scribe_items WHERE parentId IS :parentId AND deletedAt IS NULL ORDER BY position ASC, createdAt ASC")
     fun children(parentId: Long?): Flow<List<ScribeItem>>
     @Query("SELECT * FROM scribe_items WHERE id = :id LIMIT 1")

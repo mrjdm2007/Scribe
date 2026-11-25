@@ -402,6 +402,27 @@ struct ScribeMacRoot: View {
                         }.padding(10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     }
                 }
+                if item.kind == "topic" {
+                    let outgoingBlocks = store.items.filter { $0.parentId == item.id && $0.tags.contains("type:crosslink") && $0.deletedAt == nil }
+                    let outgoingIDs = outgoingBlocks.compactMap { block -> Int64? in
+                        guard let raw = block.tags.components(separatedBy: "target:").last?.components(separatedBy: CharacterSet(charactersIn: ";,")).first else { return nil }
+                        return Int64(raw)
+                    }
+                    let resolvedTargets = outgoingIDs.compactMap { targetID in store.items.first(where: { $0.id == targetID && $0.deletedAt == nil }) }.reduce(into: [ScribeItem]()) { result, target in
+                        if !result.contains(where: { $0.id == target.id }) { result.append(target) }
+                    }
+                    let brokenCount = outgoingIDs.filter { targetID in !store.items.contains(where: { $0.id == targetID && $0.deletedAt == nil }) }.count
+                    if !outgoingBlocks.isEmpty || !backlinkSources.isEmpty {
+                        Text("\(outgoingBlocks.count) outgoing · \(backlinkBlocks.count) incoming links").font(.caption).foregroundStyle(.secondary)
+                    }
+                    if !resolvedTargets.isEmpty || brokenCount > 0 {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("LINKS IN THIS TOPIC").font(.caption.bold()).foregroundStyle(.secondary)
+                            ForEach(resolvedTargets) { target in Button { store.selectedID = target.id } label: { Label(target.title, systemImage: "link").frame(maxWidth: .infinity, alignment: .leading) }.buttonStyle(.plain) }
+                            if brokenCount > 0 { Label("\(brokenCount) broken topic link(s) · target may have been deleted", systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
+                        }.padding(10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
                 let editorWordCount = item.body.split(whereSeparator: { $0.isWhitespace }).count
                 HStack(spacing: 7) {
                     Text("\(editorWordCount) words")
