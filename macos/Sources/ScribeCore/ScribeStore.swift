@@ -321,7 +321,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 let status = (response as? HTTPURLResponse)?.statusCode ?? -1
                 let message = String(data: data, encoding: .utf8) ?? "Unknown server response"
-                throw NSError(domain: "ScribeCloud", code: status, userInfo: [NSLocalizedDescriptionKey: "Supabase request failed (\\(status)): \\(message)"])
+                throw NSError(domain: "ScribeCloud", code: status, userInfo: [NSLocalizedDescriptionKey: "Supabase request failed (\(status)): \(message)"])
             }
             return data
         }
