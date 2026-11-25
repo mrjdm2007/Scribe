@@ -127,4 +127,14 @@ class ReviewScheduleTest {
         assertEquals("subject:ECE", com.mrjdm.scribe.data.appendTag("subject:ECE", "  "))
     }
 
+    @Test fun backupValidationRejectsDuplicateIDsMissingParentsAndCycles() {
+        val item = { id: Long, parent: Long? -> com.mrjdm.scribe.data.ScribeItem(
+            id = id, parentId = parent, kind = "topic", title = "Topic"
+        ) }
+        assertEquals(null, com.mrjdm.scribe.data.validateBackupItems(listOf(item(1, null), item(2, 1))))
+        assertEquals("Backup contains duplicate item IDs.", com.mrjdm.scribe.data.validateBackupItems(listOf(item(1, null), item(1, null))))
+        assertEquals("Backup contains an item with a missing parent.", com.mrjdm.scribe.data.validateBackupItems(listOf(item(2, 1))))
+        assertEquals("Backup contains a circular notebook hierarchy.", com.mrjdm.scribe.data.validateBackupItems(listOf(item(1, 2), item(2, 1))))
+    }
+
 }
