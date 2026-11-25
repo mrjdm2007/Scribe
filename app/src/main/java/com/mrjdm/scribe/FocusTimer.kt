@@ -33,9 +33,10 @@ fun FocusTimer(vm: ScribeViewModel) {
     var dailyGoalMinutes by remember {
         mutableIntStateOf(preferences.getInt("daily_study_goal_minutes", 60).coerceIn(30, 240))
     }
-    var durationMinutes by remember { mutableIntStateOf(25) }
-    var remainingSeconds by remember { mutableIntStateOf(25 * 60) }
-    var running by remember { mutableStateOf(false) }
+    val savedEndAt = remember { preferences.getLong("focus_end_at", 0L) }
+    var durationMinutes by remember { mutableIntStateOf(preferences.getInt("focus_duration_minutes", 25).coerceIn(1, 180)) }
+    var remainingSeconds by remember { mutableIntStateOf(if (savedEndAt > System.currentTimeMillis()) ((savedEndAt - System.currentTimeMillis() + 999) / 1000).toInt() else durationMinutes * 60) }
+    var running by remember { mutableStateOf(savedEndAt > System.currentTimeMillis()) }
     var sessionLabel by remember { mutableStateOf("Focused study") }
     var completed by remember { mutableIntStateOf(0) }
     val savedSessions by vm.kind("study_session").collectAsState(initial = emptyList())
@@ -58,6 +59,8 @@ fun FocusTimer(vm: ScribeViewModel) {
             }
             if (remainingSeconds == 0) {
                 running = false
+                preferences.edit().remove("focus_end_at").apply()
+                FocusTimerAlarm.cancel(context)
                 completed += 1
                 vm.add(null, "study_session", sessionLabel.ifBlank { "Focused study" },
                     body = "Completed a $durationMinutes minute focus session.",
@@ -92,18 +95,38 @@ fun FocusTimer(vm: ScribeViewModel) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(15, 25, 45, 60).forEach { value ->
                         FilterChip(selected = durationMinutes == value && !running, onClick = {
-                            if (!running) { durationMinutes = value; remainingSeconds = value * 60 }
+                            if (!running) {
+                                durationMinutes = value
+                                remainingSeconds = value * 60
+                                preferences.edit().putInt("focus_duration_minutes", value).apply()
+                            }
                         }, label = { Text("$value min") }, enabled = !running)
                     }
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { running = !running },
+                    Button(onClick = {
+                        if (running) {
+                            running = false
+                            preferences.edit().remove("focus_end_at").apply()
+                            FocusTimerAlarm.cancel(context)
+                        } else {
+                            val endAt = System.currentTimeMillis() + remainingSeconds * 1000L
+                            preferences.edit().putLong("focus_end_at", endAt).putInt("focus_duration_minutes", durationMinutes).apply()
+                            FocusTimerAlarm.schedule(context, endAt, sessionLabel.ifBlank { "Focused study" })
+                            running = true
+                        }
+                    },
                         colors = ButtonDefaults.buttonColors(containerColor = FocusGold, contentColor = Color(0xFF211B12))) {
                         Icon(if (running) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null)
                         Spacer(Modifier.width(6.dp)); Text(if (running) "Pause" else "Start focus")
                     }
-                    OutlinedButton(onClick = { running = false; remainingSeconds = durationMinutes * 60 }) {
+                    OutlinedButton(onClick = {
+                        running = false
+                        preferences.edit().remove("focus_end_at").apply()
+                        FocusTimerAlarm.cancel(context)
+                        remainingSeconds = durationMinutes * 60
+                    }) {
                         Icon(Icons.Rounded.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Reset")
                     }
                 }
@@ -197,7 +220,7 @@ fun FocusTimer(vm: ScribeViewModel) {
                 }
             }
         }
-        Text("The timer runs while Scribe remains open. Completed sessions are saved locally; background alarms are not used.",
+        Text("Your focus alarm is scheduled for the end of the session, so you can leave Scribe or lock your phone. Session history is saved when the app is active at completion.",
             color = FocusMuted, fontSize = 11.sp, lineHeight = 16.sp)
     }
 }

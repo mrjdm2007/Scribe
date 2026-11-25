@@ -15,6 +15,7 @@
             </intent-filter>
         </activity>
         <receiver android:name=".StudyReminderReceiver" android:exported="false" />
+        <receiver android:name=".FocusTimerAlarmReceiver" android:exported="false" />
         <receiver android:name=".StudyBootReceiver" android:enabled="true" android:exported="false">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
         </receiver>
