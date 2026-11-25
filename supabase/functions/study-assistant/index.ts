@@ -79,7 +79,10 @@ serve(async (request) => {
       return respond({ error: payload?.error?.message ?? "The AI provider request failed." }, upstream.status);
     }
 
-    const output = typeof payload.output_text === "string" ? payload.output_text : "";
+    const output = typeof payload.output_text === "string" ? payload.output_text :
+      (payload.output ?? []).flatMap((item: any) => item.type === "message" ? (item.content ?? []) : [])
+        .filter((part: any) => part.type === "output_text")
+        .map((part: any) => part.text ?? "").join("\n");
     const citations = (payload.output ?? []).flatMap((item: any) =>
       (item.content ?? []).flatMap((part: any) =>
         (part.annotations ?? []).filter((annotation: any) => annotation.type === "url_citation")
