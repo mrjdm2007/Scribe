@@ -56,7 +56,10 @@ struct PDFReadOnlyView: View {
                     }.frame(maxHeight: 180).background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
                 }
             } else {
-                ContentUnavailableView("Unable to open PDF", systemImage: "doc.questionmark")
+                VStack(spacing: 8) {
+                    Image(systemName: "doc.questionmark").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("Unable to open PDF").font(.headline)
+                }
             }
         }
         .onChange(of: pageIndex) { _ in extractedText = ""; searchText = ""; errorMessage = nil }
