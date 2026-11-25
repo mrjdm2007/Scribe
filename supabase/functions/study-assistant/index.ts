@@ -66,10 +66,11 @@ serve(async (request) => {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: Deno.env.get("OPENAI_MODEL") ?? "gpt-6-mini",
+        model: Deno.env.get("OPENAI_MODEL") ?? "gpt-6-luna",
         instructions,
         tools,
         input: `STUDY MODE: ${mode}\n\nSTUDENT QUESTION:\n${question}\n\nRETRIEVED NOTE CONTEXT:\n${context || "No matching notes were supplied."}`,
+        max_output_tokens: 3000,
         store: false,
       }),
     });
