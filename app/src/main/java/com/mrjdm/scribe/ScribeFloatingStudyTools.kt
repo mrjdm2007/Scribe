@@ -1,6 +1,14 @@
 package com.mrjdm.scribe
 
 import android.content.Context
+import com.mrjdm.scribe.data.ScribeViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -31,7 +39,7 @@ import java.util.Locale
  * Timer state is stored locally and survives navigation and process recreation.
  */
 @Composable
-fun ScribeFloatingStudyTools(item: ScribeItem?) {
+fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("scribe_global_study_timer", Context.MODE_PRIVATE) }
     var elapsedBase by remember { mutableLongStateOf(prefs.getLong("elapsed_ms", 0L)) }
@@ -39,6 +47,13 @@ fun ScribeFloatingStudyTools(item: ScribeItem?) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var expanded by remember { mutableStateOf(false) }
     var reading by remember { mutableStateOf(false) }
+    var aiOpen by remember { mutableStateOf(false) }
+    var aiQuestion by remember { mutableStateOf("") }
+    var aiAnswer by remember { mutableStateOf("") }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiError by remember { mutableStateOf("") }
+    var aiMode by remember { mutableStateOf("notes") }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(startedAt) {
         while (startedAt > 0L) {
             now = System.currentTimeMillis()
@@ -85,6 +100,72 @@ fun ScribeFloatingStudyTools(item: ScribeItem?) {
                 Icon(Icons.Rounded.Book, null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Read")
+            }
+        }
+    }
+
+    if (aiOpen) {
+        Dialog(onDismissRequest = { if (!aiBusy) aiOpen = false }) {
+            Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().fillMaxHeight(.88f)) {
+                Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("SCRIBE INTELLIGENCE", color = Color(0xFFD5B98C), fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+                            Text("Your study assistant", style = MaterialTheme.typography.titleLarge)
+                        }
+                        TextButton(onClick = { if (!aiBusy) aiOpen = false }) { Text("Close") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("notes", "explain", "exam", "quiz", "research", "summary").forEach { mode ->
+                            FilterChip(selected = aiMode == mode, onClick = { aiMode = mode }, label = { Text(mode.replaceFirstChar { it.uppercase() }, fontSize = 10.sp) })
+                        }
+                    }
+                    OutlinedTextField(aiQuestion, { aiQuestion = it }, modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Ask about your notes or a topic") }, minLines = 2, maxLines = 4)
+                    Button(enabled = aiQuestion.isNotBlank() && !aiBusy, onClick = {
+                        aiBusy = true; aiError = ""; aiAnswer = ""
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    val all = vm.all()
+                                    val terms = aiQuestion.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length > 2 }.toSet()
+                                    val relevant = all.filter { it.deletedAt == null && it.body.isNotBlank() }
+                                        .map { note -> note to terms.count { term -> note.title.contains(term, true) || note.body.contains(term, true) } }
+                                        .filter { it.second > 0 }.sortedByDescending { it.second }.take(24)
+                                    val contextArray = JSONArray()
+                                    relevant.forEach { (note, _) ->
+                                        contextArray.put(JSONObject().put("title", note.title).put("path", note.kind).put("content", note.body.take(12000)))
+                                    }
+                                    val prefs = context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE)
+                                    val base = prefs.getString("url", ScribeCloudConfig.SUPABASE_URL).orEmpty().trimEnd('/')
+                                    val anon = prefs.getString("anon_key", ScribeCloudConfig.SUPABASE_ANON_KEY).orEmpty()
+                                    require(base.startsWith("https://") && anon.isNotBlank()) { "Configure your Supabase URL and anon key in Settings first." }
+                                    val connection = (URL("$base/functions/v1/study-assistant").openConnection() as HttpURLConnection).apply {
+                                        requestMethod = "POST"; connectTimeout = 20000; readTimeout = 90000; doOutput = true
+                                        setRequestProperty("Content-Type", "application/json")
+                                        setRequestProperty("apikey", anon); setRequestProperty("Authorization", "Bearer $anon")
+                                    }
+                                    val payload = JSONObject().put("question", aiQuestion).put("mode", aiMode).put("note_context", contextArray)
+                                    connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+                                    val status = connection.responseCode
+                                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                                    val response = stream.bufferedReader().use { it.readText() }
+                                    connection.disconnect()
+                                    val json = JSONObject(response)
+                                    if (status !in 200..299) error(json.optString("error", "AI request failed ($status)"))
+                                    json.optString("answer").ifBlank { "The assistant returned an empty response." }
+                                }.getOrElse { throw it }
+                            }
+                            result.onSuccess { aiAnswer = it }.onFailure { aiError = it.message ?: "Unable to reach Scribe Intelligence." }
+                            aiBusy = false
+                        }
+                    }) { if (aiBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Ask Scribe") }
+                    if (aiError.isNotBlank()) Text(aiError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        if (aiAnswer.isNotBlank()) Text(aiAnswer, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp), color = MaterialTheme.colorScheme.onSurface)
+                        else Text("Ask questions across your notebooks, generate exam questions, practise quizzes or research a topic. Note references are retrieved locally and sent only with your request.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    }
+                }
             }
         }
     }
