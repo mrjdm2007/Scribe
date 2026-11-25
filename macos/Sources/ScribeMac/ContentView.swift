@@ -93,11 +93,11 @@ struct ScribeMacRoot: View {
     }
     private var library: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic → Notebook").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import PDF", systemImage: "doc.richtext") } }
+            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic notebook").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import PDF", systemImage: "doc.richtext") } }
             HStack(spacing: 12) {
                 if store.searchText.isEmpty {
                     hierarchy(parent: nil, title: "Courses")
-                    if let selected = store.selected, ["course","chapter","topic"].contains(selected.kind) { hierarchy(parent: selected.id, title: "Contents") }
+                    if let selected = store.selected, ["course","chapter"].contains(selected.kind) { hierarchy(parent: selected.id, title: "Contents") }
                 } else {
                     VStack(alignment: .leading) {
                         Text("SEARCH RESULTS · \(store.visibleItems.count)").font(.caption.bold()).foregroundStyle(.secondary)

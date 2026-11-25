@@ -14,43 +14,30 @@ import Foundation
 let image = NSImage(size: NSSize(width: 1024, height: 1024), flipped: false) { rect in
     NSColor(calibratedRed: 0.055, green: 0.065, blue: 0.082, alpha: 1).setFill()
     NSBezierPath(roundedRect: rect.insetBy(dx: 28, dy: 28), xRadius: 220, yRadius: 220).fill()
-    let left = NSBezierPath()
-    left.move(to: NSPoint(x: 170, y: 700))
-    left.curve(to: NSPoint(x: 500, y: 650), controlPoint1: NSPoint(x: 270, y: 770), controlPoint2: NSPoint(x: 410, y: 755))
-    left.line(to: NSPoint(x: 500, y: 265))
-    left.curve(to: NSPoint(x: 170, y: 330), controlPoint1: NSPoint(x: 390, y: 310), controlPoint2: NSPoint(x: 275, y: 260))
-    left.close()
-    NSColor(calibratedRed: 0.95, green: 0.90, blue: 0.81, alpha: 1).setFill()
-    left.fill()
-    let right = NSBezierPath()
-    right.move(to: NSPoint(x: 524, y: 650))
-    right.curve(to: NSPoint(x: 854, y: 700), controlPoint1: NSPoint(x: 614, y: 755), controlPoint2: NSPoint(x: 754, y: 770))
-    right.line(to: NSPoint(x: 854, y: 330))
-    right.curve(to: NSPoint(x: 524, y: 265), controlPoint1: NSPoint(x: 749, y: 260), controlPoint2: NSPoint(x: 634, y: 310))
-    right.close()
-    NSColor(calibratedRed: 0.85, green: 0.78, blue: 0.65, alpha: 1).setFill()
-    right.fill()
-    let spine = NSBezierPath(roundedRect: NSRect(x: 495, y: 255, width: 34, height: 430), xRadius: 12, yRadius: 12)
-    NSColor(calibratedRed: 0.14, green: 0.16, blue: 0.19, alpha: 1).setFill()
-    spine.fill()
+    let shadow = NSBezierPath(roundedRect: NSRect(x: 224, y: 158, width: 590, height: 710), xRadius: 76, yRadius: 76)
+    NSColor.black.withAlphaComponent(0.28).setFill(); shadow.fill()
+    let cover = NSBezierPath(roundedRect: NSRect(x: 210, y: 176, width: 590, height: 650), xRadius: 62, yRadius: 62)
+    NSColor(calibratedRed: 0.95, green: 0.92, blue: 0.85, alpha: 1).setFill(); cover.fill()
+    let rightPage = NSBezierPath(roundedRect: NSRect(x: 520, y: 190, width: 266, height: 622), xRadius: 48, yRadius: 48)
+    NSColor(calibratedRed: 0.86, green: 0.80, blue: 0.68, alpha: 1).setFill(); rightPage.fill()
+    let spine = NSBezierPath(roundedRect: NSRect(x: 492, y: 176, width: 42, height: 650), xRadius: 18, yRadius: 18)
+    NSColor(calibratedRed: 0.13, green: 0.15, blue: 0.18, alpha: 1).setFill(); spine.fill()
     let bookmark = NSBezierPath()
-    bookmark.move(to: NSPoint(x: 690, y: 735)); bookmark.line(to: NSPoint(x: 790, y: 735))
-    bookmark.line(to: NSPoint(x: 790, y: 555)); bookmark.line(to: NSPoint(x: 740, y: 590))
-    bookmark.line(to: NSPoint(x: 690, y: 555)); bookmark.close()
-    NSColor(calibratedRed: 0.73, green: 0.59, blue: 0.38, alpha: 1).setFill()
-    bookmark.fill()
-    NSColor(calibratedRed: 0.58, green: 0.50, blue: 0.38, alpha: 0.88).setStroke()
-    for y in [575.0, 500.0, 425.0] {
-        for pair in [(245.0, 430.0, y, y + 20), (590.0, 775.0, y + 20, y)] {
-            let line = NSBezierPath(); line.lineWidth = 10; line.lineCapStyle = .round
-            line.move(to: NSPoint(x: CGFloat(pair.0), y: CGFloat(pair.2))); line.line(to: NSPoint(x: CGFloat(pair.1), y: CGFloat(pair.3))); line.stroke()
-        }
+    bookmark.move(to: NSPoint(x: 680, y: 826)); bookmark.line(to: NSPoint(x: 770, y: 826))
+    bookmark.line(to: NSPoint(x: 770, y: 640)); bookmark.line(to: NSPoint(x: 725, y: 674))
+    bookmark.line(to: NSPoint(x: 680, y: 640)); bookmark.close()
+    NSColor(calibratedRed: 0.73, green: 0.59, blue: 0.38, alpha: 1).setFill(); bookmark.fill()
+    NSColor(calibratedRed: 0.62, green: 0.56, blue: 0.45, alpha: 0.85).setStroke()
+    for (x, y, width) in [(292.0, 650.0, 148.0), (292.0, 550.0, 148.0), (292.0, 450.0, 148.0),
+                          (580.0, 550.0, 150.0), (580.0, 450.0, 150.0), (580.0, 350.0, 150.0)] {
+        let line = NSBezierPath(); line.lineWidth = 13; line.lineCapStyle = .round
+        line.move(to: NSPoint(x: x, y: y)); line.line(to: NSPoint(x: x + width, y: y)); line.stroke()
     }
-    NSColor.white.withAlphaComponent(0.20).setStroke()
-    let glint = NSBezierPath(); glint.lineWidth = 5; glint.lineCapStyle = .round
-    glint.move(to: NSPoint(x: 150, y: 820))
-    glint.curve(to: NSPoint(x: 820, y: 820), controlPoint1: NSPoint(x: 340, y: 900), controlPoint2: NSPoint(x: 680, y: 900))
-    glint.stroke()
+    NSColor.white.withAlphaComponent(0.22).setStroke()
+    let reflection = NSBezierPath(); reflection.lineWidth = 7; reflection.lineCapStyle = .round
+    reflection.move(to: NSPoint(x: 270, y: 780))
+    reflection.curve(to: NSPoint(x: 745, y: 780), controlPoint1: NSPoint(x: 390, y: 850), controlPoint2: NSPoint(x: 620, y: 850))
+    reflection.stroke()
     return true
 }
 let output = URL(fileURLWithPath: CommandLine.arguments[1])

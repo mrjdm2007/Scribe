@@ -12,8 +12,13 @@ struct ScribeMacApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("New Page") { store.create(kind: "page", title: "Untitled page", parentId: store.selectedID) }
+                Button("New Topic") {
+                    if let parent = store.selected, parent.kind == "chapter" {
+                        store.create(kind: "topic", title: "Untitled topic", parentId: parent.id)
+                    }
+                }
                     .keyboardShortcut("n", modifiers: .command)
+                    .disabled(store.selected?.kind != "chapter")
                 Button("New Course") { store.create(kind: "course", title: "Untitled course") }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
             }

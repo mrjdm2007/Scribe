@@ -435,8 +435,8 @@ private fun TopicNotebook(
     val pages = childItems.filter { it.kind == "page" }
     val blocks = childItems.filter { it.kind == "block" }
     val scope = rememberCoroutineScope()
-    var noteValue by remember(topic.id) { mutableStateOf(TextFieldValue(topic.body)) }
-    var searchQuery by remember(topic.id) { mutableStateOf("") }
+    var noteValue by rememberSaveable(topic.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue(topic.body)) }
+    var searchQuery by rememberSaveable(topic.id) { mutableStateOf("") }
     var showAdd by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
 
@@ -487,8 +487,10 @@ private fun TopicNotebook(
                         supportingContent = { Text("Notebook · line ${lineIndex + 1}", color = Muted) },
                         leadingContent = { Icon(Icons.Rounded.Search, null, tint = Gold) },
                         modifier = Modifier.clickable {
-                            val start = noteValue.text.indexOf(line).coerceAtLeast(0)
-                            noteValue = TextFieldValue(noteValue.text, TextRange(start, (start + line.length).coerceAtMost(noteValue.text.length)))
+                            val lineStart = noteValue.text.lineSequence().take(lineIndex).sumOf { it.length + 1 }
+                            val start = noteValue.text.indexOf(searchQuery, lineStart, ignoreCase = true).takeIf { it >= 0 } ?: lineStart
+                            val end = (start + searchQuery.length).coerceAtMost(noteValue.text.length)
+                            noteValue = TextFieldValue(noteValue.text, TextRange(start, end))
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
@@ -526,7 +528,7 @@ private fun TopicNotebook(
                     elevation = CardDefaults.cardElevation(defaultElevation = 7.dp),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
-                    Column(Modifier.padding(14.dp)) {
+                    Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.045f), Color.Transparent, Color.Black.copy(alpha = 0.07f)))).padding(14.dp)) {
                         Text("YOUR NOTES", color = Gold, fontSize = 10.sp, letterSpacing = 1.5.sp)
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(

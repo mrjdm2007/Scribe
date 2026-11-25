@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 concurrency:
   group: android-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
