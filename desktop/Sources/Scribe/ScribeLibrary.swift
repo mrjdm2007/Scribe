@@ -290,6 +290,16 @@ final class ScribeLibrary: ObservableObject {
             if let parent = row["parentId"] as? NSNumber { return idMap[parent.int64Value] != nil }
             return true
         }) else { throw CocoaError(.fileReadCorruptFile) }
+        for row in rows {
+            guard let encoded = row["attachmentBase64"] as? String else { continue }
+            guard let bytes = Data(base64Encoded: encoded), !bytes.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
+            let originalURI = row["uri"] as? String ?? ""
+            let ext = URL(fileURLWithPath: originalURI).pathExtension
+            let type = UTType(filenameExtension: ext)
+            guard type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true else {
+                throw NSError(domain: "ScribeBackup", code: 415, userInfo: [NSLocalizedDescriptionKey: "This backup contains an attachment that is not a photo or PDF."])
+            }
+        }
 
         let attachmentFolder = root.appendingPathComponent("attachments", isDirectory: true)
         try FileManager.default.createDirectory(at: attachmentFolder, withIntermediateDirectories: true)
