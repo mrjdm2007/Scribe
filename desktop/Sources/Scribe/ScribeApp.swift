@@ -21,6 +21,8 @@ struct ScribeRootView: View {
     @State private var selectedID: UUID?
     @State private var section = "Library"
     @State private var query = ""
+    @State private var searchKind = "All"
+    @State private var searchTag = ""
     @State private var showImporter = false
     @State private var showBackupExporter = false
     @State private var showBackupImporter = false
@@ -33,12 +35,19 @@ struct ScribeRootView: View {
     @State private var integrityReport = ""
 
     private var selected: ScribeNode? { selectedID.flatMap(library.node) }
+    private var filteredSearchResults: [ScribeNode] {
+        library.search(query).filter { item in
+            (searchKind == "All" || item.kind == searchKind.lowercased()) &&
+            (searchTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+             item.tags.localizedCaseInsensitiveContains(searchTag.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
+    }
     private var displayed: [ScribeNode] {
         switch section {
         case "Recent": return library.recentlyEdited
         case "Bookmarks": return library.bookmarks
         case "Trash": return library.trash
-        case "Search": return library.search(query)
+        case "Search": return filteredSearchResults
         default: return library.courses
         }
     }
@@ -57,8 +66,27 @@ struct ScribeRootView: View {
                 }
                 .pickerStyle(.segmented).padding(12)
                 if section == "Search" || !query.isEmpty {
-                    List(library.search(query), selection: $selectedID) { item in
-                        NavigationLink(value: item.id) { Label(item.title, systemImage: symbol(item.kind)) }
+                    VStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            Picker("Type", selection: $searchKind) {
+                                ForEach(["All", "Course", "Chapter", "Topic", "Page", "Block"], id: \.self) { Text($0).tag($0) }
+                            }.frame(width: 130)
+                            TextField("Filter by tag", text: $searchTag).textFieldStyle(.roundedBorder)
+                        }.padding(.horizontal, 10).padding(.top, 8)
+                        List(filteredSearchResults, selection: $selectedID) { item in
+                            NavigationLink(value: item.id) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label(item.title.isEmpty ? "Untitled" : item.title, systemImage: symbol(item.kind))
+                                    if !item.body.isEmpty {
+                                        Text(item.body.replacingOccurrences(of: "\n", with: " ")).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                    }
+                                    Text("\(item.kind.capitalized) · \(item.updatedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption2).foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                        .overlay(alignment: .bottom) {
+                            Text("\(filteredSearchResults.count) results").font(.caption2).foregroundStyle(.tertiary).padding(6)
+                        }
                     }
                 } else if section == "Library" {
                     List(selection: $selectedID) {
