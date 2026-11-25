@@ -821,8 +821,15 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
 
 @Composable
 private fun SearchRow(item: ScribeItem, onClick: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     ListItem(headlineContent = { Text(item.title) }, supportingContent = { Text(item.body.take(75), maxLines = 1) },
-        leadingContent = { Icon(Icons.Rounded.Search, null, tint = Gold) }, modifier = Modifier.clickable(onClick = onClick),
+        leadingContent = { Icon(Icons.Rounded.Search, null, tint = Gold) },
+        trailingContent = {
+            IconButton(onClick = {
+                clipboard.setText(AnnotatedString(item.title + if (item.body.isBlank()) "" else "\n\n" + item.body))
+            }) { Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy note", tint = Muted) }
+        },
+        modifier = Modifier.clickable(onClick = onClick),
         colors = ListItemDefaults.colors(containerColor = Color.Transparent))
 }
 

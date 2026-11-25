@@ -248,7 +248,18 @@ struct ScribeMacRoot: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.title)
                                 Text("\(item.kind.capitalized) · \(item.body.prefix(80))").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            }.tag(item.id)
+                            }
+                            .tag(item.id)
+                            .contextMenu {
+                                Button("Copy note") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(item.title + (item.body.isEmpty ? "" : "\n\n" + item.body), forType: .string)
+                                }
+                                Button("Copy title") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(item.title, forType: .string)
+                                }
+                            }
                         }.listStyle(.inset).frame(minWidth: 250)
                     }.padding(12).background(panel, in: RoundedRectangle(cornerRadius: 14))
                 }
