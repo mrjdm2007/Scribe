@@ -164,6 +164,13 @@ struct NodeEditorView: View {
         library.update(item)
     }
 
+    private var blockType: String {
+        item.tags.split(separator: ";").first(where: { $0.hasPrefix("type:") })
+            .map { String($0.dropFirst(5)).components(separatedBy: ",").first ?? "text" } ?? "text"
+    }
+    private var isMediaAttachment: Bool {
+        item.kind == "block" && !item.uri.isEmpty && (blockType == "image" || blockType == "pdf")
+    }
     private var childKind: String? {
         switch item.kind { case "course": return "chapter"; case "chapter": return "topic"; case "topic": return "page"; case "page": return "block"; default: return nil }
     }
@@ -188,29 +195,35 @@ struct NodeEditorView: View {
             }
             TextField("Title", text: $item.title).font(.largeTitle.weight(.semibold)).textFieldStyle(.plain)
                 .onChange(of: item.title) { _ in library.update(item) }
-            if item.kind == "block" || item.kind == "formula" || item.kind == "question" || item.kind == "flashcard" || item.kind == "diagram" {
-                if item.kind == "block" {
-                    HStack(spacing: 8) {
-                        Button("Bold") { wrapBody("**") }
-                        Button("Italic") { wrapBody("*") }
-                        Button("Strike") { wrapBody("~~") }
-                        Button("Heading") { prefixBody("# ") }
-                        Button("Bullet") { prefixBody("- ") }
-                        Button("Quote") { prefixBody("> ") }
-                        Button("Code") { wrapBody("`") }
-                    }.buttonStyle(.bordered).controlSize(.small)
-                }
-                TextEditor(text: $item.body).font(.body).scrollContentBackground(.hidden)
-                    .padding(10).frame(minHeight: 220)
-                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
-                    .onChange(of: item.body) { _ in library.update(item) }
-                if item.kind == "block" && !item.body.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("FORMATTED PREVIEW").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text((try? AttributedString(markdown: item.body)) ?? AttributedString(item.body))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12).background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+            if ["block", "formula", "question", "flashcard", "diagram", "study_question"].contains(item.kind) {
+                if !isMediaAttachment {
+                    if item.kind == "block" {
+                        HStack(spacing: 8) {
+                            Button("Bold") { wrapBody("**") }
+                            Button("Italic") { wrapBody("*") }
+                            Button("Underline") { wrapBody("__") }
+                            Button("Strike") { wrapBody("~~") }
+                            Button("Heading") { prefixBody("## ") }
+                            Button("Bullet") { prefixBody("- ") }
+                            Button("Quote") { prefixBody("> ") }
+                            Button("Code") { wrapBody("`") }
+                        }.buttonStyle(.bordered).controlSize(.small)
                     }
+                    TextEditor(text: $item.body).font(.body).scrollContentBackground(.hidden)
+                        .padding(10).frame(minHeight: 220)
+                        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+                        .onChange(of: item.body) { _ in library.update(item) }
+                    if !item.body.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("FORMATTED PREVIEW").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            RichBlockPreview(bodyText: item.body, type: item.kind == "block" ? blockType : item.kind)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12).background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+                } else {
+                    Label(blockType == "pdf" ? "PDF preview · read only" : "Photo attachment", systemImage: blockType == "pdf" ? "doc.richtext" : "photo")
+                        .foregroundStyle(.secondary)
                 }
             } else {
                 Text("Notebook contents").font(.headline).foregroundStyle(.secondary)
@@ -224,7 +237,7 @@ struct NodeEditorView: View {
                     Button { _ = library.add(kind: childKind, parent: item.id) } label: { Label("Add \(childKind.capitalized)", systemImage: "plus") }.buttonStyle(.borderedProminent)
                 }
                 if item.kind == "page" {
-                    Button { showAttachmentPicker = true } label: { Label("Attach file", systemImage: "paperclip") }
+                    Button { showAttachmentPicker = true } label: { Label("Attach photo or PDF", systemImage: "paperclip") }
                 }
                 Spacer()
                 Text("Updated \(item.updatedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.tertiary)
@@ -247,7 +260,7 @@ struct NodeEditorView: View {
             Spacer()
         }
         .padding(28)
-        .fileImporter(isPresented: $showAttachmentPicker, allowedContentTypes: [.item, .pdf, .image], allowsMultipleSelection: true) { result in
+        .fileImporter(isPresented: $showAttachmentPicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { do { try library.importAttachment(from: url, parent: item.id) } catch { library.lastError = error.localizedDescription } } }
         }
         .sheet(isPresented: $showHistory) {
