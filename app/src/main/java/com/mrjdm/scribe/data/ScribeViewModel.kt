@@ -38,10 +38,24 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             done(id)
         }
     }
-    fun update(item: ScribeItem, title: String = item.title, body: String = item.body, uri: String = item.uri, tags: String = item.tags, bookmarked: Boolean = item.bookmarked) {
+    fun update(item: ScribeItem, title: String? = null, body: String? = null, uri: String? = null, tags: String? = null, bookmarked: Boolean? = null) {
         viewModelScope.launch {
-            if (item.kind == "block" && item.body != body) dao.snapshot(NoteSnapshot(itemId = item.id, title = item.title, body = item.body))
-            dao.update(item.copy(title = title, body = body, uri = uri, tags = tags, bookmarked = bookmarked, updatedAt = System.currentTimeMillis()))
+            database.withTransaction {
+                val current = dao.byId(item.id) ?: return@withTransaction
+                val nextBody = body ?: current.body
+                val now = maxOf(System.currentTimeMillis(), current.updatedAt + 1)
+                if (current.body != nextBody) {
+                    dao.snapshot(NoteSnapshot(itemId = current.id, title = current.title, body = current.body, savedAt = now))
+                }
+                dao.update(current.copy(
+                    title = title ?: current.title,
+                    body = nextBody,
+                    uri = uri ?: current.uri,
+                    tags = tags ?: current.tags,
+                    bookmarked = bookmarked ?: current.bookmarked,
+                    updatedAt = now
+                ))
+            }
         }
     }
     fun removeTree(item: ScribeItem) {
@@ -162,7 +176,12 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun toggleBookmark(item: ScribeItem) = update(item, bookmarked = !item.bookmarked)
+    fun toggleBookmark(item: ScribeItem) {
+        viewModelScope.launch {
+            val current = dao.byId(item.id) ?: return@launch
+            update(current, bookmarked = !current.bookmarked)
+        }
+    }
     suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {
         dao.replaceLibrary(items, snapshots)
     }
@@ -226,8 +245,10 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             database.withTransaction {
                 items.distinctBy { it.id }.forEach { item ->
                     val current = dao.byId(item.id) ?: return@forEach
-                    val tags = current.tags.split(";").filter { it.isNotBlank() && !it.startsWith("bulk:") }
-                    dao.update(current.copy(tags = (tags + clean).distinct().joinToString(";"), updatedAt = System.currentTimeMillis()))
+                    val tags = current.tags.split(";").filter { it.isNotBlank() }
+                    if (clean !in tags) {
+                        dao.update(current.copy(tags = (tags + clean).joinToString(";"), updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1)))
+                    }
                 }
             }
         }
