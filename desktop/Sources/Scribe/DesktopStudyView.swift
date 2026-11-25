@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 struct DesktopStudyView: View {
     @EnvironmentObject private var library: ScribeLibrary
@@ -11,6 +12,8 @@ struct DesktopStudyView: View {
     @State private var selectedDuration = 25
     @State private var endDate: Date?
     @State private var completed = false
+    @State private var reminderTime = Calendar.current.date(from: DateComponents(hour: 18, minute: 0)) ?? .now
+    @State private var reminderStatus = "No daily reminder scheduled."
 
     private var dueCards: [ScribeNode] {
         library.visibleNodes.filter { node in
@@ -133,6 +136,39 @@ struct DesktopStudyView: View {
             Text("Recent completed sessions").font(.headline)
             if history.isEmpty { Text("No completed sessions yet.").foregroundStyle(.secondary) }
             else { ForEach(Array(history.enumerated()), id: \.offset) { _, entry in Text(entry).font(.subheadline).foregroundStyle(.secondary) } }
+            Divider()
+            Text("Daily study reminder").font(.headline)
+            DatePicker("Reminder time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+            HStack {
+                Button("Schedule daily reminder") { scheduleReminder() }.buttonStyle(.borderedProminent)
+                Button("Cancel reminder") {
+                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["scribe.daily-study"])
+                    reminderStatus = "Daily reminder cancelled."
+                }.buttonStyle(.bordered)
+            }
+            Text(reminderStatus).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func scheduleReminder() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            guard granted else {
+                DispatchQueue.main.async { reminderStatus = error?.localizedDescription ?? "Notification permission was not granted." }
+                return
+            }
+            var components = Calendar.current.dateComponents([.hour, .minute], from: reminderTime)
+            components.second = 0
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+            let content = UNMutableNotificationContent()
+            content.title = "Time for a study session"
+            content.body = "Open Scribe and continue where you left off."
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: "scribe.daily-study", content: content, trigger: trigger)
+            UNUserNotificationCenter.current().add(request) { error in
+                DispatchQueue.main.async {
+                    reminderStatus = error?.localizedDescription ?? "Daily reminder scheduled."
+                }
+            }
         }
     }
 
