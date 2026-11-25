@@ -16,7 +16,8 @@ swift run
 - Attachment import, local attachment storage, image preview, PDFKit preview and PDF text extraction.
 - JSON backup/restore including attachment bytes and snapshots.
 - Dimension-aware engineering unit conversion, formula shelf, basic graph plotter, scientific table creation, and concept/circuit diagram starters.
-- Flashcard review with Again/Hard/Good/Easy scheduling, question-and-answer practice, and a foreground focus timer with local session history.
+- Markdown formatting controls and live formatted preview for note blocks.
+- Flashcard review with Again/Hard/Good/Easy scheduling, question-and-answer practice, foreground focus timer with local session history, and daily local study reminders.
 
 ## Not yet at Android parity
 Full rich formatted block editing/rendering parity, study reminders, PDF export, OCR parity, persistent PDF annotations, and complete Android engineering tools are still outstanding. Google Drive sync and the AI client/backend integration are not implemented. The cross-platform JSON schema is a design contract and is not yet used by the Android Room database or a Drive sync engine.
