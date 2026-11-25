@@ -4,6 +4,46 @@ import ScribeCore
 import UniformTypeIdentifiers
 import WebKit
 
+
+private struct ScribeGlassPanel: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        content
+            .background(.ultraThinMaterial, in: shape)
+            .overlay {
+                shape.stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.25),
+                            Color.white.opacity(0.055),
+                            Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.17)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+            }
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(LinearGradient(colors: [.white.opacity(0.18), .white.opacity(0.015)], startPoint: .top, endPoint: .bottom))
+                    .frame(height: 1)
+                    .padding(.horizontal, cornerRadius * 0.7)
+                    .padding(.top, 1)
+            }
+            .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 7)
+            .shadow(color: Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.055), radius: 20, x: 0, y: 4)
+    }
+}
+
+private extension View {
+    func scribeGlassPanel(cornerRadius: CGFloat = 16) -> some View {
+        modifier(ScribeGlassPanel(cornerRadius: cornerRadius))
+    }
+}
+
 struct ScribeMacRoot: View {
     @EnvironmentObject private var store: ScribeStore
     @AppStorage("scribe.dailyStudyGoalMinutes") private var dailyGoalMinutes = 60
@@ -235,7 +275,7 @@ struct ScribeMacRoot: View {
                                             Text(item.title).lineLimit(1).font(.subheadline.weight(.medium))
                                             Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary)
                                         }.frame(width: 150, alignment: .leading).padding(12)
-                                            .background(panel, in: RoundedRectangle(cornerRadius: 12))
+                                            .scribeGlassPanel(cornerRadius: 12)
                                     }.buttonStyle(.plain)
                                 }
                             }
@@ -333,7 +373,7 @@ struct ScribeMacRoot: View {
                                 }
                             }
                         }.listStyle(.inset).frame(minWidth: 250)
-                    }.padding(12).background(panel, in: RoundedRectangle(cornerRadius: 14))
+                    }.padding(12).scribeGlassPanel(cornerRadius: 14)
                 }
                 editor
             }
@@ -641,7 +681,7 @@ struct ScribeMacRoot: View {
             if let card = dueCards.first {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }; Button("Edit flashcard") { editingFlashcard = card }.buttonStyle(.bordered)
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
-                }.padding(30).background(panel,in:RoundedRectangle(cornerRadius:20))
+                }.padding(30).scribeGlassPanel(cornerRadius: 20)
             } else if cards.isEmpty { VStack(spacing: 10) { Image(systemName: "rectangle.stack").font(.system(size: 34)); Text("No flashcards yet").font(.headline); Text("Create flashcards in your study notes and they will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 180) }
             else { VStack(spacing: 10) { Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(gold); Text("All caught up").font(.headline); Text("\(upcomingCount) cards scheduled for later review.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 180) }
             Spacer()
@@ -694,18 +734,18 @@ struct ScribeMacRoot: View {
                 ProgressView(value: Double(min(todayMinutes, dailyGoalMinutes)), total: Double(dailyGoalMinutes)).tint(gold)
                 Text(todayMinutes >= dailyGoalMinutes ? "Daily goal completed" : "\(dailyGoalMinutes - todayMinutes) min left to reach today's goal")
                     .font(.caption).foregroundStyle(.secondary)
-            }.padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
+            }.padding(14).scribeGlassPanel(cornerRadius: 12)
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("THIS WEEK").font(.caption.bold()).foregroundStyle(.secondary)
                     Text("\(weeklyMinutes / 60)h \(weeklyMinutes % 60)m").font(.title2.bold()).foregroundStyle(gold)
                     Text("Study time").font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(14).scribeGlassPanel(cornerRadius: 12)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("SESSIONS").font(.caption.bold()).foregroundStyle(.secondary)
                     Text("\(weeklySessions.count)").font(.title2.bold()).foregroundStyle(gold)
                     Text("Completed this week").font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(14).scribeGlassPanel(cornerRadius: 12)
             }
             VStack(alignment: .leading, spacing: 10) {
                 Text("RECENT SESSIONS").font(.caption.bold()).foregroundStyle(.secondary)
@@ -726,7 +766,7 @@ struct ScribeMacRoot: View {
                             let minutes = session.tags.range(of: #"minutes:\d+"#, options: .regularExpression)
                                 .map { Int(session.tags[$0].dropFirst(8)) ?? 0 } ?? 0
                             Text("\(minutes) min").font(.caption.weight(.semibold)).foregroundStyle(gold)
-                        }.padding(10).background(panel, in: RoundedRectangle(cornerRadius: 10))
+                        }.padding(10).scribeGlassPanel(cornerRadius: 10)
                     }
                 }
             }.frame(maxWidth: 560, alignment: .leading)
@@ -751,7 +791,7 @@ struct ScribeMacRoot: View {
             ]
             ForEach(formulas.filter { formulaQuery.isEmpty || $0.name.localizedCaseInsensitiveContains(formulaQuery) || $0.expression.localizedCaseInsensitiveContains(formulaQuery) }) { f in
                 HStack { VStack(alignment:.leading) { Text(f.name).font(.headline); Text(f.expression).font(.title3.monospaced()).foregroundStyle(gold) }; Spacer(); Button("Save") { store.create(kind:"formula",title:f.name,body:f.expression,tags:"subject:engineering") } }
-                    .padding(12).background(panel,in:RoundedRectangle(cornerRadius:12))
+                    .padding(12).scribeGlassPanel(cornerRadius: 12)
             }
             Spacer()
         }.padding(24)
