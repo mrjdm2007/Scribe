@@ -1068,7 +1068,7 @@ private fun RichMarkdownEditor(value: String, onValueChange: (String, Int, Int) 
                     target.post { target.tag = markdown; latestCallback(markdown, start, length) }
                 }
             }, "ScribeEditor")
-            val initial = org.json.JSONObject.quote(value)
+            val initial = org.json.JSONObject.quote(value).replace("<", "\\u003C").replace(">", "\\u003E").replace("&", "\\u0026")
             val html = """
 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
