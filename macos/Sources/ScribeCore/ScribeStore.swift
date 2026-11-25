@@ -21,7 +21,7 @@ public func appendingTag(_ existingTags: String, tag rawTag: String) -> String {
     return tags.contains(clean) ? tags.joined(separator: ";") : (tags + [clean]).joined(separator: ";")
 }
 
-public func backupValidationError(_ records: [BackupRecord]) -> String? {
+func backupValidationError(_ records: [BackupRecord]) -> String? {
     let ids = records.map(\.id)
     if ids.contains(where: { $0 <= 0 }) { return "Backup contains an invalid item ID." }
     if Set(ids).count != ids.count { return "Backup contains duplicate item IDs." }
