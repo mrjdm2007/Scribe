@@ -132,6 +132,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var quickCapture by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
+    var trashSelectedIds by remember { mutableStateOf(setOf<Long>()) }
     var integrityReport by remember { mutableStateOf<String?>(null) }
     val current = stack.lastOrNull()
     val children by vm.children(current?.id).collectAsState(initial = emptyList())
@@ -520,19 +521,37 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     if (showTrash) AlertDialog(onDismissRequest = { showTrash = false }, title = { Text("Recently deleted") },
         text = {
             if (trash.isEmpty()) Text("Your trash is empty.")
-            else LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                items(trash, key = { it.id }) { item ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(item.title, fontWeight = FontWeight.Medium)
-                            Text(item.kind, color = Muted, fontSize = 11.sp)
+            else Column {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { trashSelectedIds = if (trashSelectedIds.size == trash.size) emptySet() else trash.map { it.id }.toSet() }) {
+                        Text(if (trashSelectedIds.size == trash.size) "Clear selection" else "Select all")
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("${trashSelectedIds.size} selected", color = Muted, fontSize = 11.sp)
+                    TextButton(enabled = trashSelectedIds.isNotEmpty(), onClick = {
+                        vm.bulkRestore(trash.filter { it.id in trashSelectedIds }); trashSelectedIds = emptySet()
+                    }) { Text("Restore") }
+                    TextButton(enabled = trashSelectedIds.isNotEmpty(), onClick = {
+                        vm.bulkDeleteForever(trash.filter { it.id in trashSelectedIds }); trashSelectedIds = emptySet()
+                    }) { Text("Delete", color = Color(0xFFE49A91)) }
+                }
+                LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    items(trash, key = { it.id }) { item ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = item.id in trashSelectedIds, onCheckedChange = { checked ->
+                                trashSelectedIds = if (checked) trashSelectedIds + item.id else trashSelectedIds - item.id
+                            })
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, fontWeight = FontWeight.Medium)
+                                Text(item.kind, color = Muted, fontSize = 11.sp)
+                            }
+                            TextButton(onClick = { vm.restoreTree(item); trashSelectedIds = trashSelectedIds - item.id }) { Text("Restore", color = Gold) }
+                            IconButton(onClick = { vm.deleteForever(item); trashSelectedIds = trashSelectedIds - item.id }) { Icon(Icons.Rounded.DeleteForever, null, tint = Muted) }
                         }
-                        TextButton(onClick = { vm.restoreTree(item) }) { Text("Restore", color = Gold) }
-                        IconButton(onClick = { vm.deleteForever(item) }) { Icon(Icons.Rounded.DeleteForever, null, tint = Muted) }
                     }
                 }
             }
-        }, confirmButton = { TextButton(onClick = { showTrash = false }) { Text("Close") } })
+        }, confirmButton = { TextButton(onClick = { showTrash = false; trashSelectedIds = emptySet() }) { Text("Close") } })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

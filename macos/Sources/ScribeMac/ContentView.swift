@@ -26,6 +26,7 @@ struct ScribeMacRoot: View {
     @State private var searchSavedOnly = false
     @State private var searchSort = "Recent"
     @State private var bulkSelectedIDs = Set<Int64>()
+    @State private var trashSelectedIDs = Set<Int64>()
     @State private var bulkTagDraft = ""
     @State private var draftTitle = ""
     @State private var draftBody = ""
@@ -720,15 +721,34 @@ struct ScribeMacRoot: View {
             if deleted.isEmpty {
                 VStack(spacing: 8) { Image(systemName: "trash").font(.largeTitle); Text("Trash is empty").font(.headline); Text("Deleted notes will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 160)
             } else {
+                HStack {
+                    Button(trashSelectedIDs.count == deleted.count ? "Clear selection" : "Select all") {
+                        trashSelectedIDs = trashSelectedIDs.count == deleted.count ? [] : Set(deleted.map(\\.id))
+                    }
+                    Text("\\(trashSelectedIDs.count) selected").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Restore") {
+                        deleted.filter { trashSelectedIDs.contains($0.id) }.forEach { store.restoreFromTrash($0) }
+                        trashSelectedIDs = []
+                    }.disabled(trashSelectedIDs.isEmpty)
+                    Button(role: .destructive) {
+                        deleted.filter { trashSelectedIDs.contains($0.id) }.forEach { store.deletePermanently($0) }
+                        trashSelectedIDs = []
+                    } label: { Text("Delete") }.disabled(trashSelectedIDs.isEmpty)
+                }
                 List(deleted) { item in
                     HStack {
+                        Toggle(isOn: Binding(
+                            get: { trashSelectedIDs.contains(item.id) },
+                            set: { selected in if selected { trashSelectedIDs.insert(item.id) } else { trashSelectedIDs.remove(item.id) } }
+                        )) { EmptyView() }.labelsHidden()
                         VStack(alignment: .leading, spacing: 3) {
                             Text(item.title)
                             Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Restore") { store.restoreFromTrash(item) }
-                        Button(role: .destructive) { store.deletePermanently(item) } label: { Image(systemName: "trash.slash") }
+                        Button("Restore") { store.restoreFromTrash(item); trashSelectedIDs.remove(item.id) }
+                        Button(role: .destructive) { store.deletePermanently(item); trashSelectedIDs.remove(item.id) } label: { Image(systemName: "trash.slash") }
                     }
                 }
             }
