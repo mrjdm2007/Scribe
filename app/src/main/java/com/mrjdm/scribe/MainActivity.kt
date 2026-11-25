@@ -1464,61 +1464,84 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
 
 
 private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: List<ScribeItem>, destination: Uri) {
-    val descriptor = ParcelFileDescriptor.open(File(item.uri), ParcelFileDescriptor.MODE_READ_ONLY)
-    val renderer = PdfRenderer(descriptor)
-    val output = PdfDocument()
+    org.apache.pdfbox.android.PDFBoxResourceLoader.init(context)
+    val source = File(item.uri)
+    require(source.isFile) { "The original PDF file is missing." }
+    val document = org.apache.pdfbox.pdmodel.PDDocument.load(source)
     try {
-        for (index in 0 until renderer.pageCount) {
-            val sourcePage = renderer.openPage(index)
-            try {
-                val scale = minOf(2f, 1800f / sourcePage.width.toFloat(), 2400f / sourcePage.height.toFloat())
-                val width = (sourcePage.width * scale).toInt().coerceAtLeast(1)
-                val height = (sourcePage.height * scale).toInt().coerceAtLeast(1)
-                val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
-                sourcePage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
-                val page = output.startPage(PdfDocument.PageInfo.Builder(width, height, index + 1).create())
-                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
-                annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${index + 1}") }.forEach { annotation ->
-                    val values = annotation.tags.split(";").firstOrNull { it.startsWith("rect:") }
-                        ?.removePrefix("rect:")?.split(",")?.mapNotNull { it.toFloatOrNull() }
-                    if (values != null && values.size == 4) {
-                        val left = values[0] * width
-                        val top = values[1] * height
-                        val right = (values[0] + values[2]) * width
-                        val bottom = (values[1] + values[3]) * height
-                        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                            color = when {
-                                annotation.tags.contains("annotation:underline") -> android.graphics.Color.rgb(65, 145, 245)
-                                annotation.tags.contains("annotation:markup") -> android.graphics.Color.rgb(225, 75, 75)
-                                else -> android.graphics.Color.argb(95, 255, 210, 55)
-                            }
-                            style = if (annotation.tags.contains("annotation:markup") || annotation.tags.contains("annotation:underline"))
-                                android.graphics.Paint.Style.STROKE else android.graphics.Paint.Style.FILL
-                            strokeWidth = maxOf(2f, width / 700f)
-                        }
-                        when {
-                            annotation.tags.contains("annotation:underline") -> page.canvas.drawLine(left, bottom, right, bottom, paint)
-                            else -> page.canvas.drawRect(left, top, right, bottom, paint)
-                        }
-                        if (annotation.tags.contains("annotation:note")) {
-                            val notePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                                color = android.graphics.Color.rgb(35, 30, 20)
-                                textSize = maxOf(12f, width / 90f)
-                            }
-                            page.canvas.drawText(annotation.body.take(90), left, (top + notePaint.textSize * 1.4f).coerceAtMost(height - 4f), notePaint)
-                        }
-                    }
+        annotations.filter { it.tags.contains("type:pdf_annotation") }.forEach { annotation ->
+            val pageNumber = annotation.tags.split(";").firstOrNull { it.startsWith("page:") }
+                ?.substringAfter("page:")?.toIntOrNull() ?: return@forEach
+            val page = document.getPage(pageNumber - 1)
+            val values = annotation.tags.split(";").firstOrNull { it.startsWith("rect:") }
+                ?.removePrefix("rect:")?.split(",")?.mapNotNull { it.toFloatOrNull() }
+            if (values == null || values.size != 4) return@forEach
+            val media = page.mediaBox
+            val pageWidth = media.width
+            val pageHeight = media.height
+            val left = media.lowerLeftX + values[0].coerceIn(0f, 1f) * pageWidth
+            val top = media.lowerLeftY + pageHeight - values[1].coerceIn(0f, 1f) * pageHeight
+            val right = media.lowerLeftX + (values[0] + values[2]).coerceIn(0f, 1f) * pageWidth
+            val bottom = media.lowerLeftY + pageHeight - (values[1] + values[3]).coerceIn(0f, 1f) * pageHeight
+            val rect = org.apache.pdfbox.pdmodel.common.PDRectangle(
+                minOf(left, right), minOf(bottom, top),
+                maxOf(1f, kotlin.math.abs(right - left)), maxOf(1f, kotlin.math.abs(top - bottom))
+            )
+            val kind = annotation.tags.split(";").firstOrNull { it.startsWith("annotation:") }
+                ?.substringAfter(":").orEmpty()
+            val color = when (kind) {
+                "underline" -> org.apache.pdfbox.pdmodel.graphics.color.PDColor(
+                    floatArrayOf(0.25f, 0.57f, 0.95f),
+                    org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
+                )
+                "markup" -> org.apache.pdfbox.pdmodel.graphics.color.PDColor(
+                    floatArrayOf(0.88f, 0.25f, 0.25f),
+                    org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
+                )
+                else -> org.apache.pdfbox.pdmodel.graphics.color.PDColor(
+                    floatArrayOf(1f, 0.82f, 0.18f),
+                    org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
+                )
+            }
+            when (kind) {
+                "highlight", "underline" -> {
+                    val mark = org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup(
+                        if (kind == "underline")
+                            org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup.SUB_TYPE_UNDERLINE
+                        else
+                            org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT
+                    )
+                    mark.rectangle = rect
+                    mark.color = color
+                    mark.quadPoints = floatArrayOf(left, top, right, top, left, bottom, right, bottom)
+                    mark.contents = annotation.body
+                    page.annotations.add(mark)
                 }
-                output.finishPage(page)
-                bitmap.recycle()
-            } finally { sourcePage.close() }
+                "note" -> {
+                    val note = org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationText()
+                    note.rectangle = rect
+                    note.contents = annotation.body
+                    note.color = color
+                    note.titlePopup = "Scribe"
+                    page.annotations.add(note)
+                }
+                else -> {
+                    val square = org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquare()
+                    square.rectangle = rect
+                    square.color = color
+                    square.contents = annotation.body
+                    page.annotations.add(square)
+                }
+            }
         }
-        context.contentResolver.openOutputStream(destination)?.use { output.writeTo(it) }
-            ?: error("Could not open the destination file")
+        val temporary = File(context.cacheDir, "scribe-annotated-" + System.currentTimeMillis() + ".pdf")
+        document.save(temporary)
+        context.contentResolver.openOutputStream(destination)?.use { output ->
+            temporary.inputStream().use { input -> input.copyTo(output) }
+        } ?: error("Could not open the destination file")
+        temporary.delete()
     } finally {
-        output.close()
-        renderer.close()
-        descriptor.close()
+        document.close()
     }
 }
 
