@@ -108,6 +108,33 @@ final class ScribeLibrary: ObservableObject {
         guard var item = node(id) else { return }; item.bookmarked.toggle(); update(item)
     }
 
+    func bulkSetBookmarked(_ ids: Set<UUID>, to value: Bool) {
+        guard !ids.isEmpty else { return }
+        for index in nodes.indices where ids.contains(nodes[index].id) && nodes[index].deletedAt == nil {
+            nodes[index].bookmarked = value
+            nodes[index].updatedAt = .now
+        }
+        save()
+    }
+
+    func bulkMoveToTrash(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        let now = Date()
+        var targets = ids
+        var changed = true
+        while changed {
+            changed = false
+            for item in nodes where item.deletedAt == nil && item.parentID.map(targets.contains) == true {
+                if targets.insert(item.id).inserted { changed = true }
+            }
+        }
+        for index in nodes.indices where targets.contains(nodes[index].id) {
+            nodes[index].deletedAt = now
+            nodes[index].updatedAt = now
+        }
+        save()
+    }
+
     func move(_ id: UUID, offset: Int) {
         guard let item = node(id) else { return }
         var siblings = children(of: item.parentID)
