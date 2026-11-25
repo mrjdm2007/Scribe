@@ -54,7 +54,7 @@ create policy "Users can delete their own Scribe tombstones"
     on public.scribe_cloud_tombstones for delete using (auth.uid() = user_id);
 
 create or replace function public.scribe_delete_item(p_cloud_id uuid, p_deleted_at bigint)
-returns void language plpgsql security invoker set search_path = public as $
+returns void language plpgsql security invoker set search_path = public as $$
 begin
     insert into public.scribe_cloud_tombstones(user_id, cloud_id, deleted_at)
     values (auth.uid(), p_cloud_id, p_deleted_at)
@@ -63,7 +63,7 @@ begin
     delete from public.scribe_cloud_items
       where user_id = auth.uid() and cloud_id = p_cloud_id;
 end;
-$;
+$$;
 grant execute on function public.scribe_delete_item(uuid, bigint) to authenticated;
 
 -- Atomic last-writer-wins upsert. This prevents an older offline copy from
