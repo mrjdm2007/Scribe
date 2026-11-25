@@ -28,6 +28,8 @@ struct ScribeRootView: View {
     @State private var showQuickCapture = false
     @State private var quickTitle = ""
     @State private var quickBody = ""
+    @State private var showIntegrityReport = false
+    @State private var integrityReport = ""
 
     private var selected: ScribeNode? { selectedID.flatMap(library.node) }
     private var displayed: [ScribeNode] {
@@ -48,6 +50,7 @@ struct ScribeRootView: View {
                     Text("Trash").tag("Trash")
                     Text("Tools").tag("Tools")
                     Text("Study").tag("Study")
+                    Text("Settings").tag("Settings")
                 }
                 .pickerStyle(.segmented).padding(12)
                 if section == "Search" || !query.isEmpty {
@@ -78,6 +81,17 @@ struct ScribeRootView: View {
                             }
                         }
                     }
+                } else if section == "Settings" {
+                    List {
+                        Button { exportBackup() } label: { Label("Export full backup", systemImage: "square.and.arrow.up") }
+                        Button { showBackupImporter = true } label: { Label("Restore backup", systemImage: "square.and.arrow.down") }
+                        Button { section = "Trash" } label: { Label("Recently deleted", systemImage: "trash") }
+                        Button {
+                            integrityReport = library.integritySummary()
+                            showIntegrityReport = true
+                        } label: { Label("Check library integrity", systemImage: "checkmark.shield") }
+                        Label("About Scribe · Offline-first academic notebook", systemImage: "info.circle")
+                    }
                 } else {
                     List {
                         Label("Engineering tools", systemImage: "function")
@@ -105,6 +119,19 @@ struct ScribeRootView: View {
                 DesktopWorkbenchView()
             } else if section == "Study" {
                 DesktopStudyView()
+            } else if section == "Settings" {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Your Scribe workspace").font(.largeTitle.weight(.semibold))
+                    Text("Notes are stored locally on this Mac. Keep regular backups to protect your work.")
+                        .foregroundStyle(.secondary)
+                    Button("Export full backup") { exportBackup() }.buttonStyle(.borderedProminent)
+                    Button("Restore backup") { showBackupImporter = true }.buttonStyle(.bordered)
+                    Button("Check library integrity") {
+                        integrityReport = library.integritySummary()
+                        showIntegrityReport = true
+                    }.buttonStyle(.bordered)
+                    Button("Open recently deleted") { section = "Trash" }.buttonStyle(.bordered)
+                }.padding(28)
             } else if let item = selected {
                 NodeEditorView(item: item, selectedID: $selectedID)
             } else {
@@ -131,7 +158,11 @@ struct ScribeRootView: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showQuickCapture = false } }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
-                            _ = library.add(kind: "topic", title: quickTitle, body: quickBody, tags: "quick-capture")
+                            let course = library.courses.first { $0.kind == "course" && $0.title == "Quick Notes" }
+                            let courseID = course?.id ?? library.add(kind: "course", title: "Quick Notes")
+                            let inbox = library.children(of: courseID).first { $0.kind == "chapter" && $0.title == "Inbox" }
+                            let inboxID = inbox?.id ?? library.add(kind: "chapter", parent: courseID, title: "Inbox")
+                            _ = library.add(kind: "topic", parent: inboxID, title: quickTitle, body: quickBody, tags: "quick-capture")
                             quickTitle = ""; quickBody = ""; showQuickCapture = false
                         }.disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
@@ -148,6 +179,9 @@ struct ScribeRootView: View {
         .alert("Scribe", isPresented: Binding(get: { library.lastError != nil }, set: { if !$0 { library.lastError = nil } })) {
             Button("OK") { library.lastError = nil }
         } message: { Text(library.lastError ?? "") }
+        .alert("Library health check", isPresented: $showIntegrityReport) {
+            Button("Done") { showIntegrityReport = false }
+        } message: { Text(integrityReport) }
     }
 
     private func exportBackup() {
