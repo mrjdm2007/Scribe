@@ -9,6 +9,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -70,6 +71,7 @@ fun ScribeTheme(content: @Composable () -> Unit) {
 fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier =
     this
         .shadow(14.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.30f))
+        .clip(shape)
         .background(
             Brush.verticalGradient(
                 listOf(
