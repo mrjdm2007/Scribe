@@ -619,6 +619,9 @@ private fun TopicNotebook(
     var showAdd by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
     var showLatexPreview by rememberSaveable(topic.id) { mutableStateOf(false) }
+    var showWordGoalDialog by remember { mutableStateOf(false) }
+    var wordGoalDraft by remember(topic.id) { mutableStateOf(topic.tags.split(";").firstOrNull { it.startsWith("wordGoal:") }?.substringAfter(":") ?: "500") }
+    var showTemplateMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(noteValue.text, topic.id) {
         delay(250)
@@ -689,6 +692,31 @@ private fun TopicNotebook(
                 }
             }
         }
+        val checklistLines = noteValue.text.lines().filter { Regex("^\\s*[-*]\\s+\\[[ xX]\\]").containsMatchIn(it) }
+        val checklistDone = checklistLines.count { Regex("^\\s*[-*]\\s+\\[[xX]\\]").containsMatchIn(it) }
+        val currentWordCount = noteValue.text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+        val wordGoal = liveTopic.tags.split(";").firstOrNull { it.startsWith("wordGoal:") }?.substringAfter(":")?.toIntOrNull() ?: 0
+        if (checklistLines.isNotEmpty() || wordGoal > 0) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (checklistLines.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("CHECKLIST", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text("$checklistDone / \${checklistLines.size} completed", color = Muted, fontSize = 11.sp)
+                    }
+                    LinearProgressIndicator(progress = { checklistDone.toFloat() / checklistLines.size }, modifier = Modifier.fillMaxWidth().height(5.dp), color = Gold, trackColor = Color.White.copy(alpha = 0.10f))
+                }
+                if (wordGoal > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("WRITING GOAL", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text("$currentWordCount / $wordGoal words", color = Muted, fontSize = 11.sp)
+                        TextButton(onClick = { showWordGoalDialog = true }) { Text("Edit", fontSize = 11.sp) }
+                    }
+                    LinearProgressIndicator(progress = { (currentWordCount.toFloat() / wordGoal).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(5.dp), color = Gold, trackColor = Color.White.copy(alpha = 0.10f))
+                }
+            }
+        }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { noteValue = noteValue.wrapSelection("**", "**"); vm.update(liveTopic, body = noteValue.text) }) { Text("B", fontWeight = FontWeight.Bold) }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("*", "*"); vm.update(liveTopic, body = noteValue.text) }) { Text("I", fontStyle = FontStyle.Italic) }
@@ -703,6 +731,23 @@ private fun TopicNotebook(
             TextButton(onClick = { noteValue = noteValue.wrapSelection("1. ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("1. List") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("| ", " |  |"); vm.update(liveTopic, body = noteValue.text) }) { Text("Table") }
             TextButton(onClick = { showLatexPreview = !showLatexPreview }) { Text(if (showLatexPreview) "Edit" else "Preview") }
+            Box {
+                TextButton(onClick = { showTemplateMenu = true }) { Text("Templates") }
+                DropdownMenu(expanded = showTemplateMenu, onDismissRequest = { showTemplateMenu = false }) {
+                    listOf(
+                        "Lecture notes" to "# Lecture notes\n\n## Key concepts\n- \n\n## Examples\n- \n\n## Questions\n- [ ] ",
+                        "Textbook summary" to "# Summary\n\n## Main idea\n\n## Important terms\n- \n\n## Takeaways\n- \n",
+                        "Problem solving" to "# Problem\n\n## Given\n\n## Find\n\n## Approach\n1. \n\n## Solution\n\n## Final answer\n"
+                    ).forEach { (label, template) ->
+                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                            noteValue = TextFieldValue(if (noteValue.text.isBlank()) template else noteValue.text.trimEnd() + "\n\n" + template)
+                            vm.update(liveTopic, body = noteValue.text)
+                            showTemplateMenu = false
+                        })
+                    }
+                }
+            }
+            TextButton(onClick = { wordGoalDraft = if (wordGoal > 0) wordGoal.toString() else "500"; showWordGoalDialog = true }) { Text("Word goal") }
         }
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -903,6 +948,32 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         vm.update(block, title = title, body = body, tags = tags); editBlock = null
     }) }
     previewPdf?.let { pdf -> PdfViewerDialog(pdf, vm, onDismiss = { previewPdf = null }) }
+    if (showWordGoalDialog) {
+        AlertDialog(
+            onDismissRequest = { showWordGoalDialog = false },
+            title = { Text("Set writing goal") },
+            text = {
+                OutlinedTextField(
+                    value = wordGoalDraft,
+                    onValueChange = { wordGoalDraft = it.filter(Char::isDigit).take(6) },
+                    label = { Text("Target words (0 disables)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = fieldColors()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val clean = liveTopic.tags.split(";").filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
+                    val goal = wordGoalDraft.toIntOrNull()?.coerceIn(0, 100000) ?: 0
+                    vm.update(liveTopic, tags = (clean + if (goal > 0) listOf("wordGoal:$goal") else emptyList()).joinToString(";"))
+                    showWordGoalDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showWordGoalDialog = false }) { Text("Cancel") } }
+        )
+    }
+
 }
 
 @Composable

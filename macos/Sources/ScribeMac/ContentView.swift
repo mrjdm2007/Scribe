@@ -28,6 +28,8 @@ struct ScribeMacRoot: View {
     @State private var bulkSelectedIDs = Set<Int64>()
     @State private var trashSelectedIDs = Set<Int64>()
     @State private var bulkTagDraft = ""
+    @State private var showingWordGoal = false
+    @State private var wordGoalDraft = "500"
     @State private var draftTitle = ""
     @State private var draftBody = ""
     @State private var converterValue = "1"
@@ -85,6 +87,16 @@ struct ScribeMacRoot: View {
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
         }
+        .alert("Set writing goal", isPresented: $showingWordGoal) {
+            TextField("Target words (0 disables)", text: $wordGoalDraft)
+            Button("Cancel", role: .cancel) { }
+            Button("Save") {
+                guard let item = store.selected else { return }
+                let clean = item.tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("wordGoal:") }
+                let goal = max(0, min(100000, Int(wordGoalDraft) ?? 0))
+                store.update(item, tags: (clean + (goal > 0 ? ["wordGoal:\(goal)"] : [])).joined(separator: ";"))
+            }
+        } message: { Text("Track progress toward a word-count target for this topic.") }
         .fileImporter(isPresented: $showingImport, allowedContentTypes: [.json]) { result in if case .success(let url) = result { _ = url.startAccessingSecurityScopedResource(); defer { url.stopAccessingSecurityScopedResource() }; try? store.importBackup(from: url) } }
         .fileImporter(isPresented: $showingPDFImport, allowedContentTypes: [.pdf, .image, .plainText]) { result in
             guard case .success(let source) = result else { return }
@@ -209,7 +221,27 @@ struct ScribeMacRoot: View {
                             Button("Clear") { recentItemIDs = "" }.font(.caption)
                                 .buttonStyle(.plain).foregroundStyle(.secondary)
                         }
-                        ScrollView(.horizontal, showsIndicators: false) {
+                        let checklistLines = item.body.components(separatedBy: .newlines).filter { $0.range(of: #"^\s*[-*]\s+\[[ xX]\]"#, options: .regularExpression) != nil }
+                    let checklistDone = checklistLines.filter { $0.range(of: #"^\s*[-*]\s+\[[xX]\]"#, options: .regularExpression) != nil }.count
+                    let goal = item.tags.split(separator: ";").first(where: { $0.hasPrefix("wordGoal:") }).flatMap { Int($0.dropFirst("wordGoal:".count)) } ?? 0
+                    if !checklistLines.isEmpty || goal > 0 {
+                        VStack(alignment: .leading, spacing: 5) {
+                            if !checklistLines.isEmpty {
+                                HStack { Text("CHECKLIST").font(.caption.bold()); Spacer(); Text("\(checklistDone) / \(checklistLines.count) completed").font(.caption).foregroundStyle(.secondary) }
+                                ProgressView(value: Double(checklistDone), total: Double(checklistLines.count)).tint(gold)
+                            }
+                            if goal > 0 {
+                                HStack {
+                                    Text("WRITING GOAL").font(.caption.bold())
+                                    Spacer()
+                                    Text("\(editorWordCount) / \(goal) words").font(.caption).foregroundStyle(.secondary)
+                                    Button("Edit") { wordGoalDraft = String(goal); showingWordGoal = true }.buttonStyle(.plain)
+                                }
+                                ProgressView(value: min(1, Double(editorWordCount) / Double(goal))).tint(gold)
+                            }
+                        }.padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(recentItems) { item in
                                     Button { store.selectedID = item.id } label: {
@@ -373,6 +405,12 @@ struct ScribeMacRoot: View {
         .background(store.selectedID == item.id ? gold.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private func appendTopicTemplate(_ template: String) {
+        guard let item = store.selected else { return }
+        let updated = item.body.isEmpty ? template : item.body.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + template
+        store.update(item, body: updated)
+    }
+
     private var editor: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let item = store.selected {
@@ -472,6 +510,12 @@ struct ScribeMacRoot: View {
                             Button("1. List") { applyMarkup("1. ", "") }
                             Button("Table") { applyMarkup("| ", " |  |") }
                             Button(showLatexPreview ? "Edit" : "Preview") { showLatexPreview.toggle() }
+                            Menu("Templates") {
+                                Button("Lecture notes") { appendTopicTemplate("# Lecture notes\n\n## Key concepts\n- \n\n## Examples\n- \n\n## Questions\n- [ ] ") }
+                                Button("Textbook summary") { appendTopicTemplate("# Summary\n\n## Main idea\n\n## Important terms\n- \n\n## Takeaways\n- \n") }
+                                Button("Problem solving") { appendTopicTemplate("# Problem\n\n## Given\n\n## Find\n\n## Approach\n1. \n\n## Solution\n\n## Final answer\n") }
+                            }
+                            Button("Word goal") { wordGoalDraft = "500"; showingWordGoal = true }
                         }.buttonStyle(.bordered).controlSize(.small)
                     }
                     Text("Notes use portable Markdown text, preserving line breaks and formatting markers across Android, Mac and window resizing.").font(.caption).foregroundStyle(.secondary)
