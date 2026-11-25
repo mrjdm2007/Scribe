@@ -569,7 +569,9 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
             if (preview != null) Image(bitmap = preview, contentDescription = item.title, modifier = Modifier.fillMaxWidth().heightIn(max = 230.dp))
             if (item.uri.isNotBlank() && preview == null) Text(File(item.uri).name, color = Gold, fontSize = 12.sp)
             if (item.body.isNotBlank()) {
-                if (type == "equation" || type == "code") {
+                if (type == "equation") {
+                    MathJaxPreview(item.body, Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 150.dp))
+                } else if (type == "code") {
                     Text(item.body, color = Color(0xFFE0CDAA), fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
                 } else {
                     Text(styledBody(item.body), color = Muted, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 8)
