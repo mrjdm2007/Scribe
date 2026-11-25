@@ -58,6 +58,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
     var aiError by remember { mutableStateOf("") }
     var aiMode by remember { mutableStateOf("notes") }
     val scope = rememberCoroutineScope()
+    val aiConversation = remember { mutableStateListOf<String>() }
     LaunchedEffect(startedAt) {
         while (startedAt > 0L) {
             now = System.currentTimeMillis()
@@ -132,6 +133,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                             Text("SCRIBE INTELLIGENCE", color = Color(0xFFD5B98C), fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
                             Text("Your study assistant", style = MaterialTheme.typography.titleLarge)
                         }
+                        TextButton(onClick = { if (!aiBusy) { aiConversation.clear(); aiAnswer = ""; aiQuestion = "" } }) { Text("New chat") }
                         TextButton(onClick = { if (!aiBusy) aiOpen = false }) { Text("Close") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -143,6 +145,9 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                         label = { Text("Ask about your notes or a topic") }, minLines = 2, maxLines = 4)
                     Button(enabled = aiQuestion.isNotBlank() && !aiBusy, onClick = {
                         aiBusy = true; aiError = ""; aiAnswer = ""
+                        val studentMessage = aiQuestion
+                        val priorTurns = aiConversation.takeLast(8).joinToString("\\n\\n")
+                        val conversationPrompt = (if (priorTurns.isBlank()) "" else "$priorTurns\\n\\n") + "STUDENT: $studentMessage"
                         scope.launch {
                             val all = vm.all()
                             val result = withContext(Dispatchers.IO) {
@@ -191,7 +196,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                                         setRequestProperty("Content-Type", "application/json")
                                         setRequestProperty("apikey", anon); setRequestProperty("Authorization", "Bearer $accessToken")
                                     }
-                                    val payload = JSONObject().put("question", aiQuestion).put("mode", aiMode).put("note_context", contextArray)
+                                    val payload = JSONObject().put("question", conversationPrompt).put("mode", aiMode).put("note_context", contextArray)
                                     connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                                     val status = connection.responseCode
                                     val stream = if (status in 200..299) connection.inputStream else connection.errorStream
@@ -202,8 +207,13 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                                     json.optString("answer").ifBlank { "The assistant returned an empty response." }
                                 }
                             }
-                            result.onSuccess { aiAnswer = it }
-                                .onFailure { aiError = it.message ?: "Unable to reach Scribe Intelligence." }
+                            result.onSuccess {
+                                aiAnswer = it
+                                aiConversation.add("Student: $studentMessage")
+                                aiConversation.add("Scribe: $it")
+                                while (aiConversation.size > 16) { aiConversation.removeAt(0) }
+                                aiQuestion = ""
+                            }.onFailure { aiError = it.message ?: "Unable to reach Scribe Intelligence." }
                             aiBusy = false
                         }
                     }) { if (aiBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Ask Scribe") }
