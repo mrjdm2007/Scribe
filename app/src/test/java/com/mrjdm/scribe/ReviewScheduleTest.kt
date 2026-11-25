@@ -113,8 +113,10 @@ class ReviewScheduleTest {
         assertEquals("", com.mrjdm.scribe.data.independentCopyTags("cloud_id:abc-123"))
     }
     @Test fun contentSnapshotsAreCreatedOnlyWhenBodyChanges() {
-        assertEquals(true, com.mrjdm.scribe.data.shouldSnapshotBody("old", "new"))
-        assertEquals(false, com.mrjdm.scribe.data.shouldSnapshotBody("same", "same"))
+        assertEquals(true, com.mrjdm.scribe.data.shouldSnapshotBody("old", "new", 0L, 100_000L))
+        assertEquals(false, com.mrjdm.scribe.data.shouldSnapshotBody("same", "same", 0L, 100_000L))
+        assertEquals(false, com.mrjdm.scribe.data.shouldSnapshotBody("old", "newer", 90_000L, 100_000L))
+        assertEquals(true, com.mrjdm.scribe.data.shouldSnapshotBody("old", "newer", 30_000L, 100_000L))
     }
 
     @Test fun bulkTaggingPreservesExistingMetadataAndAvoidsDuplicates() {
