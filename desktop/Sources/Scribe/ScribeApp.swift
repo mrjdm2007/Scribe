@@ -44,6 +44,7 @@ struct ScribeRootView: View {
                     Text("Bookmarks").tag("Bookmarks")
                     Text("Trash").tag("Trash")
                     Text("Tools").tag("Tools")
+                    Text("Study").tag("Study")
                 }
                 .pickerStyle(.segmented).padding(12)
                 if section == "Search" || !query.isEmpty {
@@ -89,6 +90,8 @@ struct ScribeRootView: View {
         } detail: {
             if section == "Tools" {
                 DesktopToolsView()
+            } else if section == "Study" {
+                DesktopStudyView()
             } else if let item = selected {
                 NodeEditorView(item: item)
             } else {
