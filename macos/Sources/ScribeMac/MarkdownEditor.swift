@@ -42,7 +42,7 @@ struct MarkdownEditor: NSViewRepresentable {
         return String(array.dropFirst().dropLast()).replacingOccurrences(of: "</", with: "<\\/")
     }
 
-    private static let html = """
+    private static let html = #"""
 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
 <style>
@@ -51,36 +51,29 @@ struct MarkdownEditor: NSViewRepresentable {
 h1,h2,h3{line-height:1.25;color:CanvasText}blockquote{border-left:3px solid #c5a778;padding-left:12px;opacity:.8;margin-left:0}
 pre,code{font-family:ui-monospace,monospace;background:color-mix(in srgb,CanvasText 10%,transparent);padding:3px;border-radius:4px}
 pre{padding:12px;overflow:auto}pre code{background:transparent}table{border-collapse:collapse;width:100%}td,th{border:1px solid color-mix(in srgb,CanvasText 30%,transparent);padding:6px 9px}
-a{color:#b18a52;text-decoration-thickness:.08em;text-underline-offset:3px}
-#editor img{max-width:100%;height:auto;border-radius:10px;border:1px solid color-mix(in srgb,CanvasText 18%,transparent);box-shadow:0 10px 28px rgba(0,0,0,.22)}
-#editor th{background:color-mix(in srgb,CanvasText 9%,transparent);font-weight:650}
-#editor hr{border:0;height:1px;background:linear-gradient(90deg,transparent,color-mix(in srgb,CanvasText 28%,transparent),transparent);margin:22px 0}
-#editor :focus-visible{outline:1px solid color-mix(in srgb,#b18a52 65%,transparent);outline-offset:3px;border-radius:3px}
-#editor mark{background:#f2d36b;color:#242424}
+a{color:#b18a52}#editor mark{background:#f2d36b;color:#242424}
 </style></head><body><div id="editor" contenteditable="true" spellcheck="true"></div>
 <script>
 const editor=document.getElementById("editor");let lastMarkdown="";
-function escapeText(value){const special=String.fromCharCode(92)+"`*_{}[]()#+.!|>~-";const slash=String.fromCharCode(92);return Array.from(value).map(ch=>special.includes(ch)?slash+ch:ch).join("");}
-function inlineCode(value){const runs=value.match(/\x60+/g)||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence="\x60".repeat(longest+1);const pad=value.startsWith(" ")||value.endsWith(" ")?" ":"";return fence+pad+value+pad+fence;}
+function inlineCode(value){const tick=String.fromCharCode(96);const runs=value.match(new RegExp(tick+"+","g"))||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence=tick.repeat(longest+1);const pad=value.startsWith(" ")||value.endsWith(" ")?" ":"";return fence+pad+value+pad+fence;}
 function md(n){
- if(n.nodeType===3)return escapeText(n.nodeValue||"");if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
+ if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
  const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
- if(t==="br")return "\\n";if(t==="strong"||t==="b")return "**"+c()+"**";if(t==="em"||t==="i")return "*"+c()+"*";
+ if(t==="br")return "\n";if(t==="strong"||t==="b")return "**"+c()+"**";if(t==="em"||t==="i")return "*"+c()+"*";
  if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
- if(/^h[1-6]$/.test(t))return "#".repeat(+t[1])+" "+c().trim()+"\\n\\n";
- if(t==="blockquote")return c().trim().split("\\n").map(x=>"> "+x).join("\\n")+"\\n\\n";
- if(t==="pre"){const code=n.querySelector("code");const cls=code?(code.className||""):"";const match=cls.match(/language-([\\w+-]+)/);const lang=match?match[1]:"";const raw=(n.innerText||n.textContent||"").replace(/\n$/,"");const ticks=(raw.match(/`+/g)||[]).reduce((m,x)=>Math.max(m,x.length),0);const fence="`".repeat(Math.max(3,ticks+1));return fence+lang+"\n"+raw+"\n"+fence+"\n\n";}
+ if(/^h[1-6]$/.test(t))return "#".repeat(+t[1])+" "+c().trim()+"\n\n";
+ if(t==="blockquote")return c().trim().split("\n").map(x=>"> "+x).join("\n")+"\n\n";
+ if(t==="pre"){const code=n.querySelector("code");const cls=code?(code.className||""):"";const match=cls.match(/language-([\w+-]+)/);const lang=match?match[1]:"";const raw=(n.innerText||n.textContent||"").replace(/\n$/,"");const tick=String.fromCharCode(96);const runs=raw.match(new RegExp(tick+"+","g"))||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence=tick.repeat(Math.max(3,longest+1));return fence+lang+"\n"+raw+"\n"+fence+"\n\n";}
  if(t==="a"){const href=n.getAttribute("href")||"";return "["+c()+"]("+href.replace(/\)/g,"%29")+")";}
- if(t==="code"&&(!n.parentElement||n.parentElement.tagName!=="PRE"))return inlineCode(n.textContent||"");
+ if(t==="code"&&(!n.parentElement||n.parentElement.tagName!=="PRE"))return inlineCode(c());
  if(t==="img")return "!["+((n.getAttribute("alt")||"").replace(/\]/g,"\\]"))+"]("+((n.getAttribute("src")||"").replace(/\)/g,"%29"))+")";
  if(t==="input"&&n.type==="checkbox")return n.checked?"[x] ":"[ ] ";
  if(t==="li"){const list=n.parentElement;const ordered=list&&list.tagName==="OL";const siblings=list?Array.from(list.children).filter(x=>x.tagName==="LI"):[];const index=siblings.indexOf(n);const marker=ordered?((Number(list.getAttribute("start"))||1)+index)+". ":"- ";const nested=Array.from(n.children).filter(x=>x.tagName==="UL"||x.tagName==="OL");const own=Array.from(n.childNodes).filter(x=>!(x.nodeType===1&&(x.tagName==="UL"||x.tagName==="OL"||(x.tagName==="INPUT"&&x.type==="checkbox")))).map(md).join("").trim();const checkbox=n.querySelector(":scope > input[type=checkbox]");const task=checkbox?(checkbox.checked?"[x] ":"[ ] "):"";const depth=(()=>{let d=0,p=list;while(p&&p!==editor){if(p.tagName==="UL"||p.tagName==="OL")d++;p=p.parentElement;}return Math.max(0,d-1);})();const pad="  ".repeat(depth);return pad+marker+task+own+"\n"+nested.map(md).join("");}
  if(t==="ul"||t==="ol")return Array.from(n.children).filter(x=>x.tagName==="LI").map(md).join("")+"\n";
  if(t==="table"){const rows=Array.from(n.querySelectorAll("tr"));if(!rows.length)return "";const cells=r=>Array.from(r.children).map(x=>md(x).trim().replace(/\|/g,"\\|").replace(/\n/g," "));const head=cells(rows[0]);const aligns=Array.from(rows[0].children).map(x=>{const a=x.getAttribute("align")||x.style.textAlign||"";return a==="left"?":---":a==="right"?"---:":a==="center"?":---:":"---";});return "| "+head.join(" | ")+" |\n| "+aligns.join(" | ")+" |\n"+rows.slice(1).map(r=>"| "+cells(r).join(" | ")+" |").join("\n")+"\n\n";}
  if(t==="p"||t==="div")return c().trim()+"\n\n";if(t==="hr")return "\n---\n\n";return c();
-
 }
-function toMarkdown(){return Array.from(editor.childNodes).map(md).join("").replace(/\\n{3,}/g,"\\n\\n").trim();}
+function toMarkdown(){return Array.from(editor.childNodes).map(md).join("").replace(/\n{3,}/g,"\n\n").trim();}
 function selectionOffsets(){
  const selected=window.getSelection();if(!selected||!selected.rangeCount||!editor.contains(selected.anchorNode))return {start:lastMarkdown.length,length:0};
  const before=document.createRange();before.selectNodeContents(editor);before.setEnd(selected.anchorNode,selected.anchorOffset);
@@ -93,7 +86,7 @@ window.findText=function(query,index){if(!query)return;const walker=document.cre
 editor.addEventListener("input",publish);editor.addEventListener("keyup",publish);editor.addEventListener("mouseup",publish);editor.addEventListener("blur",publish);document.addEventListener("selectionchange",()=>{if(document.activeElement===editor)publish();});
 window.addEventListener("DOMContentLoaded",()=>window.setMarkdown(__INITIAL__));
 </script></body></html>
-"""
+"""#
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
         var parent: MarkdownEditor
