@@ -55,9 +55,10 @@ a{color:#b18a52}#editor mark{background:#f2d36b;color:#242424}
 </style></head><body><div id="editor" contenteditable="true" spellcheck="true"></div>
 <script>
 const editor=document.getElementById("editor");let lastMarkdown="";
+function escapeText(value){return value.replace(/[\\\x60*_{}\[\]()#+.!|>-]/g,"\\\\function inlineCode(value){");}
 function inlineCode(value){const runs=value.match(/\x60+/g)||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence="\x60".repeat(longest+1);const pad=value.startsWith(" ")||value.endsWith(" ")?" ":"";return fence+pad+value+pad+fence;}
 function md(n){
- if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
+ if(n.nodeType===3)return escapeText(n.nodeValue||"");if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
  const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
  if(t==="br")return "\\n";if(t==="strong"||t==="b")return "**"+c()+"**";if(t==="em"||t==="i")return "*"+c()+"*";
  if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
@@ -65,7 +66,7 @@ function md(n){
  if(t==="blockquote")return c().trim().split("\\n").map(x=>"> "+x).join("\\n")+"\\n\\n";
  if(t==="pre"){const code=n.querySelector("code");const cls=code?(code.className||""):"";const match=cls.match(/language-([\\w+-]+)/);const lang=match?match[1]:"";const raw=(n.innerText||n.textContent||"").replace(/\n$/,"");const ticks=(raw.match(/`+/g)||[]).reduce((m,x)=>Math.max(m,x.length),0);const fence="`".repeat(Math.max(3,ticks+1));return fence+lang+"\n"+raw+"\n"+fence+"\n\n";}
  if(t==="a"){const href=n.getAttribute("href")||"";return "["+c()+"]("+href.replace(/\)/g,"%29")+")";}
- if(t==="code"&&(!n.parentElement||n.parentElement.tagName!=="PRE"))return inlineCode(c());
+ if(t==="code"&&(!n.parentElement||n.parentElement.tagName!=="PRE"))return inlineCode(n.textContent||"");
  if(t==="img")return "!["+((n.getAttribute("alt")||"").replace(/\]/g,"\\]"))+"]("+((n.getAttribute("src")||"").replace(/\)/g,"%29"))+")";
  if(t==="input"&&n.type==="checkbox")return n.checked?"[x] ":"[ ] ";
  if(t==="li"){const list=n.parentElement;const ordered=list&&list.tagName==="OL";const siblings=list?Array.from(list.children).filter(x=>x.tagName==="LI"):[];const index=siblings.indexOf(n);const marker=ordered?((Number(list.getAttribute("start"))||1)+index)+". ":"- ";const nested=Array.from(n.children).filter(x=>x.tagName==="UL"||x.tagName==="OL");const own=Array.from(n.childNodes).filter(x=>!(x.nodeType===1&&(x.tagName==="UL"||x.tagName==="OL"||(x.tagName==="INPUT"&&x.type==="checkbox")))).map(md).join("").trim();const checkbox=n.querySelector(":scope > input[type=checkbox]");const task=checkbox?(checkbox.checked?"[x] ":"[ ] "):"";const depth=(()=>{let d=0,p=list;while(p&&p!==editor){if(p.tagName==="UL"||p.tagName==="OL")d++;p=p.parentElement;}return Math.max(0,d-1);})();const pad="  ".repeat(depth);return pad+marker+task+own+"\n"+nested.map(md).join("");}
