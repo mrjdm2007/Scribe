@@ -892,6 +892,11 @@ struct ScribeMacRoot: View {
                     SecureField("Account password", text: $cloudPassword)
                         .textFieldStyle(.roundedBorder)
                     HStack {
+                        Button("Disable automatic sync") {
+                            store.disableCloudSync()
+                            cloudStatus = "Automatic sync disabled."
+                        }
+                        .buttonStyle(.bordered).disabled(cloudBusy)
                         Button {
                             cloudBusy = true
                             cloudStatus = "Connecting and syncing…"
