@@ -134,9 +134,17 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     else -> "file"
                 }
                 val indexedText = if (kind == "pdf") runCatching { indexPdfText(target) }.getOrDefault("") else ""
-                val attachmentBody = if (indexedText.isBlank()) "Attached file" else "PDF text index (on-device OCR)\n\n$indexedText"
+                val attachmentBody = if (kind == "pdf") {
+                    if (indexedText.isBlank()) "PDF attachment · no searchable text could be extracted"
+                    else "PDF text index (on-device OCR)\n\n$indexedText"
+                } else "Attached file"
+                val attachmentTags = when {
+                    kind != "pdf" -> "type:$kind"
+                    indexedText.isBlank() -> "type:pdf;ocr:failed"
+                    else -> "type:pdf;ocr:indexed"
+                }
                 vm.add(current.id, "block", name, body = attachmentBody, uri = target.absolutePath,
-                    tags = if (kind == "pdf") "type:pdf;ocr:indexed" else "type:$kind")
+                    tags = attachmentTags)
             }
         }
     }

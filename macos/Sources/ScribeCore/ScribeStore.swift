@@ -292,7 +292,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                     content.sound = .default
                     let request = UNNotificationRequest(
                         identifier: "scribe-focus-\(session.id)", content: content, trigger: nil)
-                    UNUserNotificationCenter.current().add(request)
+                    Task { try? await UNUserNotificationCenter.current().add(request) }
                 }
             }
         }

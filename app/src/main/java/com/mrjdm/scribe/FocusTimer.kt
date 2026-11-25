@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mrjdm.scribe.data.ScribeViewModel
 import kotlinx.coroutines.delay
+import java.util.Calendar
 
 private val FocusGold = Color(0xFFD5B98C)
 private val FocusPanel = Color(0xFF1B1C20)
@@ -27,6 +28,15 @@ fun FocusTimer(vm: ScribeViewModel) {
     var running by remember { mutableStateOf(false) }
     var sessionLabel by remember { mutableStateOf("Focused study") }
     var completed by remember { mutableIntStateOf(0) }
+    val savedSessions by vm.kind("study_session").collectAsState(initial = emptyList())
+    val weekStart = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val weeklySessions = savedSessions.filter { it.createdAt >= weekStart && it.deletedAt == null }
+    val weeklyMinutes = weeklySessions.sumOf { it.tags.substringAfter("minutes:", "").substringBefore(";").toIntOrNull() ?: 0 }
 
     LaunchedEffect(running) {
         if (running) {
@@ -84,6 +94,22 @@ fun FocusTimer(vm: ScribeViewModel) {
                     OutlinedButton(onClick = { running = false; remainingSeconds = durationMinutes * 60 }) {
                         Icon(Icons.Rounded.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Reset")
                     }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = FocusPanel)) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("THIS WEEK", color = FocusMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+                    Text("%dh %02dm".format(weeklyMinutes / 60, weeklyMinutes % 60), color = FocusGold, fontWeight = FontWeight.SemiBold)
+                    Text("Study time", color = FocusMuted, fontSize = 11.sp)
+                }
+            }
+            Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = FocusPanel)) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("SESSIONS", color = FocusMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+                    Text("${weeklySessions.size}", color = FocusGold, fontWeight = FontWeight.SemiBold)
+                    Text("Completed this week", color = FocusMuted, fontSize = 11.sp)
                 }
             }
         }

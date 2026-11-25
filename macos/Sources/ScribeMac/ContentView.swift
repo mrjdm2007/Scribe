@@ -354,11 +354,11 @@ struct ScribeMacRoot: View {
         let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Calendar.current.startOfDay(for: Date())
         let weeklySessions = store.items.filter { $0.kind == "study_session" && $0.deletedAt == nil && Date(timeIntervalSince1970: Double($0.createdAt) / 1000) >= weekStart }
         let weeklyMinutes = weeklySessions.reduce(0) { total, item in
-            let value = item.tags.range(of: #"minutes:\\d+"#, options: .regularExpression)
+            let value = item.tags.range(of: #"minutes:\d+"#, options: .regularExpression)
                 .map { Int(item.tags[$0].dropFirst(8)) ?? 0 } ?? 0
             return total + value
         }
-        VStack(spacing:20) {
+        return VStack(spacing:20) {
             Text("Focus mode").font(.largeTitle.bold())
             TextField("What are you studying?",text:$store.sessionLabel).textFieldStyle(.roundedBorder).frame(maxWidth:360)
             Text(String(format:"%02d:%02d",store.remaining/60,store.remaining%60)).font(.system(size:76,weight:.light,design:.rounded)).monospacedDigit().foregroundStyle(gold)
