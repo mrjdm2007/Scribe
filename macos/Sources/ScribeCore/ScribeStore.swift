@@ -299,6 +299,156 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         update(item, tags: flashcardReviewTags(item.tags, rating: rating, nowMillis: now))
     }
+
+    public func syncSupabase(url: String, anonKey: String, email: String, password: String) async throws -> String {
+        guard url.hasPrefix("https://"), let base = URL(string: url.trimmingCharacters(in: CharacterSet(charactersIn: "/"))) else {
+            throw NSError(domain: "ScribeCloud", code: 1, userInfo: [NSLocalizedDescriptionKey: "Enter a valid HTTPS Supabase project URL."])
+        }
+        guard !anonKey.isEmpty, !email.isEmpty, !password.isEmpty else {
+            throw NSError(domain: "ScribeCloud", code: 2, userInfo: [NSLocalizedDescriptionKey: "Enter the anon key, email and password."])
+        }
+        func request(_ path: String, method: String, token: String? = nil, prefer: String? = nil, body: Data? = nil) async throws -> Data {
+            let endpoint = URL(string: path, relativeTo: base.appendingPathComponent(""))!
+            var req = URLRequest(url: endpoint)
+            req.httpMethod = method
+            req.timeoutInterval = 30
+            req.setValue(anonKey, forHTTPHeaderField: "apikey")
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let token { req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
+            if let prefer { req.setValue(prefer, forHTTPHeaderField: "Prefer") }
+            req.httpBody = body
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                let message = String(data: data, encoding: .utf8) ?? "Unknown server response"
+                throw NSError(domain: "ScribeCloud", code: status, userInfo: [NSLocalizedDescriptionKey: "Supabase request failed (\\(status)): \\(message)"])
+            }
+            return data
+        }
+        let authBody = try JSONSerialization.data(withJSONObject: ["email": email, "password": password])
+        let authData = try await request("auth/v1/token?grant_type=password", method: "POST", body: authBody)
+        let auth = try JSONSerialization.jsonObject(with: authData) as? [String: Any] ?? [:]
+        guard let token = auth["access_token"] as? String, let user = auth["user"] as? [String: Any],
+              let userID = user["id"] as? String else {
+            throw NSError(domain: "ScribeCloud", code: 3, userInfo: [NSLocalizedDescriptionKey: "Supabase did not return a valid session."])
+        }
+
+        func cloudID(_ tags: String) -> String? {
+            tags.split(separator: ";").first(where: { $0.hasPrefix("cloud_id:") }).map { String($0.dropFirst(9)) }
+        }
+        func tagged(_ tags: String, _ id: String) -> String {
+            (tags.split(separator: ";").map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("cloud_id:") } + ["cloud_id:" + id]).joined(separator: ";")
+        }
+        for index in items.indices {
+            if cloudID(items[index].tags) == nil {
+                items[index].tags = tagged(items[index].tags, UUID().uuidString.lowercased())
+            }
+        }
+        persist()
+
+        func makePayload(_ item: ScribeItem, cloudIDs: [Int64: String]) -> [String: Any] {
+            let id = cloudIDs[item.id] ?? cloudID(item.tags) ?? UUID().uuidString.lowercased()
+            var payload: [String: Any] = [
+                "cloudId": id, "kind": item.kind, "title": item.title, "body": item.body,
+                "tags": tagged(item.tags, id), "bookmarked": item.bookmarked,
+                "position": item.position, "createdAt": item.createdAt, "updatedAt": item.updatedAt
+            ]
+            if let parent = item.parentId, let parentCloud = cloudIDs[parent] { payload["parentCloudId"] = parentCloud }
+            else { payload["parentCloudId"] = NSNull() }
+            payload["deletedAt"] = item.deletedAt.map { $0 as Any } ?? NSNull()
+            if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)), data.count <= 8 * 1024 * 1024 {
+                payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
+                payload["attachmentBase64"] = data.base64EncodedString()
+            }
+            return payload
+        }
+        func upload(_ records: [ScribeItem], cloudIDs: [Int64: String]) async throws {
+            for item in records {
+                guard let cloud = cloudIDs[item.id] else { continue }
+                let row: [String: Any] = [
+                    "user_id": userID, "cloud_id": cloud, "updated_at": item.updatedAt,
+                    "payload": makePayload(item, cloudIDs: cloudIDs)
+                ]
+                let body = try JSONSerialization.data(withJSONObject: [row])
+                _ = try await request("rest/v1/scribe_cloud_items?on_conflict=user_id,cloud_id",
+                    method: "POST", token: token, prefer: "resolution=merge-duplicates,return=minimal", body: body)
+            }
+        }
+        var cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
+        try await upload(items, cloudIDs: cloudIDs)
+        let remoteData = try await request("rest/v1/scribe_cloud_items?select=cloud_id,payload,updated_at",
+            method: "GET", token: token)
+        let remote = try JSONSerialization.jsonObject(with: remoteData) as? [[String: Any]] ?? []
+        var localByCloud = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { ($0, item.id) } })
+        var pending = remote
+        var inserted = 0
+        var changed = 0
+        var madeProgress = true
+        while !pending.isEmpty && madeProgress {
+            madeProgress = false
+            var remaining: [[String: Any]] = []
+            for row in pending {
+                guard let cloud = row["cloud_id"] as? String, let data = row["payload"] as? [String: Any] else { continue }
+                let parentCloud = data["parentCloudId"] as? String
+                if let parentCloud, localByCloud[parentCloud] == nil { remaining.append(row); continue }
+                let parentID = parentCloud.flatMap { localByCloud[$0] }
+                let remoteUpdated = (data["updatedAt"] as? NSNumber)?.int64Value ?? (row["updated_at"] as? NSNumber)?.int64Value ?? 0
+                if let localID = localByCloud[cloud], let index = items.firstIndex(where: { $0.id == localID }) {
+                    if remoteUpdated > items[index].updatedAt {
+                        var uri = items[index].uri
+                        if (uri.isEmpty || !FileManager.default.fileExists(atPath: uri)),
+                           let encoded = data["attachmentBase64"] as? String, let bytes = Data(base64Encoded: encoded) {
+                            let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
+                            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                            let destination = folder.appendingPathComponent("cloud_" + cloud)
+                            try bytes.write(to: destination, options: .atomic)
+                            uri = destination.path
+                        }
+                        items[index] = ScribeItem(id: localID, parentId: parentID,
+                            kind: data["kind"] as? String ?? items[index].kind,
+                            title: data["title"] as? String ?? items[index].title,
+                            body: data["body"] as? String ?? items[index].body, uri: uri,
+                            tags: tagged(data["tags"] as? String ?? items[index].tags, cloud),
+                            bookmarked: data["bookmarked"] as? Bool ?? items[index].bookmarked,
+                            position: data["position"] as? Int ?? items[index].position,
+                            createdAt: (data["createdAt"] as? NSNumber)?.int64Value ?? items[index].createdAt,
+                            updatedAt: remoteUpdated,
+                            deletedAt: (data["deletedAt"] as? NSNumber)?.int64Value)
+                        changed += 1
+                    }
+                } else {
+                    var uri = ""
+                    if let encoded = data["attachmentBase64"] as? String, let bytes = Data(base64Encoded: encoded) {
+                        let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
+                        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        let destination = folder.appendingPathComponent("cloud_" + cloud)
+                        try bytes.write(to: destination, options: .atomic)
+                        uri = destination.path
+                    }
+                    let id = nextID
+                    nextID += 1
+                    let item = ScribeItem(id: id, parentId: parentID, kind: data["kind"] as? String ?? "block",
+                        title: data["title"] as? String ?? "Synced note", body: data["body"] as? String ?? "",
+                        uri: uri, tags: tagged(data["tags"] as? String ?? "", cloud),
+                        bookmarked: data["bookmarked"] as? Bool ?? false,
+                        position: data["position"] as? Int ?? 0,
+                        createdAt: (data["createdAt"] as? NSNumber)?.int64Value ?? remoteUpdated,
+                        updatedAt: remoteUpdated,
+                        deletedAt: (data["deletedAt"] as? NSNumber)?.int64Value)
+                    items.append(item)
+                    localByCloud[cloud] = id
+                    inserted += 1
+                }
+                madeProgress = true
+            }
+            pending = remaining
+        }
+        persist()
+        cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
+        try await upload(items, cloudIDs: cloudIDs)
+        return "Synced \\(inserted) new and \\(changed) updated records."
+    }
+
     public func persist() {
         if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) }
         let archives = snapshots.map { ScribeHistoryArchive(itemId: $0.key, entries: $0.value) }
