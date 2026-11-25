@@ -228,8 +228,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch(Dispatchers.IO) {
-            runCatching {
-                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "[]"
+            val restoreResult = runCatching {
+                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Unable to read the selected backup file.")
                 val array = JSONArray(raw)
                 val restoredSnapshots = mutableListOf<NoteSnapshot>()
                 val restored = buildList {
@@ -256,7 +257,13 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             deletedAt = if (o.isNull("deletedAt")) null else o.optLong("deletedAt")))
                     }
                 }
+                validateBackupItems(restored)?.let { error(it) }
                 vm.restore(restored, restoredSnapshots)
+            }
+            restoreResult.exceptionOrNull()?.let { restoreError ->
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Backup restore failed: " + (restoreError.localizedMessage ?: "Invalid backup"), android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
