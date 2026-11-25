@@ -64,11 +64,12 @@ function md(n){
  if(t==="blockquote")return c().trim().split("\\n").map(x=>"> "+x).join("\\n")+"\\n\\n";
  if(t==="pre")return "    "+(n.innerText||n.textContent||"").replace(/\\n/g,"\\n    ")+"\\n\\n";
  if(t==="a")return "["+c()+"]("+n.getAttribute("href")+")";
- if(t==="code"&&(!n.parentElement||n.parentElement.tagName!=="PRE"))return "\`"+c()+"\`";if(t==="img")return "!["+((n.getAttribute("alt")||"").replace(/\]/g,"\\]"))+"]("+((n.getAttribute("src")||"").replace(/\)/g,"%29"))+")";
+ if(t==="code"&&(!n.parentElement||n.parentElement.tagName!=="PRE"))return "`"+c()+"`";if(t==="img")return "!["+((n.getAttribute("alt")||"").replace(/\]/g,"\\]"))+"]("+((n.getAttribute("src")||"").replace(/\)/g,"%29"))+")";
  if(t==="li")return (n.parentElement&&n.parentElement.tagName==="OL"?(Array.from(n.parentElement.children).indexOf(n)+1)+". ":"- ")+c().trim()+"\n";
  if(t==="ul"||t==="ol")return Array.from(n.children).map(md).join("")+"\n";
  if(t==="table"){const rows=Array.from(n.querySelectorAll("tr"));if(!rows.length)return "";const cells=r=>Array.from(r.children).map(x=>(x.textContent||"").trim().replace(/\|/g,"\\|"));const head=cells(rows[0]);return "| "+head.join(" | ")+" |\n| "+head.map(()=>"---").join(" | ")+" |\n"+rows.slice(1).map(r=>"| "+cells(r).join(" | ")+" |").join("\n")+"\n\n";}
- if(t==="p"||t==="div")return c().trim()+"\n\n";if(t==="hr")return "\n---\n\n";
+ if(t==="p"||t==="div")return c().trim()+"\n\n";if(t==="hr")return "\n---\n\n";return c();
+
 }
 function toMarkdown(){return Array.from(editor.childNodes).map(md).join("").replace(/\\n{3,}/g,"\\n\\n").trim();}
 function selectionOffsets(){
