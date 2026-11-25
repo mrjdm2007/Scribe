@@ -146,8 +146,8 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                     Button(enabled = aiQuestion.isNotBlank() && !aiBusy, onClick = {
                         aiBusy = true; aiError = ""; aiAnswer = ""
                         val studentMessage = aiQuestion
-                        val priorTurns = aiConversation.takeLast(8).joinToString("\\n\\n")
-                        val conversationPrompt = (if (priorTurns.isBlank()) "" else "$priorTurns\\n\\n") + "STUDENT: $studentMessage"
+                        val priorTurns = aiConversation.takeLast(8).joinToString("\n\n")
+                        val conversationPrompt = (if (priorTurns.isBlank()) "" else "$priorTurns\n\n") + "STUDENT: $studentMessage"
                         scope.launch {
                             val all = vm.all()
                             val result = withContext(Dispatchers.IO) {
