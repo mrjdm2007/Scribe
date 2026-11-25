@@ -2,59 +2,56 @@
 
 **A considered space for academic thinking.**
 
-Scribe is an offline-first notebook project. Android remains the mature implementation. A native SwiftUI macOS app is being expanded toward feature parity; it is not yet a complete replacement for Android.
+Scribe is an offline-first notebook for Android and macOS. The macOS app is being brought to functional parity with Android while keeping a desktop-native interface.
 
-## Android capabilities
-- Local-first Room storage; core notes work offline.
-- Courses, chapters, topics and multiple ordered pages per topic.
-- Rich content blocks: text, headings, LaTeX source, code, tables, lists, checklists, quotes, questions, flashcards, diagrams, links, images, PDFs and documents.
-- Image, PDF and document imports copied into app-private storage.
-- Global search, bookmarks, revision filtering, question bank, practice sessions and spaced-repetition flashcards.
-- Local study reminders, focus timer and session history.
-- Formula pad, engineering unit conversions, graph plotting, formula shelf, circuit sketch starter, scientific tables and concept-map outline.
-- On-device OCR for rendered PDF pages.
-- Markdown-style formatting controls, soft-delete trash, restore, snapshots, duplicate/move and ordered blocks.
-- JSON backup and restore, including app-local attachment bytes and note-version history.
-- Page split/merge, paginated PDF export and in-app PDF viewing.
+## Shared notebook features
+- Local-first library with Courses → Chapters → Topics → Pages → ordered content blocks.
+- Rich content blocks: text, headings, LaTeX source, code, tables, lists, checklists, quotes, questions, flashcards, diagrams and topic links.
+- Photo and PDF attachments only. Photos are stored and previewed; PDFs are stored and previewed in read-only viewers.
+- No audio or video import, storage or playback workflows.
+- Global search, tags, bookmarks, quick capture, soft-delete trash, restore, duplicate, reorder, page split/merge and version history.
+- JSON backup and restore, including attachment bytes and note-version history. The Android JSON-array backup format is supported on macOS, and macOS exports the same portable format for Android import.
+- Page-to-PDF export for notes; this does not edit or modify attached PDFs.
 
-## macOS implementation status
-The `desktop/` directory now contains a native SwiftUI app foundation with:
-- Ordered Course → Chapter → Topic → Page → Block hierarchy and local persistence.
-- Note editing, search, bookmarks, soft-delete trash, restore, duplicate and reorder.
-- File/image/PDF attachment import and native PDF viewing with text extraction.
-- JSON backup/restore including attachment bytes and note snapshots.
-- Dimension-aware engineering unit conversion, formula storage, basic function plotting, scientific table creation, and concept/circuit diagram starters.
-- Markdown formatting controls and live formatted preview for desktop note blocks.
-- Flashcard review with Again/Hard/Good/Easy scheduling, question-and-answer practice, foreground focus timer with local session history, and daily local study reminders.
+## Study and academic tools
+- Spaced-repetition flashcards.
+- Multiple-choice question bank and local practice sessions with explanations and scoring.
+- Local study reminders, focus timer and saved session history.
+- Formula pad and searchable formula shelf.
+- Engineering unit conversion across length, voltage, current, resistance, capacitance, frequency, power, energy, time, speed, charge and inductance.
+- Function plotting for supported functions, scientific tables, circuit sketch starter and concept-map outline.
+- Page-by-page PDF text extraction/OCR for scanned or image-based pages.
 
-This is a meaningful first parity slice, **not full Android parity**. Missing desktop capabilities include rich formatted block editing/rendering, study reminders, PDF export, OCR parity, persistent PDF annotations, full circuit tooling, and several Android-specific workflows. Desktop rich-text editing and rendering also remain simpler than Android. Google Drive sync and the AI client/backend integration are not implemented on either platform.
+## macOS implementation
+The desktop directory contains a native SwiftUI app with the shared notebook, study and workbench features above. Attachments are restricted to photos and PDFs. PDF viewing is read-only, with page navigation and page OCR; PDF export creates a new PDF from a Scribe note page.
 
-Build locally with Swift 5.9+ on macOS 13+:
+The macOS app has not yet been verified by a successful CI build. Some platform-specific interactions and round-trip cases still need device testing; do not consider the app release-ready until the macOS and Android workflows pass.
 
-```sh
-cd desktop
-swift build
-swift run
-```
+## Build macOS
 
-A macOS CI workflow is configured, but its latest GitHub Actions runs were cancelled before a runner started. The app must not be considered build-verified until a run completes successfully.
+    cd desktop
+    swift build
+    swift run
+
+Requires Swift 5.9+ and macOS 13+.
 
 ## Build Android
+
 Open in Android Studio with JDK 17 and Android SDK 35, sync Gradle and run:
 
-```bash
-gradle :app:assembleDebug
-```
+    gradle :app:assembleDebug
 
 The main-branch GitHub Actions release workflow uses the permanent release keystore supplied through repository Actions secrets when available. Never commit the keystore, passwords, Base64 keystore data or signing credentials. Keep a secure offline backup of the release keystore; future releases must use the same key.
 
-## Google Drive and AI roadmap
-The intended Drive layout is one visible `My Drive/Scribe/` folder containing a versioned library manifest and attachments. Two-way sync, offline queueing, conflict preservation, OAuth token storage and cross-device verification remain unimplemented. OAuth client JSON files, tokens, API keys and client secrets must never be committed.
+## Still outstanding
+- Google Drive two-way sync in the single visible My Drive/Scribe/ folder, including offline queueing, attachment integrity checks, conflict preservation and secure OAuth token storage.
+- The note-aware AI assistant with web research, citations and text-only PDF extraction. Its client/backend integration is not implemented.
+- Successful macOS build/test verification and full Android ↔ macOS round-trip testing on real app builds.
 
-The intended AI assistant should reference note text and web sources, with citations and privacy controls. PDF handling is text extraction only; image recognition is not required. Provider age and account eligibility requirements must be respected; API keys must never be embedded in app binaries.
+Provider age/account eligibility requirements for AI services must be respected. API keys and OAuth secrets must never be embedded in app binaries or committed to source control.
 
 ## Known Android limitations
-Equation content is stored as LaTeX source but is not yet visually typeset. PDF OCR currently works page by page; persistent ink/highlight annotations and full-document indexed OCR remain outstanding. Graph plotting supports a limited set of functions rather than arbitrary expressions. The circuit tool is a component sketch starter, not a full schematic editor or SPICE simulator. Advanced stylus pressure/eraser support, automatic scheduled/cloud backups, and full-fidelity formatted PDF export remain future work. The focus timer does not yet provide background countdown notifications. Audio and video remain out of scope.
+Equation content is stored as LaTeX source but is not visually typeset. Graph plotting supports a limited set of functions rather than arbitrary expressions. The circuit tool is a component sketch starter, not a full schematic editor or SPICE simulator. The focus timer does not yet provide background countdown notifications.
 
 ## Release quality rule
 Do not treat a plan, schema, OAuth client or UI placeholder as a working integration. A feature is complete only after implementation, automated tests and relevant device/platform verification.
