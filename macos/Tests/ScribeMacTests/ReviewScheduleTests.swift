@@ -10,12 +10,12 @@ final class ReviewScheduleTests: XCTestCase {
     func testInvalidRatingPreservesInterval() { XCTAssertEqual(nextReviewIntervalDays(7, rating: 9), 7) }
 
     func testGraphExpressionArithmeticAndPrecedence() {
-        XCTAssertEqual(ScribeMathExpression.evaluate("2 + 3 * x", x: 4), 14, accuracy: 0.000001)
-        XCTAssertEqual(ScribeMathExpression.evaluate("(2 + 3)^2", x: 0), 25, accuracy: 0.000001)
+        XCTAssertEqual(ScribeMathExpression.evaluate("2 + 3 * x", x: 4) ?? .nan, 14, accuracy: 0.000001)
+        XCTAssertEqual(ScribeMathExpression.evaluate("(2 + 3)^2", x: 0) ?? .nan, 25, accuracy: 0.000001)
     }
     func testGraphExpressionFunctionsAndConstants() {
-        XCTAssertEqual(ScribeMathExpression.evaluate("sin(pi / 2)", x: 0), 1, accuracy: 0.000001)
-        XCTAssertEqual(ScribeMathExpression.evaluate("sqrt(9) + abs(-2)", x: 0), 5, accuracy: 0.000001)
+        XCTAssertEqual(ScribeMathExpression.evaluate("sin(pi / 2)", x: 0) ?? .nan, 1, accuracy: 0.000001)
+        XCTAssertEqual(ScribeMathExpression.evaluate("sqrt(9) + abs(-2)", x: 0) ?? .nan, 5, accuracy: 0.000001)
     }
     func testGraphExpressionRejectsDivisionByZeroAndUnknownTokens() {
         XCTAssertNil(ScribeMathExpression.evaluate("1 / (x - 2)", x: 2))
