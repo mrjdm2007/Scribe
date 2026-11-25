@@ -78,7 +78,7 @@ struct PDFReadOnlyView: View {
                 }
             }
         }
-        .onChange(of: pageIndex) { _ in extractedText = ""; searchText = ""; errorMessage = nil }
+        .onChange(of: pageIndex) { _ in extractedText = ""; errorMessage = nil }
     }
 
     private func searchDocument() {
