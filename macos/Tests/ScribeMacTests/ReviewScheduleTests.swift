@@ -59,7 +59,7 @@ final class ReviewScheduleTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let today = calendar.date(from: DateComponents(year: 2026, month: 11, day: 25))!
-        let sessions = (-1 ... -3).map { offset in
+        let sessions = stride(from: -1, through: -3, by: -1).map { offset in
             ScribeItem(id: Int64(abs(offset)), kind: "study_session", title: "Study",
                 tags: "minutes:25",
                 createdAt: Int64(calendar.date(byAdding: .day, value: offset, to: today)!.timeIntervalSince1970 * 1000))
