@@ -107,4 +107,19 @@ final class ReviewScheduleTests: XCTestCase {
         XCTAssertEqual(appendingTag("subject:ECE", tag: "  "), "subject:ECE")
     }
 
+    func testBackupValidationRejectsDuplicateIDsMissingParentsAndCycles() {
+        func record(_ id: Int64, _ parent: Int64?) -> BackupRecord {
+            BackupRecord(id: id, parentId: parent, kind: "topic", title: "Topic",
+                body: "", uri: "", tags: "", bookmarked: false, position: 0,
+                createdAt: 1, updatedAt: 1, deletedAt: nil)
+        }
+        XCTAssertNil(backupValidationError([record(1, nil), record(2, 1)]))
+        XCTAssertEqual(backupValidationError([record(1, nil), record(1, nil)]),
+                       "Backup contains duplicate item IDs.")
+        XCTAssertEqual(backupValidationError([record(2, 1)]),
+                       "Backup contains an item with a missing parent.")
+        XCTAssertEqual(backupValidationError([record(1, 2), record(2, 1)]),
+                       "Backup contains a circular notebook hierarchy.")
+    }
+
 }
