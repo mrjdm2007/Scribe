@@ -18,9 +18,8 @@ struct MarkdownEditor: NSViewRepresentable {
         view.setValue(false, forKey: "drawsBackground")
         context.coordinator.parent = self
         context.coordinator.lastMarkdown = text
-        view.loadHTMLString(Self.html, baseURL: URL(string: "https://scribe.local/"))
         let initial = Self.javascriptString(text)
-        view.evaluateJavaScript("window.setMarkdown && window.setMarkdown(\(initial));")
+        view.loadHTMLString(Self.html.replacingOccurrences(of: "__INITIAL__", with: initial), baseURL: URL(string: "https://scribe.local/"))
         return view
     }
 
@@ -76,6 +75,7 @@ function publish(){const value=toMarkdown();if(value!==lastMarkdown){lastMarkdow
 window.setMarkdown=function(value){if(value===lastMarkdown)return;lastMarkdown=value;const parser=window.markdownit?window.markdownit({html:false,linkify:false,typographer:false}).enable("table"):null;editor.innerHTML=parser?parser.render(value):"<pre>"+value.replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</pre>";};
 window.findText=function(query,index){if(!query)return;const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let node,found=[];while(node=walker.nextNode()){let at=0;while((at=node.textContent.indexOf(query,at))>=0){found.push({node:node,at:at});at+=query.length;}}if(found.length){const item=found[Math.min(index,found.length-1)];const range=document.createRange();range.setStart(item.node,item.at);range.setEnd(item.node,item.at+query.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);range.startContainer.parentElement.scrollIntoView({block:"center"});}};
 editor.addEventListener("input",publish);editor.addEventListener("blur",publish);
+window.addEventListener("DOMContentLoaded",()=>window.setMarkdown(__INITIAL__));
 </script></body></html>
 """
 
