@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.mrjdm.scribe.data.ScribeDatabase
+import com.mrjdm.scribe.data.ScribeItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -23,6 +24,15 @@ private const val EXTRA_TITLE = "reminder_title"
 private const val EXTRA_MESSAGE = "reminder_message"
 private const val ACTION_MARK_DONE = "com.mrjdm.scribe.REMINDER_DONE"
 private const val ACTION_SNOOZE = "com.mrjdm.scribe.REMINDER_SNOOZE"
+
+internal fun snoozedReminder(item: ScribeItem, dueAtMillis: Long): ScribeItem {
+    val dueTag = "dueAt:$dueAtMillis"
+    val matcher = Regex("(^|;)dueAt:\\d+")
+    val tags = if (matcher.containsMatchIn(item.tags)) {
+        matcher.replace(item.tags) { match -> match.groupValues[1] + dueTag }
+    } else if (item.tags.isBlank()) dueTag else item.tags + ";" + dueTag
+    return item.copy(tags = tags, updatedAt = dueAtMillis)
+}
 
 fun scheduleStudyReminder(context: Context, id: Long, title: String, message: String, atMillis: Long) {
     val intent = Intent(context, StudyReminderReceiver::class.java).apply {
@@ -62,9 +72,13 @@ class StudyReminderReceiver : BroadcastReceiver() {
                             dao.update(item.copy(deletedAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()))
                         }
                     } else {
-                        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Study reminder"
-                        val message = intent.getStringExtra(EXTRA_MESSAGE) ?: "Time to review your notes."
-                        scheduleStudyReminder(context, id, title, message, System.currentTimeMillis() + 10 * 60 * 1000L)
+                        val dueAt = System.currentTimeMillis() + 10 * 60 * 1000L
+                        val dao = ScribeDatabase.get(context).dao()
+                        val item = dao.byId(id)
+                        if (item != null && item.deletedAt == null) {
+                            dao.update(snoozedReminder(item, dueAt))
+                            scheduleStudyReminder(context, id, item.title, item.body, dueAt)
+                        }
                     }
                     NotificationManagerCompat.from(context).cancel(id.toInt())
                 } finally {
