@@ -303,7 +303,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (tab == "Library") ScribeFloatingStudyTools(current)
+                ScribeFloatingStudyTools(if (tab == "Library") current else null)
                 if (tab == "Library" && current?.kind != "page" && current?.kind != "topic") {
                     FloatingActionButton(onClick = {
                         createKind = when(current?.kind) { null -> "course"; "course" -> "chapter"; "chapter" -> "topic"; "topic" -> "page"; else -> "course" }
