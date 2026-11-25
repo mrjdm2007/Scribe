@@ -24,11 +24,17 @@ struct ContentView: View {
     @State private var selection: UUID?
     @State private var search = ""
 
+    private var filteredCourses: [ScribeNode] {
+        let courses = library.visibleCourses
+        guard !search.isEmpty else { return courses }
+        return courses.filter { $0.title.localizedCaseInsensitiveContains(search) }
+    }
+
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
                 Section("Your Library") {
-                    ForEach(library.visibleCourses) { course in
+                    ForEach(filteredCourses) { course in
                         NavigationLink(value: course.id) {
                             Label(course.title, systemImage: "book.closed")
                         }
@@ -45,8 +51,8 @@ struct ContentView: View {
             if let course = library.visibleCourses.first(where: { $0.id == selection }) {
                 CourseDetail(course: course)
             } else {
-                ContentUnavailableView("Your notes, organised.", systemImage: "books.vertical",
-                    description: Text("Create a course to start building your notebook."))
+                EmptyState(title: "Your notes, organised.", symbol: "books.vertical",
+                           message: "Create a course to start building your notebook.")
             }
         }
         .background(.regularMaterial)
@@ -59,10 +65,26 @@ struct CourseDetail: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(course.title).font(.largeTitle.weight(.semibold))
             Text("Course workspace").foregroundStyle(.secondary)
-            ContentUnavailableView("No chapters yet", systemImage: "text.book.closed",
-                description: Text("Chapter creation and full editor parity are part of the next implementation stage."))
+            EmptyState(title: "No chapters yet", symbol: "text.book.closed",
+                       message: "Chapter creation and full editor parity are not implemented yet.")
             Spacer()
         }
         .padding(32)
+    }
+}
+
+struct EmptyState: View {
+    let title: String
+    let symbol: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: symbol).font(.system(size: 38)).foregroundStyle(.secondary)
+            Text(title).font(.title3.weight(.semibold))
+            Text(message).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
     }
 }
