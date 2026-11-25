@@ -1249,10 +1249,16 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                                     ?.removePrefix("rect:")?.split(",")?.mapNotNull { it.toFloatOrNull() }
                                 if (values != null && values.size == 4) {
                                     val a = Offset(values[0], values[1]); val z = Offset(values[0] + values[2], values[1] + values[3])
-                                    val color = if (saved.tags.contains("annotation:underline")) Color(0xFF55A8FF)
-                                        else if (saved.tags.contains("annotation:markup")) Color(0xFFFF7777)
-                                        else Color(0xFFFFD54F)
-                                    drawAnnotation(a, z, color.copy(alpha = 0.35f), true)
+                                    when {
+                                        saved.tags.contains("annotation:underline") -> {
+                                            val x1 = imageLeft + a.x * renderedWidth
+                                            val x2 = imageLeft + z.x * renderedWidth
+                                            val y = imageTop + z.y * renderedHeight
+                                            drawLine(Color(0xFF55A8FF), Offset(x1, y), Offset(x2, y), strokeWidth = 3f)
+                                        }
+                                        saved.tags.contains("annotation:markup") -> drawAnnotation(a, z, Color(0xFFFF7777), false)
+                                        else -> drawAnnotation(a, z, Color(0xFFFFD54F).copy(alpha = 0.35f), true)
+                                    }
                                 }
                             }
                             if (annotationStart != null && annotationEnd != null) {
@@ -1295,10 +1301,12 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF24272D))) {
                         Column(Modifier.fillMaxWidth().padding(9.dp)) {
                             Text(note.title, color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            Text(note.body, fontSize = 12.sp)
+                            Text(note.body, fontSize = 12.sp, maxLines = 3)
+                        }
+                        IconButton(onClick = { vm.removeTree(note) }) {
+                            Icon(Icons.Rounded.Delete, contentDescription = "Delete annotation", tint = Muted)
                         }
                     }
-                }
                 HorizontalDivider(color = Color(0xFF33363B))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(enabled = bitmap != null && !ocrBusy, onClick = {
@@ -1376,6 +1384,13 @@ private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: 
                         when {
                             annotation.tags.contains("annotation:underline") -> page.canvas.drawLine(left, bottom, right, bottom, paint)
                             else -> page.canvas.drawRect(left, top, right, bottom, paint)
+                        }
+                        if (annotation.tags.contains("annotation:note")) {
+                            val notePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                color = android.graphics.Color.rgb(35, 30, 20)
+                                textSize = maxOf(12f, width / 90f)
+                            }
+                            page.canvas.drawText(annotation.body.take(90), left, (top + notePaint.textSize * 1.4f).coerceAtMost(height - 4f), notePaint)
                         }
                     }
                 }
