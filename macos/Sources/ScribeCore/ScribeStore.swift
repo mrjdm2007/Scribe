@@ -21,6 +21,25 @@ public func appendingTag(_ existingTags: String, tag rawTag: String) -> String {
     return tags.contains(clean) ? tags.joined(separator: ";") : (tags + [clean]).joined(separator: ";")
 }
 
+public func backupValidationError(_ records: [BackupRecord]) -> String? {
+    let ids = records.map(\.id)
+    if ids.contains(where: { $0 <= 0 }) { return "Backup contains an invalid item ID." }
+    if Set(ids).count != ids.count { return "Backup contains duplicate item IDs." }
+    let byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+    for record in records {
+        if let parent = record.parentId, byID[parent] == nil {
+            return "Backup contains an item with a missing parent."
+        }
+        var visited = Set<Int64>()
+        var cursor: Int64? = record.id
+        while let current = cursor {
+            if !visited.insert(current).inserted { return "Backup contains a circular notebook hierarchy." }
+            cursor = byID[current]?.parentId
+        }
+    }
+    return nil
+}
+
 public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
     let current = min(365, max(1, currentDays))
     let next: Int64
@@ -584,6 +603,9 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     }
     public func importBackup(from url: URL) throws {
         let records = try JSONDecoder().decode([BackupRecord].self, from: Data(contentsOf: url))
+        if let validationError = backupValidationError(records) {
+            throw NSError(domain: "ScribeBackup", code: 1, userInfo: [NSLocalizedDescriptionKey: validationError])
+        }
         let attachments = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
         try FileManager.default.createDirectory(at: attachments, withIntermediateDirectories: true)
         snapshots = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0.history ?? []) })
