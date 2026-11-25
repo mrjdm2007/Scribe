@@ -106,6 +106,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             scope.launch(Dispatchers.IO) {
                 val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment"
                 val ext = context.contentResolver.getType(uri).orEmpty()
+                if (!ext.startsWith("image/") && ext != "application/pdf") return@launch
                 val file = File(context.filesDir, "attachments").apply { mkdirs() }
                 val target = File(file, "${System.currentTimeMillis()}_${name.substringAfterLast(':').replace('/', '_')}")
                 val copied = runCatching {
@@ -251,7 +252,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 "Library" -> {
                     if (current?.kind == "page") {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
-                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
+                            attachmentPicker.launch(arrayOf("image/*", "application/pdf"))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -448,7 +449,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
             if (blocks.isEmpty()) item { EmptyState("A blank page", "Add rich text, equations, diagrams, images, PDFs, tables and more.") }
             item {
                 OutlinedButton(onClick = onAttach, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF or document")
+                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach photo or PDF")
                 }
             }
         }
