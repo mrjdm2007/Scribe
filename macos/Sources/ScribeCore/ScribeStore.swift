@@ -165,8 +165,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     }
     public func update(_ item: ScribeItem, title: String? = nil, body: String? = nil, tags: String? = nil, bookmarked: Bool? = nil) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
         let old = items[index]
+        let now = max(Int64(Date().timeIntervalSince1970 * 1000), old.updatedAt + 1)
         let nextBody = body ?? old.body
         let latestSnapshotAt = snapshots[old.id]?.first?.savedAt ?? 0
         if shouldCreateSnapshot(previousBody: old.body, nextBody: nextBody, latestSnapshotAt: latestSnapshotAt, now: now) {
