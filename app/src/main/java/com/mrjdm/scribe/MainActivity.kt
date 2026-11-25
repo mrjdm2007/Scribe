@@ -160,15 +160,18 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     for (i in 0 until array.length()) {
                         val o = array.getJSONObject(i)
                         val encodedAttachment = o.optString("attachmentBase64")
-                        val restoredUri = if (encodedAttachment.isNotBlank()) {
+                        val originalUri = o.optString("uri")
+                        val originalExtension = File(originalUri).extension.lowercase(Locale.ROOT)
+                        val declaredType = o.optString("tags").substringAfter("type:", "").substringBefore(';').substringBefore(',')
+                        val isPhoto = declaredType == "image" || originalExtension in setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "tif", "tiff", "avif")
+                        val isPdf = declaredType == "pdf" || originalExtension == "pdf"
+                        val restoredUri = if (encodedAttachment.isNotBlank() && (isPhoto || isPdf)) {
                             val directory = File(context.filesDir, "attachments").apply { mkdirs() }
-                            val originalExtension = File(o.optString("uri")).extension
-                                .takeIf { it.matches(Regex("[A-Za-z0-9]{1,8}")) }
-                            val suffix = originalExtension?.let { ".$it" } ?: ""
+                            val suffix = originalExtension.takeIf { it.matches(Regex("[A-Za-z0-9]{1,8}")) }?.let { ".$it" } ?: if (isPdf) ".pdf" else ".jpg"
                             val target = File(directory, "restored_${System.currentTimeMillis()}_${o.optLong("id")}$suffix")
                             target.writeBytes(Base64.decode(encodedAttachment, Base64.DEFAULT))
                             target.absolutePath
-                        } else o.optString("uri")
+                        } else ""
                         val itemId = o.optLong("id")
                         val history = o.optJSONArray("history") ?: JSONArray()
                         for (h in 0 until history.length()) {
