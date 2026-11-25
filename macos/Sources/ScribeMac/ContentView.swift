@@ -129,7 +129,8 @@ struct ScribeMacRoot: View {
                 ZStack {
                     Color(nsColor: .windowBackgroundColor)
                     RadialGradient(colors: [gold.opacity(0.075), .clear], center: .topLeading, startRadius: 20, endRadius: 900)
-                    RadialGradient(colors: [Color.white.opacity(0.018), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 720)
+                    RadialGradient(colors: [Color.white.opacity(0.028), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 720)
+                    LinearGradient(colors: [Color.white.opacity(0.035), .clear, Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.018)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 }
             }
         }
@@ -375,7 +376,7 @@ struct ScribeMacRoot: View {
                         }.listStyle(.inset).frame(minWidth: 250)
                     }.padding(12).scribeGlassPanel(cornerRadius: 14)
                 }
-                editor
+                editor.frame(minWidth: 320).padding(14).scribeGlassPanel()
             }
         }.padding(22)
     }
@@ -1073,4 +1074,46 @@ private func latexPreviewHTML(_ source: String) -> String {
     <script>window.addEventListener('load',async()=>{const node=document.getElementById('content');if(window.markdownit){const raw=node.textContent;node.innerHTML=window.markdownit({html:false,linkify:false,typographer:true}).render(raw);}else{document.getElementById('status').textContent='Markdown renderer unavailable; showing source text.';}try{if(window.MathJax&&MathJax.startup){await MathJax.startup.promise;await MathJax.typesetPromise([node]);document.getElementById('status').textContent='Markdown and LaTeX preview';}}catch(e){document.getElementById('status').textContent='Some equations could not be rendered.';}});</script>
     </body></html>
     """
+}
+
+
+private extension View {
+    func scribeGlassPanel(cornerRadius: CGFloat = 18) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return self
+            .background(.ultraThinMaterial, in: shape)
+            .overlay {
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.075),
+                            Color.white.opacity(0.012),
+                            Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.035),
+                            Color.clear
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .allowsHitTesting(false)
+            }
+            .overlay {
+                shape.stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.30),
+                            Color.white.opacity(0.045),
+                            Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.20),
+                            Color.white.opacity(0.035)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+                .allowsHitTesting(false)
+            }
+            .shadow(color: .black.opacity(0.26), radius: 18, x: 0, y: 9)
+            .shadow(color: Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.055), radius: 22, x: 0, y: 3)
+    }
 }
