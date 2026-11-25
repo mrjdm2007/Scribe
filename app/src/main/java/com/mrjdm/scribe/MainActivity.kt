@@ -832,6 +832,31 @@ private fun TopicNotebook(
             editBlock = null
         })
     }
+    if (showWordGoalDialog) {
+        AlertDialog(
+            onDismissRequest = { showWordGoalDialog = false },
+            title = { Text("Set writing goal") },
+            text = {
+                OutlinedTextField(
+                    value = wordGoalDraft,
+                    onValueChange = { wordGoalDraft = it.filter(Char::isDigit).take(6) },
+                    label = { Text("Target words (0 disables)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = fieldColors()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val clean = liveTopic.tags.split(";").filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
+                    val goal = wordGoalDraft.toIntOrNull()?.coerceIn(0, 100000) ?: 0
+                    vm.update(liveTopic, tags = (clean + if (goal > 0) listOf("wordGoal:$goal") else emptyList()).joinToString(";"))
+                    showWordGoalDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showWordGoalDialog = false }) { Text("Cancel") } }
+        )
+    }
 }
 
 @Composable
@@ -948,31 +973,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         vm.update(block, title = title, body = body, tags = tags); editBlock = null
     }) }
     previewPdf?.let { pdf -> PdfViewerDialog(pdf, vm, onDismiss = { previewPdf = null }) }
-    if (showWordGoalDialog) {
-        AlertDialog(
-            onDismissRequest = { showWordGoalDialog = false },
-            title = { Text("Set writing goal") },
-            text = {
-                OutlinedTextField(
-                    value = wordGoalDraft,
-                    onValueChange = { wordGoalDraft = it.filter(Char::isDigit).take(6) },
-                    label = { Text("Target words (0 disables)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = fieldColors()
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val clean = liveTopic.tags.split(";").filter { it.isNotBlank() && !it.startsWith("wordGoal:") }
-                    val goal = wordGoalDraft.toIntOrNull()?.coerceIn(0, 100000) ?: 0
-                    vm.update(liveTopic, tags = (clean + if (goal > 0) listOf("wordGoal:$goal") else emptyList()).joinToString(";"))
-                    showWordGoalDialog = false
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { showWordGoalDialog = false }) { Text("Cancel") } }
-        )
-    }
+
 
 }
 
