@@ -221,7 +221,12 @@ struct ScribeMacRoot: View {
                         let filteredSearchItems = store.visibleItems.filter { item in
                             (searchKindFilter == "All" || item.kind.caseInsensitiveCompare(searchKindFilter) == .orderedSame) && (!searchSavedOnly || item.bookmarked)
                         }.sorted {
-                            searchSort == "Title" ? $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending : $0.updatedAt > $1.updatedAt
+                            switch searchSort {
+                            case "Title": return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                            case "Oldest": return $0.updatedAt < $1.updatedAt
+                            case "Longest": return $0.body.count > $1.body.count
+                            default: return $0.updatedAt > $1.updatedAt
+                            }
                         }
                         HStack(spacing: 8) {
                             Picker("Type", selection: $searchKindFilter) {

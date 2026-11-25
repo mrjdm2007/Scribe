@@ -131,7 +131,12 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         val filtered = searchResults.filter { item ->
             (searchKind == "All" || item.kind.equals(searchKind, ignoreCase = true)) && (!searchSavedOnly || item.bookmarked)
         }
-        if (searchSort == "Title") filtered.sortedBy { it.title.lowercase() } else filtered.sortedByDescending { it.updatedAt }
+        when (searchSort) {
+            "Title" -> filtered.sortedBy { it.title.lowercase() }
+            "Oldest" -> filtered.sortedBy { it.updatedAt }
+            "Longest" -> filtered.sortedByDescending { it.body.length }
+            else -> filtered.sortedByDescending { it.updatedAt }
+        }
     }
 
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -336,7 +341,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                     FilterChip(selected = searchKind == kind, onClick = { searchKind = kind }, label = { Text(kind.replaceFirstChar { it.uppercase() }) })
                                 }
                                 FilterChip(selected = searchSavedOnly, onClick = { searchSavedOnly = !searchSavedOnly }, label = { Text("Saved only") })
-                                TextButton(onClick = { searchSort = if (searchSort == "Recent") "Title" else "Recent" }) { Text("Sort: $searchSort") }
+                                TextButton(onClick = { searchSort = when (searchSort) { "Recent" -> "Oldest"; "Oldest" -> "Title"; "Title" -> "Longest"; else -> "Recent" } }) { Text("Sort: $searchSort") }
                             }
                             Spacer(Modifier.height(8.dp)); Text("SEARCH RESULTS · ${filteredSearchResults.size}", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             if (filteredSearchResults.isEmpty()) EmptyState("No matching notes", "Try another type, turn off Saved only, or change your search.")
