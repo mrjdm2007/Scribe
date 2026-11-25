@@ -15,7 +15,8 @@ internal fun belongsToTrashBatch(candidateDeletedAt: Long?, rootDeletedAt: Long?
     return kotlin.math.abs(candidateDeletedAt.toDouble() - rootDeletedAt.toDouble()) <= 5_000.0
 }
 
-internal fun shouldSnapshotBody(previous: String, next: String): Boolean = previous != next
+internal fun shouldSnapshotBody(previous: String, next: String, latestSnapshotAt: Long, now: Long): Boolean =
+    previous != next && (latestSnapshotAt <= 0L || now - latestSnapshotAt >= 60_000L)
 
 internal fun appendTag(existingTags: String, rawTag: String): String {
     val clean = rawTag.trim().replace(";", " ").split(Regex("\\s+")).filter { it.isNotBlank() }.joinToString(" ")
@@ -70,8 +71,11 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
                 val current = dao.byId(item.id) ?: return@withTransaction
                 val nextBody = body ?: current.body
                 val now = maxOf(System.currentTimeMillis(), current.updatedAt + 1)
-                if (shouldSnapshotBody(current.body, nextBody)) {
-                    dao.snapshot(NoteSnapshot(itemId = current.id, title = current.title, body = current.body, savedAt = now))
+                if (current.body != nextBody) {
+                    val latestSnapshotAt = dao.snapshots(current.id).first().firstOrNull()?.savedAt ?: 0L
+                    if (shouldSnapshotBody(current.body, nextBody, latestSnapshotAt, now)) {
+                        dao.snapshot(NoteSnapshot(itemId = current.id, title = current.title, body = current.body, savedAt = now))
+                    }
                 }
                 dao.update(current.copy(
                     title = title ?: current.title,
