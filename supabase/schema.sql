@@ -33,3 +33,26 @@ create policy "Users can delete their own Scribe records"
 
 create index if not exists scribe_cloud_items_updated_at_idx
     on public.scribe_cloud_items (user_id, updated_at desc);
+
+-- Atomic last-writer-wins upsert. This prevents an older offline copy from
+-- overwriting a newer record during concurrent device syncs.
+create or replace function public.scribe_upsert_item(
+    p_cloud_id uuid,
+    p_payload jsonb,
+    p_updated_at bigint
+) returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+    insert into public.scribe_cloud_items (user_id, cloud_id, payload, updated_at)
+    values (auth.uid(), p_cloud_id, p_payload, p_updated_at)
+    on conflict (user_id, cloud_id) do update
+       set payload = excluded.payload,
+           updated_at = excluded.updated_at
+     where excluded.updated_at > public.scribe_cloud_items.updated_at;
+end;
+$$;
+
+grant execute on function public.scribe_upsert_item(uuid, jsonb, bigint) to authenticated;

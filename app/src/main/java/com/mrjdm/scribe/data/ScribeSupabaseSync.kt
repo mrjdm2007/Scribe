@@ -95,10 +95,9 @@ internal class ScribeSupabaseSync(
             suspend fun upload(items: List<ScribeItem>) {
                 items.forEach { item ->
                     val cloud = ids[item.id] ?: cloudId(item.tags) ?: return@forEach
-                    val row = JSONObject().put("user_id", userId).put("cloud_id", cloud)
-                        .put("updated_at", item.updatedAt).put("payload", payload(item))
-                    request("rest/v1/scribe_cloud_items?on_conflict=user_id%2Ccloud_id", "POST",
-                        JSONArray().put(row).toString(), token, "resolution=merge-duplicates,return=minimal")
+                    val row = JSONObject().put("p_cloud_id", cloud)
+                        .put("p_updated_at", item.updatedAt).put("p_payload", payload(item))
+                    request("rest/v1/rpc/scribe_upsert_item", "POST", row.toString(), token)
                 }
             }
             val remote = JSONArray(request("rest/v1/scribe_cloud_items?select=cloud_id,payload,updated_at", "GET", token = token))

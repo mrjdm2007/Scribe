@@ -366,13 +366,13 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         func upload(_ records: [ScribeItem], cloudIDs: [Int64: String]) async throws {
             for item in records {
                 guard let cloud = cloudIDs[item.id] else { continue }
-                let row: [String: Any] = [
-                    "user_id": userID, "cloud_id": cloud, "updated_at": item.updatedAt,
-                    "payload": makePayload(item, cloudIDs: cloudIDs)
-                ]
-                let body = try JSONSerialization.data(withJSONObject: [row])
-                _ = try await request("rest/v1/scribe_cloud_items?on_conflict=user_id,cloud_id",
-                    method: "POST", token: token, prefer: "resolution=merge-duplicates,return=minimal", body: body)
+                let body = try JSONSerialization.data(withJSONObject: [
+                    "p_cloud_id": cloud,
+                    "p_updated_at": item.updatedAt,
+                    "p_payload": makePayload(item, cloudIDs: cloudIDs)
+                ])
+                _ = try await request("rest/v1/rpc/scribe_upsert_item",
+                    method: "POST", token: token, body: body)
             }
         }
         var cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
