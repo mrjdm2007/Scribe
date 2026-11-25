@@ -25,6 +25,14 @@ class TextOnlyAIContextTest {
         assertFalse(context.contains("deleted text"))
     }
 
+    @Test fun malformedParentCycleDoesNotCrashContextBuild() {
+        val first = ScribeItem(id = 10, parentId = 11, kind = "topic", title = "Cycle A", body = "A")
+        val second = ScribeItem(id = 11, parentId = 10, kind = "page", title = "Cycle B", body = "B")
+        val result = TextOnlyAIContext.build(listOf(first, second))
+        assertTrue(result.contains("Cycle A"))
+        assertTrue(result.contains("Cycle B"))
+    }
+
     @Test fun respectsContextCharacterLimit() {
         val items = listOf(ScribeItem(id = 1, kind = "page", title = "Title", body = "A long note body"))
         assertTrue(TextOnlyAIContext.build(items, maxCharacters = 5).isEmpty())
