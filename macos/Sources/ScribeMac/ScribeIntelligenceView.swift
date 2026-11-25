@@ -79,12 +79,33 @@ struct ScribeIntelligenceView: View {
         busy = true; errorMessage = ""; answer = ""
         defer { busy = false }
         do {
+            guard let session = ScribeCloudSessionVault.load(),
+                  session.url.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == base,
+                  session.anonKey == anonKey else {
+                errorMessage = "Sign in to Scribe Cloud and sync once before using Scribe Intelligence."
+                return
+            }
+            let refreshURL = URL(string: base + "/auth/v1/token?grant_type=refresh_token")!
+            var refreshRequest = URLRequest(url: refreshURL)
+            refreshRequest.httpMethod = "POST"
+            refreshRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            refreshRequest.setValue(anonKey, forHTTPHeaderField: "apikey")
+            refreshRequest.httpBody = try JSONSerialization.data(withJSONObject: ["refresh_token": session.refreshToken])
+            let (refreshData, refreshResponse) = try await URLSession.shared.data(for: refreshRequest)
+            let refreshStatus = (refreshResponse as? HTTPURLResponse)?.statusCode ?? 0
+            let refreshed = (try? JSONSerialization.jsonObject(with: refreshData)) as? [String: Any] ?? [:]
+            guard (200..<300).contains(refreshStatus), let accessToken = refreshed["access_token"] as? String else {
+                throw NSError(domain: "ScribeAI", code: refreshStatus, userInfo: [NSLocalizedDescriptionKey: "Your Scribe Cloud session expired. Sign in again in Settings."])
+            }
+            if let nextRefresh = refreshed["refresh_token"] as? String {
+                try ScribeCloudSessionVault.save(ScribeSavedCloudSession(url: base, anonKey: anonKey, email: session.email, refreshToken: nextRefresh))
+            }
             let url = URL(string: base + "/functions/v1/study-assistant")!
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue(anonKey, forHTTPHeaderField: "apikey")
-            request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             let payload: [String: Any] = [
                 "question": question, "mode": mode,
                 "note_context": try JSONSerialization.jsonObject(with: JSONEncoder().encode(relevantNotes))
