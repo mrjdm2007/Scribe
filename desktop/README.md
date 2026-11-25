@@ -12,7 +12,7 @@ swift run
 
 ## Implemented in this foundation
 - Course → Chapter → Topic → Page → Block hierarchy with ordered local JSON persistence.
-- Note title/body editing, search, bookmarks, trash/restore, duplicate, reorder and version snapshots.
+- Note title/body editing, search, bookmarks, trash/restore, duplicate, reorder, page split/merge and version snapshots.
 - Attachment import, local attachment storage, image preview, PDFKit preview and PDF text extraction.
 - JSON backup/restore including attachment bytes and snapshots.
 - Engineering unit conversion, formula shelf, basic graph plotter, question/flashcard entry, scientific table creation, and concept/circuit diagram starters.
