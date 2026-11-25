@@ -217,7 +217,7 @@ final class ScribeLibrary: ObservableObject {
         let target = folder.appendingPathComponent(UUID().uuidString).appendingPathExtension(ext)
         try FileManager.default.copyItem(at: source, to: target)
         _ = add(kind: "block", parent: parent, title: source.deletingPathExtension().lastPathComponent,
-                body: "Attached \\(kind)", uri: target.path, tags: "type:\\(kind)")
+                body: "Attached \(kind)", uri: target.path, tags: "type:\(kind)")
     }
 
     func backupData() throws -> Data {
