@@ -26,7 +26,7 @@ serve(async (request) => {
   const supabaseURL = Deno.env.get("SUPABASE_URL");
   const supabaseAnon = request.headers.get("apikey") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (!bearer || !supabaseURL || !supabaseAnon) return respond({ error: "Sign in to Scribe Cloud before using the study assistant." }, 401);
-  const authCheck = await fetch(`${supabaseURL.replace(/\\/$/, "")}/auth/v1/user`, {
+  const authCheck = await fetch(`${supabaseURL.replace(/\/$/, "")}/auth/v1/user`, {
     headers: { "apikey": supabaseAnon, "Authorization": `Bearer ${bearer}` },
   });
   if (!authCheck.ok) return respond({ error: "Your Scribe Cloud session is invalid or expired. Sign in again." }, 401);
