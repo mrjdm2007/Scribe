@@ -276,8 +276,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             if (isWide) {
                 NavigationRail(containerColor = Color(0xFF17181B), contentColor = Gold) {
                     Spacer(Modifier.height(12.dp))
-                    listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
-                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                    listOf("Library", "Saved", "Study", "Ask Notes", "Tools", "Settings").forEach { label ->
+                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "Ask Notes" -> Icons.Rounded.Search; else -> Icons.Rounded.Settings }
                         NavigationRailItem(selected = tab == label, onClick = { tab = label; stack = emptyList() }, icon = { Icon(icon, null) }, label = { Text(label, fontSize = 10.sp) })
                     }
                 }
