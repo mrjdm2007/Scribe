@@ -263,8 +263,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         },
         bottomBar = {
             if (!isWide) NavigationBar(containerColor = Color(0xFF17181B), contentColor = Gold) {
-                listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
-                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                listOf("Library", "Saved", "Study", "Ask Notes", "Tools", "Settings").forEach { label ->
+                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "Ask Notes" -> Icons.Rounded.Search; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
                         icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
@@ -352,6 +352,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
                 "Study" -> FlashcardsScreen(vm)
+                "Ask Notes" -> LocalNotesAssistantScreen(vm)
                 "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
