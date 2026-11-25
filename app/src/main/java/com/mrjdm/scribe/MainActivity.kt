@@ -48,6 +48,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.viewinterop.AndroidView
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.JavascriptInterface
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
@@ -778,17 +779,9 @@ private fun TopicNotebook(
                         if (showLatexPreview) {
                             LatexPreviewWebView(noteValue.text, Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 620.dp))
                         } else {
-                            OutlinedTextField(
-                                value = noteValue,
-                                onValueChange = { noteValue = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                minLines = 18,
-                                maxLines = 48,
-                                placeholder = { Text("Start typing notes… Use \\(…\\) inline or \\[ … \\] for display maths.") },
-                                textStyle = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
-                                colors = fieldColors(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
+                            RichMarkdownEditor(value = noteValue.text, onValueChange = { edited ->
+                                noteValue = TextFieldValue(edited, TextRange(edited.length))
+                            }, modifier = Modifier.fillMaxWidth().heightIn(min = 360.dp, max = 680.dp))
                         }
                     }
                 }
@@ -1058,6 +1051,50 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
     }
 }
 
+
+@Composable
+private fun RichMarkdownEditor(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val latestCallback by rememberUpdatedState(onValueChange)
+    AndroidView(modifier = modifier, factory = { context ->
+        WebView(context).apply {
+            settings.javaScriptEnabled = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            val target = this
+            addJavascriptInterface(object {
+                @JavascriptInterface fun onMarkdownChanged(markdown: String) {
+                    target.post { target.tag = markdown; latestCallback(markdown) }
+                }
+            }, "ScribeEditor")
+            val initial = org.json.JSONObject.quote(value)
+            val html = """
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+<style>body{margin:0;padding:12px;background:transparent;color:#e8e3da;font:16px/1.7 sans-serif}#editor{min-height:320px;outline:none;overflow-wrap:anywhere}#editor:empty:before{content:"Start writing…";color:#888}h1,h2,h3{color:#f0d8ad}blockquote{border-left:3px solid #d5b98c;padding-left:12px}pre,code{background:#24272d;padding:4px;border-radius:5px}table{border-collapse:collapse}td,th{border:1px solid #555;padding:5px}</style>
+</head><body><div id="editor" contenteditable="true" spellcheck="true"></div><script>
+const e=document.getElementById("editor");let last="";
+function md(n){if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType!==1)return "";const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
+if(t==="br")return "\n";if(t==="b"||t==="strong")return "**"+c()+"**";if(t==="i"||t==="em")return "*"+c()+"*";if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
+if(/^h[1-6]$/.test(t))return "#".repeat(+t[1])+" "+c()+"\n\n";if(t==="blockquote")return c().split("\n").map(x=>"> "+x).join("\n")+"\n\n";
+if(t==="pre")return "    "+(n.innerText||"").replace(/\n/g,"\n    ")+"\n\n";if(t==="a")return "["+c()+"]("+n.getAttribute("href")+")";
+if(t==="li")return (n.parentElement.tagName==="OL"?"1. ":"- ")+c().trim()+"\n";if(t==="ul"||t==="ol")return Array.from(n.children).map(md).join("")+"\n";
+if(t==="p"||t==="div")return c().trim()+"\n\n";if(t==="hr")return "\n---\n\n";return c();}
+function send(){const v=Array.from(e.childNodes).map(md).join("").replace(/\n{3,}/g,"\n\n").trim();if(v!==last){last=v;if(window.ScribeEditor)window.ScribeEditor.onMarkdownChanged(v);}}
+window.setMarkdown=function(v){if(v===last)return;last=v;const p=window.markdownit?window.markdownit({html:false}).enable("table"):null;e.innerHTML=p?p.render(v):"<pre>"+v.replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</pre>";};
+e.addEventListener("input",send);e.addEventListener("blur",send);window.setMarkdown($initial);
+</script></body></html>
+""".trimIndent()
+            loadDataWithBaseURL("https://scribe.local/", html, "text/html", "UTF-8", null)
+            tag = value
+        }
+    }, update = { webView ->
+        if (webView.tag != value) {
+            webView.tag = value
+            webView.evaluateJavascript("window.setMarkdown(" + org.json.JSONObject.quote(value) + ");", null)
+        }
+    })
+}
 
 @Composable
 private fun LatexPreviewWebView(source: String, modifier: Modifier = Modifier) {
