@@ -48,13 +48,14 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
                 dao.byId(id)?.let { dao.update(it.copy(deletedAt = deletedAt, updatedAt = deletedAt)) }
             }
             mark(item.id)
+            }
         }
     }
     fun restoreTree(item: ScribeItem) {
         viewModelScope.launch {
             database.withTransaction {
             val all = dao.allItems()
-            val rootDeletedAt = dao.byId(item.id)?.deletedAt ?: item.deletedAt ?: return@launch
+            val rootDeletedAt = dao.byId(item.id)?.deletedAt ?: item.deletedAt ?: return@withTransaction
             suspend fun restore(id: Long) {
                 val current = dao.byId(id) ?: return
                 if (!belongsToTrashBatch(current.deletedAt, rootDeletedAt)) return
@@ -63,6 +64,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
                     .forEach { restore(it.id) }
             }
             restore(item.id)
+            }
         }
     }
     fun deleteForever(item: ScribeItem) {
@@ -75,6 +77,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
                 dao.deleteId(id)
             }
             remove(item.id)
+            }
         }
     }
     fun duplicate(item: ScribeItem) {
