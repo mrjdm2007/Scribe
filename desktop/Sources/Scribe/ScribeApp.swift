@@ -320,6 +320,20 @@ struct NodeEditorView: View {
     private var childKind: String? {
         switch item.kind { case "course": return "chapter"; case "chapter": return "topic"; case "topic": return "page"; case "page": return "block"; default: return nil }
     }
+    private var pageBlocks: [ScribeNode] { item.kind == "page" ? library.children(of: item.id) : [] }
+    private var pageWordCount: Int {
+        pageBlocks.filter { !$0.tags.contains("type:image") && !$0.tags.contains("type:pdf") }
+            .reduce(0) { $0 + $1.body.split { $0.isWhitespace || $0.isNewline }.count }
+    }
+    private var attachmentCount: Int {
+        pageBlocks.filter { $0.tags.contains("type:image") || $0.tags.contains("type:pdf") }.count
+    }
+    private var checklistProgress: (done: Int, total: Int) {
+        let lines = pageBlocks.filter { $0.tags.contains("type:checklist") }.flatMap { $0.body.components(separatedBy: .newlines) }
+        let tasks = lines.filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[ ]") || $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("[x]") }
+        let done = tasks.filter { $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("[x]") }.count
+        return (done, tasks.count)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -388,6 +402,26 @@ struct NodeEditorView: View {
                 Text(item.kind == "page" ? "Page content" : "Notebook contents")
                     .font(.headline).foregroundStyle(.secondary)
                 if item.kind == "page" {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 14) {
+                            Label("\(pageWordCount) words", systemImage: "text.alignleft")
+                            Label("~\(max(1, (pageWordCount + 199) / 200)) min", systemImage: "clock")
+                            Label("\(pageBlocks.count) blocks", systemImage: "square.stack")
+                            Label("\(attachmentCount) files", systemImage: "paperclip")
+                        }
+                        .font(.caption).foregroundStyle(.secondary)
+                        if checklistProgress.total > 0 {
+                            HStack(spacing: 8) {
+                                ProgressView(value: Double(checklistProgress.done), total: Double(checklistProgress.total))
+                                    .frame(maxWidth: 180)
+                                Text("Checklist · \(checklistProgress.done)/\(checklistProgress.total) completed")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
                     VStack(spacing: 8) {
                         ForEach(library.children(of: item.id)) { child in
                             HStack(spacing: 10) {
