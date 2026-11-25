@@ -822,7 +822,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                 Spacer(Modifier.height(5.dp))
                 backlinkSources.forEach { source ->
                     TextButton(onClick = { onOpenTopic(source) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)) {
-                        Icon(Icons.Rounded.CallReceived, null, tint = Gold, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.Link, null, tint = Gold, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(7.dp))
                         Text(source.title, maxLines = 1)
                     }
