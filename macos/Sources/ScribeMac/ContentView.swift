@@ -47,8 +47,16 @@ struct ScribeMacRoot: View {
                     ForEach(ScribeTool.allCases) { tool in Label(tool.rawValue, systemImage: icon(for: tool)).tag(tool) }
                 }.listStyle(.sidebar)
                 Divider()
-                HStack { Image(systemName: "magnifyingglass"); TextField("Search everything", text: $store.searchText).textFieldStyle(.plain).focused($searchFocused) }.padding(12)
-                Button { store.create(kind: "course", title: "Untitled course") } label: { Label("New course", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold).padding()
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                    TextField("Search everything", text: $store.searchText).textFieldStyle(.plain).focused($searchFocused)
+                    Button { searchFocused = true } label: { Image(systemName: "command") }
+                        .buttonStyle(.plain).help("Focus search (⌘F)")
+                        .keyboardShortcut("f", modifiers: .command)
+                }.padding(12)
+                Button { store.create(kind: "course", title: "Untitled course") } label: { Label("New course", systemImage: "plus") }
+                    .buttonStyle(.borderedProminent).tint(gold).padding()
+                    .keyboardShortcut("n", modifiers: .command)
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 310)
         } detail: {
