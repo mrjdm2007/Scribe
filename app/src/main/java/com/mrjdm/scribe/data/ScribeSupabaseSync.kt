@@ -62,7 +62,7 @@ internal class ScribeSupabaseSync(
             val nextRefreshToken = auth.optString("refresh_token").takeIf { it.isNotBlank() }
             if (nextRefreshToken != null) {
                 ScribeCloudSession.save(context, root, anonKey, email, nextRefreshToken)
-                ScribeCloudSession.schedule(context)
+                if (refreshToken.isNullOrBlank()) ScribeCloudSession.schedule(context)
             }
             fun requestBytes(path: String, method: String, body: ByteArray? = null, token: String? = null,
                              contentType: String = "application/octet-stream", upsert: Boolean = false): ByteArray {
