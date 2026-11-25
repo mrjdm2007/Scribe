@@ -497,6 +497,7 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
 
 private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onExport: () -> Unit) {
     val blocks by vm.children(page.id).collectAsState(initial = emptyList())
+    val pageInsights = remember(blocks) { PageInsights.calculate(blocks) }
     val topics by vm.kind("topic").collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
@@ -517,6 +518,22 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         OutlinedTextField(value = pageTitle, onValueChange = { pageTitle = it; vm.update(page, title = it) },
             modifier = Modifier.fillMaxWidth(), textStyle = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
             placeholder = { Text("Page title") }, singleLine = true, colors = fieldColors(), shape = RoundedCornerShape(12.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1C20)), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("${pageInsights.wordCount} words", color = Gold, fontWeight = FontWeight.SemiBold)
+                    Text("Writing", color = Muted, fontSize = 10.sp)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(if (pageInsights.estimatedReadingMinutes == 0) "—" else "${pageInsights.estimatedReadingMinutes} min", color = Gold, fontWeight = FontWeight.SemiBold)
+                    Text("Read time", color = Muted, fontSize = 10.sp)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(pageInsights.attachmentCount.toString(), color = Gold, fontWeight = FontWeight.SemiBold)
+                    Text("Attachments", color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("${blocks.size} CONTENT BLOCKS", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
