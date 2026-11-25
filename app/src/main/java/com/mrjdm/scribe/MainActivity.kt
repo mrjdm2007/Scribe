@@ -1307,6 +1307,7 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                             Icon(Icons.Rounded.Delete, contentDescription = "Delete annotation", tint = Muted)
                         }
                     }
+                }
                 HorizontalDivider(color = Color(0xFF33363B))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(enabled = bitmap != null && !ocrBusy, onClick = {
