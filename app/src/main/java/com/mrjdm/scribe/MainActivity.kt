@@ -386,8 +386,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             text = { if (history.isEmpty()) Text("Earlier versions appear here as you edit text blocks.") else LazyColumn { items(history) { snap ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Text(SimpleDateFormat("dd MMM yyyy · HH:mm", Locale.getDefault()).format(Date(snap.savedAt)), color = Gold)
+                    Text(snap.title, fontWeight = FontWeight.Medium, maxLines = 1)
                     Text(snap.body, maxLines = 3, color = Muted)
-                    TextButton(onClick = { vm.update(item, body = snap.body); showHistory = null }) { Text("Restore this version") }
+                    TextButton(onClick = { vm.update(item, title = snap.title, body = snap.body); showHistory = null }) { Text("Restore this version") }
                 }
             } } }, confirmButton = { TextButton(onClick = { showHistory = null }) { Text("Close") } })
     }
