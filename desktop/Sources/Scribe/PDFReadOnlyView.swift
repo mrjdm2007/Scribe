@@ -9,6 +9,8 @@ struct PDFReadOnlyView: View {
     @State private var pageIndex = 0
     @State private var extractedText = ""
     @State private var searchText = ""
+    @State private var searchMatches: [PDFSelection] = []
+    @State private var searchIndex = 0
     @State private var isRecognizing = false
     @State private var errorMessage: String?
 
@@ -47,9 +49,23 @@ struct PDFReadOnlyView: View {
                         else { Label("Extract text from page", systemImage: "text.viewfinder") }
                     }.disabled(isRecognizing || document.page(at: pageIndex) == nil)
                 }
+                HStack {
+                    TextField("Search the entire PDF", text: $searchText)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Find") { searchDocument() }
+                        .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if !searchMatches.isEmpty {
+                        Text("\(searchIndex + 1) of \(searchMatches.count)")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Button { moveSearchResult(-1) } label: { Image(systemName: "chevron.left") }
+                            .disabled(searchIndex == 0)
+                        Button { moveSearchResult(1) } label: { Image(systemName: "chevron.right") }
+                            .disabled(searchIndex >= searchMatches.count - 1)
+                    }
+                }
                 if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(.red) }
                 if !extractedText.isEmpty {
-                    TextField("Find in extracted page text", text: $searchText).textFieldStyle(.roundedBorder)
+                    Text("TEXT EXTRACTED FROM THIS PAGE").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     ScrollView {
                         Text(visibleText).frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled).padding(10)
@@ -65,8 +81,31 @@ struct PDFReadOnlyView: View {
         .onChange(of: pageIndex) { _ in extractedText = ""; searchText = ""; errorMessage = nil }
     }
 
+    private func searchDocument() {
+        guard let document, !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        searchMatches = document.findString(searchText, withOptions: [.caseInsensitive])
+        searchIndex = 0
+        if let first = searchMatches.first, let page = first.pages.first {
+            pageIndex = document.index(for: page)
+        }
+        if searchMatches.isEmpty { errorMessage = "No matches found in this PDF." }
+        else { errorMessage = nil }
+    }
+
+    private func moveSearchResult(_ offset: Int) {
+        let next = min(max(searchIndex + offset, 0), searchMatches.count - 1)
+        searchIndex = next
+        guard let page = searchMatches[next].pages.first, let document else { return }
+        pageIndex = document.index(for: page)
+    }
+
     private func recognizeCurrentPage() {
         guard let page = document?.page(at: pageIndex) else { return }
+        if let nativeText = page.string, !nativeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            extractedText = nativeText
+            errorMessage = nil
+            return
+        }
         let image = page.thumbnail(of: CGSize(width: 1800, height: 1800), for: .mediaBox)
         var rect = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
