@@ -68,6 +68,7 @@ final class ScribeLibrary: ObservableObject {
     var courses: [ScribeNode] { children(of: nil) }
     var visibleNodes: [ScribeNode] { nodes.filter { $0.deletedAt == nil } }
     var bookmarks: [ScribeNode] { visibleNodes.filter(\.bookmarked).sorted { $0.updatedAt > $1.updatedAt } }
+    var recentlyEdited: [ScribeNode] { visibleNodes.filter { $0.kind == "page" || $0.kind == "topic" }.sorted { $0.updatedAt > $1.updatedAt }.prefix(30).map { $0 } }
     var trash: [ScribeNode] { nodes.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) } }
 
     func children(of parent: UUID?) -> [ScribeNode] {
