@@ -439,7 +439,7 @@ struct ScribeMacRoot: View {
                 let keys = active.map { String($0.parentId ?? 0) + "|" + $0.kind + "|" + $0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                 let groups = Dictionary(grouping: keys, by: { $0 })
                 let duplicates = groups.values.reduce(0) { $0 + max(0, $1.count - 1) }
-                integrityReport = "Checked " + String(store.items.count) + " records.\\n\\nMissing attachments: " + String(missing) + "\\nPossible duplicates: " + String(duplicates) + "\\n\\nNo data was changed."
+                integrityReport = "Checked " + String(store.items.count) + " records.\n\nMissing attachments: " + String(missing) + "\nPossible duplicates: " + String(duplicates) + "\n\nNo data was changed."
                 showingIntegrityReport = true
             } label: { Label("Check library integrity", systemImage: "checkmark.shield") }
             Text("The macOS app includes the topic-first notebook, Markdown editing, in-topic search, flashcards, focus mode, academic tools, PDF preview/OCR, image and text attachments, trash and version history. Transfer between Android and Mac using JSON backup and restore; live sync is not enabled.").foregroundStyle(.secondary)
