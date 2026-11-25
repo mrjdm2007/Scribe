@@ -324,7 +324,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        Row(Modifier.fillMaxSize().padding(padding).animateContentSize().background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.055f), Color.Transparent), radius = 1050f))) {
+        Row(Modifier.fillMaxSize().padding(padding).animateContentSize().background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.075f), Color.Transparent), radius = 1050f))) {
             if (isWide) {
                 NavigationRail(
                     modifier = Modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp).scribeGlass(RoundedCornerShape(20.dp)),
@@ -446,7 +446,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                     recentItems.forEach { recent ->
                                         Surface(onClick = { stack = listOf(recent) }, shape = RoundedCornerShape(12.dp),
                                             color = Color(0xFF202126), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))) {
-                                            Column(Modifier.widthIn(min = 120.dp, max = 180.dp).padding(12.dp)) {
+                                            Column(Modifier.widthIn(min = 120.dp, max = 180.dp).background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.075f), Color.Transparent, Gold.copy(alpha = 0.025f))), RoundedCornerShape(12.dp)).border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.24f), Gold.copy(alpha = 0.12f), Color.White.copy(alpha = 0.035f))), RoundedCornerShape(12.dp)).padding(12.dp)) {
                                                 Text(recent.title, maxLines = 1, fontWeight = FontWeight.Medium)
                                                 Text(recent.kind.replaceFirstChar { it.uppercase() }, color = Muted, fontSize = 10.sp)
                                             }
