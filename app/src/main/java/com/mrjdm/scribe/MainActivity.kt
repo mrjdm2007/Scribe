@@ -1097,6 +1097,14 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
     var annotationStart by remember(item.id) { mutableStateOf<Offset?>(null) }
     var annotationEnd by remember(item.id) { mutableStateOf<Offset?>(null) }
     val annotations by vm.children(item.id).collectAsState(initial = emptyList())
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val exportAnnotatedLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { destination ->
+        if (destination != null) scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { exportAnnotatedPdf(context, item, annotations, destination) } }
+            android.widget.Toast.makeText(context, if (result.isSuccess) "Annotated PDF exported" else "PDF export failed: ${result.exceptionOrNull()?.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
     LaunchedEffect(pageIndex) {
         ocrText = ""
         ocrError = ""
@@ -1215,6 +1223,9 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                         annotationEnd = null
                     }) { Text("Save page mark") }
                     Text("${annotations.count { it.tags.contains("type:pdf_annotation") }} saved", color = Muted, fontSize = 11.sp)
+                    OutlinedButton(onClick = { exportAnnotatedLauncher.launch(item.title.substringBeforeLast(".") + "-annotated.pdf") }) {
+                        Icon(Icons.Rounded.FileDownload, null); Text("Export PDF")
+                    }
                 }
                 annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${pageIndex + 1}") }.forEach { note ->
                     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF24272D))) {
@@ -1261,6 +1272,59 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                 }
             }
         }
+    }
+}
+
+
+private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: List<ScribeItem>, destination: Uri) {
+    val descriptor = ParcelFileDescriptor.open(File(item.uri), ParcelFileDescriptor.MODE_READ_ONLY)
+    val renderer = PdfRenderer(descriptor)
+    val output = PdfDocument()
+    try {
+        for (index in 0 until renderer.pageCount) {
+            val sourcePage = renderer.openPage(index)
+            try {
+                val scale = minOf(2f, 1800f / sourcePage.width.toFloat(), 2400f / sourcePage.height.toFloat())
+                val width = (sourcePage.width * scale).toInt().coerceAtLeast(1)
+                val height = (sourcePage.height * scale).toInt().coerceAtLeast(1)
+                val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+                sourcePage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                val page = output.startPage(PdfDocument.PageInfo.Builder(width, height, index + 1).create())
+                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${index + 1}") }.forEach { annotation ->
+                    val values = annotation.tags.split(";").firstOrNull { it.startsWith("rect:") }
+                        ?.removePrefix("rect:")?.split(",")?.mapNotNull { it.toFloatOrNull() }
+                    if (values != null && values.size == 4) {
+                        val left = values[0] * width
+                        val top = values[1] * height
+                        val right = (values[0] + values[2]) * width
+                        val bottom = (values[1] + values[3]) * height
+                        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = when {
+                                annotation.tags.contains("annotation:underline") -> android.graphics.Color.rgb(65, 145, 245)
+                                annotation.tags.contains("annotation:markup") -> android.graphics.Color.rgb(225, 75, 75)
+                                else -> android.graphics.Color.argb(95, 255, 210, 55)
+                            }
+                            style = if (annotation.tags.contains("annotation:markup") || annotation.tags.contains("annotation:underline"))
+                                android.graphics.Paint.Style.STROKE else android.graphics.Paint.Style.FILL
+                            strokeWidth = maxOf(2f, width / 700f)
+                        }
+                        when {
+                            annotation.tags.contains("annotation:underline") -> page.canvas.drawLine(left, bottom, right, bottom, paint)
+                            else -> page.canvas.drawRect(left, top, right, bottom, paint)
+                        }
+                    }
+                }
+                output.finishPage(page)
+                bitmap.recycle()
+            } finally { sourcePage.close() }
+        }
+        context.contentResolver.openOutputStream(destination)?.use { output.writeTo(it) }
+            ?: error("Could not open the destination file")
+    } finally {
+        output.close()
+        renderer.close()
+        descriptor.close()
     }
 }
 
