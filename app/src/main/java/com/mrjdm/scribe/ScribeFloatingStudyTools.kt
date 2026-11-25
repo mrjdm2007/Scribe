@@ -150,9 +150,20 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                                     val relevant = all.filter { it.deletedAt == null && it.body.isNotBlank() }
                                         .map { note -> note to terms.count { term -> note.title.contains(term, true) || note.body.contains(term, true) } }
                                         .filter { it.second > 0 }.sortedByDescending { it.second }.take(24)
+                                    fun notebookPath(note: ScribeItem): String {
+                                        val chain = mutableListOf(note.title)
+                                        val seen = mutableSetOf<Long>()
+                                        var parentId = note.parentId
+                                        while (parentId != null && seen.add(parentId)) {
+                                            val parent = all.firstOrNull { it.id == parentId } ?: break
+                                            chain.add(parent.title)
+                                            parentId = parent.parentId
+                                        }
+                                        return chain.asReversed().joinToString(" / ")
+                                    }
                                     val contextArray = JSONArray()
                                     relevant.forEach { (note, _) ->
-                                        contextArray.put(JSONObject().put("title", note.title).put("path", note.kind).put("content", note.body.take(12000)))
+                                        contextArray.put(JSONObject().put("title", note.title).put("path", notebookPath(note)).put("content", note.body.take(12000)))
                                     }
                                     val session = ScribeCloudSession.read(context)
                                         ?: error("Sign in to Scribe Cloud and sync once before using Scribe Intelligence.")
