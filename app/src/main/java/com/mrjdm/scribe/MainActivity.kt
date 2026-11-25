@@ -344,6 +344,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
             Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp).animateContentSize()) {
             Spacer(Modifier.height(18.dp))
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 "Library" -> {
                     if (current?.kind == "page") {
@@ -501,6 +502,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     SettingsRow(Icons.Rounded.Info, "About Scribe", "Offline-first academic notebook · v1.1") {}
                     Text("Notes remain available offline. Cloud sync is optional; keep regular backups as an additional safeguard.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 18.dp))
                 }
+            }
             }
             }
             }
