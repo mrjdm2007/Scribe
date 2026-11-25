@@ -18,7 +18,7 @@ internal fun belongsToTrashBatch(candidateDeletedAt: Long?, rootDeletedAt: Long?
 internal fun shouldSnapshotBody(previous: String, next: String): Boolean = previous != next
 
 internal fun appendTag(existingTags: String, rawTag: String): String {
-    val clean = rawTag.trim().replace(";", " ")
+    val clean = rawTag.trim().replace(";", " ").split(Regex("\\s+")).filter { it.isNotBlank() }.joinToString(" ")
     if (clean.isEmpty()) return existingTags
     val tags = existingTags.split(";").filter { it.isNotBlank() }
     return if (clean in tags) tags.joinToString(";") else (tags + clean).joinToString(";")
