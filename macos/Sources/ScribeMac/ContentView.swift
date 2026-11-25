@@ -91,7 +91,7 @@ struct ScribeMacRoot: View {
     @State private var cloudStatus = ""
     @State private var cloudBusy = false
     @State private var editorSelection = NSRange(location: 0, length: 0)
-    @State private var showingReadingMode = false
+    @State private var showingReadingMode = false\n    @State private var showingIntelligence = false
     @FocusState private var searchFocused: Bool
 
     private let gold = Color(red: 0.84, green: 0.72, blue: 0.55)
@@ -277,7 +277,7 @@ struct ScribeMacRoot: View {
             Button("Done", role: .cancel) { }
         } message: { Text(integrityReport) }
         .preferredColorScheme(.dark)
-        .overlay(alignment: .bottomTrailing) { ScribeFloatingStudyTimer() }
+        .overlay(alignment: .bottomTrailing) { ScribeFloatingStudyTimer(onAskAI: { showingIntelligence = true }) }\n        .sheet(isPresented: $showingIntelligence) { ScribeIntelligenceView(items: store.items) }
         .sheet(isPresented: $showingReadingMode) {
             if let item = store.selected {
                 ScribeReadingMode(title: item.title, bodyText: item.body,
