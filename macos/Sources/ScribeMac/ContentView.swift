@@ -40,6 +40,12 @@ struct ScribeMacRoot: View {
     @State private var showLatexPreview = false
     @State private var pdfAnnotationDraft = ""
     @State private var pdfAnnotationKind = "Highlight"
+    @AppStorage("scribe.supabase.url") private var cloudURL = ScribeCloudConfiguration.supabaseURL
+    @AppStorage("scribe.supabase.anonKey") private var cloudAnonKey = ScribeCloudConfiguration.supabaseAnonKey
+    @State private var cloudEmail = ""
+    @State private var cloudPassword = ""
+    @State private var cloudStatus = ""
+    @State private var cloudBusy = false
     @State private var editorSelection = NSRange(location: 0, length: 0)
     @FocusState private var searchFocused: Bool
 
@@ -782,10 +788,43 @@ struct ScribeMacRoot: View {
     private var backup: some View {
         VStack(alignment:.leading,spacing:16) {
             Text("Backup & settings").font(.largeTitle.bold())
-            Text("Scribe for macOS stores your library locally. Exchange JSON backups with the Android app.")
+            Text("Scribe stores notes locally and can optionally sync your library through your own Supabase project.")
             Button { showingExport=true } label: { Label("Export Scribe JSON backup",systemImage:"square.and.arrow.up") }.buttonStyle(.borderedProminent).tint(gold)
             Button { showingImport=true } label: { Label("Restore Scribe JSON backup",systemImage:"square.and.arrow.down") }
             Button { showingTrash = true } label: { Label("Recently deleted", systemImage: "trash") }
+            GroupBox("Supabase cloud sync") {
+                VStack(alignment: .leading, spacing: 9) {
+                    TextField("Supabase project URL", text: $cloudURL)
+                        .textFieldStyle(.roundedBorder)
+                    SecureField("Supabase anon / publishable key", text: $cloudAnonKey)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Account email", text: $cloudEmail)
+                        .textFieldStyle(.roundedBorder)
+                    SecureField("Account password", text: $cloudPassword)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button {
+                            cloudBusy = true
+                            cloudStatus = "Connecting and syncing…"
+                            Task {
+                                do {
+                                    cloudStatus = try await store.syncSupabase(url: cloudURL, anonKey: cloudAnonKey, email: cloudEmail, password: cloudPassword)
+                                } catch {
+                                    cloudStatus = "Sync failed: " + error.localizedDescription
+                                }
+                                cloudPassword = ""
+                                cloudBusy = false
+                            }
+                        } label: {
+                            if cloudBusy { ProgressView().controlSize(.small) } else { Label("Sync now", systemImage: "arrow.triangle.2.circlepath") }
+                        }
+                        .buttonStyle(.borderedProminent).tint(gold).disabled(cloudBusy)
+                        Text(cloudStatus).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text("Run supabase/schema.sql in your project first. Your password is used only for this sync and is not saved.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.padding(4)
+            }
             Button {
                 let active = store.items.filter { $0.deletedAt == nil }
                 let missing = active.filter { !$0.uri.isEmpty && !FileManager.default.fileExists(atPath: $0.uri) }.count
@@ -795,7 +834,7 @@ struct ScribeMacRoot: View {
                 integrityReport = "Checked " + String(store.items.count) + " records.\n\nMissing attachments: " + String(missing) + "\nPossible duplicates: " + String(duplicates) + "\n\nNo data was changed."
                 showingIntegrityReport = true
             } label: { Label("Check library integrity", systemImage: "checkmark.shield") }
-            Text("The macOS app includes the topic-first notebook, Markdown editing, in-topic search, flashcards, focus mode, academic tools, PDF preview/OCR, image and text attachments, trash and version history. Transfer between Android and Mac using JSON backup and restore; live sync is not enabled.").foregroundStyle(.secondary)
+            Text("The macOS app includes the topic-first notebook, Markdown editing, in-topic search, flashcards, focus mode, academic tools, PDF annotations/OCR, attachments, trash and version history. Cloud sync uses your own Supabase project.").foregroundStyle(.secondary)
             Spacer()
         }.padding(24)
     }
