@@ -14,7 +14,7 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Vertical notebook scrolling, horizontal formatting-toolbar scrolling, and horizontal code-block scrolling.
 - Bookmarks, revision-tag filtering, a searchable multiple-choice question bank, mixed practice sessions and offline flashcards with Again / Good / Easy spaced-repetition scheduling.
 - Local study reminders with reboot rescheduling and automatic archival after notification delivery.
-- A foreground focus timer with 15 / 25 / 45 / 60-minute sessions and locally saved session history.
+- A foreground focus timer with 15 / 25 / 45 / 60-minute sessions, weekly study totals and a recent-session history on Android and macOS.
 - Tested spaced-repetition intervals: Again resets, Hard advances gently, Good doubles and Easy triples the interval (capped at one year).
 - Quick capture notes routed into a visible Quick Notes course and Inbox chapter.
 - Formula source pad with symbol keyboard and saved formula collection.

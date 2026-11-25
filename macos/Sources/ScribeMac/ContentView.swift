@@ -78,7 +78,10 @@ struct ScribeMacRoot: View {
                         do {
                             let extracted = try await ScribePDFOCR.extractText(from: destination)
                             if let latest = store.items.first(where: { $0.id == importedID }) {
-                                store.update(latest, body: extracted, tags: "type:pdf;ocr:indexed")
+                                let hasText = !extracted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                store.update(latest,
+                                    body: hasText ? extracted : "PDF attachment · no searchable text could be extracted",
+                                    tags: hasText ? "type:pdf;ocr:indexed" : "type:pdf;ocr:failed")
                             }
                         } catch {
                             if let latest = store.items.first(where: { $0.id == importedID }) {
@@ -377,6 +380,29 @@ struct ScribeMacRoot: View {
                     Text("Completed this week").font(.caption).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
             }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("RECENT SESSIONS").font(.caption.bold()).foregroundStyle(.secondary)
+                let recentSessions = store.items.filter { $0.kind == "study_session" && $0.deletedAt == nil }
+                    .sorted { $0.createdAt > $1.createdAt }.prefix(5)
+                if recentSessions.isEmpty {
+                    Text("Your completed focus sessions will appear here.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(recentSessions), id: \.id) { session in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(session.title).font(.subheadline.weight(.medium))
+                                Text(Date(timeIntervalSince1970: Double(session.createdAt) / 1000), style: .date)
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            let minutes = session.tags.range(of: #"minutes:\d+"#, options: .regularExpression)
+                                .map { Int(session.tags[$0].dropFirst(8)) ?? 0 } ?? 0
+                            Text("\(minutes) min").font(.caption.weight(.semibold)).foregroundStyle(gold)
+                        }.padding(10).background(panel, in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }.frame(maxWidth: 560, alignment: .leading)
             Text("Completion notifications appear even when Scribe is not the active window, if notifications are allowed in macOS settings.")
                 .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Spacer()

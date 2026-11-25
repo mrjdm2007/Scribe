@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.sp
 import com.mrjdm.scribe.data.ScribeViewModel
 import kotlinx.coroutines.delay
 import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val FocusGold = Color(0xFFD5B98C)
 private val FocusPanel = Color(0xFF1B1C20)
@@ -29,12 +32,11 @@ fun FocusTimer(vm: ScribeViewModel) {
     var sessionLabel by remember { mutableStateOf("Focused study") }
     var completed by remember { mutableIntStateOf(0) }
     val savedSessions by vm.kind("study_session").collectAsState(initial = emptyList())
-    val weekStart = remember {
-        Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-    }
+    // Recompute so the weekly summary rolls over at the week boundary.
+    val weekStart = Calendar.getInstance().apply {
+        set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
     val weeklySessions = savedSessions.filter { it.createdAt >= weekStart && it.deletedAt == null }
     val weeklyMinutes = weeklySessions.sumOf { it.tags.substringAfter("minutes:", "").substringBefore(";").toIntOrNull() ?: 0 }
 
@@ -124,6 +126,24 @@ fun FocusTimer(vm: ScribeViewModel) {
                 Column(Modifier.padding(14.dp)) {
                     Text("TIP", color = FocusMuted, fontSize = 9.sp, letterSpacing = 1.sp)
                     Text("Take a short break between sessions.", fontSize = 12.sp)
+                }
+            }
+        }
+        Text("RECENT SESSIONS", color = FocusMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+        if (savedSessions.isEmpty()) {
+            Text("Your completed focus sessions will appear here.", color = FocusMuted, fontSize = 12.sp)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                savedSessions.sortedByDescending { it.createdAt }.take(5).forEach { session ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(session.title, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                            Text(SimpleDateFormat("EEE, d MMM · h:mm a", Locale.getDefault()).format(Date(session.createdAt)),
+                                color = FocusMuted, fontSize = 11.sp)
+                        }
+                        val minutes = session.tags.substringAfter("minutes:", "").substringBefore(";").toIntOrNull()
+                        Text("${minutes?.toString() ?: "—"} min", color = FocusGold, fontSize = 12.sp)
+                    }
                 }
             }
         }
