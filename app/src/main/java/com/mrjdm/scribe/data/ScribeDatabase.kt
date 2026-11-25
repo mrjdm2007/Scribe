@@ -35,6 +35,8 @@ interface ScribeDao {
     fun children(parentId: Long?): Flow<List<ScribeItem>>
     @Query("SELECT * FROM scribe_items WHERE id = :id LIMIT 1")
     suspend fun byId(id: Long): ScribeItem?
+    @Query("SELECT * FROM scribe_items WHERE id = :id LIMIT 1")
+    fun observeById(id: Long): Flow<ScribeItem?>
     @Query("SELECT * FROM scribe_items WHERE kind = :kind AND deletedAt IS NULL ORDER BY updatedAt DESC")
     fun byKind(kind: String): Flow<List<ScribeItem>>
     @Query("SELECT * FROM scribe_items WHERE bookmarked = 1 AND deletedAt IS NULL ORDER BY updatedAt DESC")
