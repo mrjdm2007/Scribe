@@ -89,7 +89,7 @@ struct ScribeRootView: View {
             }
         } detail: {
             if section == "Tools" {
-                DesktopToolsView()
+                DesktopWorkbenchView()
             } else if section == "Study" {
                 DesktopStudyView()
             } else if let item = selected {
@@ -103,7 +103,7 @@ struct ScribeRootView: View {
             }
         }
         .background(.regularMaterial)
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item, .pdf, .image], allowsMultipleSelection: true) { result in
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             guard let selected, selected.kind == "page", case .success(let urls) = result else { return }
             for url in urls { do { try library.importAttachment(from: url, parent: selected.id) } catch { library.lastError = error.localizedDescription } }
         }
