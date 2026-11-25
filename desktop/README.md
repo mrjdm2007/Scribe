@@ -24,8 +24,6 @@ Native SwiftUI desktop application, targeting macOS 13+ with Swift 5.9+.
 
 - Google Drive two-way sync in the visible My Drive/Scribe/ folder, offline queueing, conflict copies, attachment integrity verification and secure OAuth token storage.
 - Note-aware AI with internet research and citations; the client/backend integration is not implemented.
-- Google Drive two-way sync in the visible My Drive/Scribe/ folder, offline queueing, conflict copies, attachment integrity verification and secure OAuth token storage.
-- Note-aware AI with internet research and citations; the client/backend integration is not implemented.
 - Complete Android ↔ macOS backup round-trip verification on packaged builds. macOS CI now packages an Apple Silicon Scribe.app artifact.
 
 Backups are local JSON exports; large attachment collections can create large files. Keep independent copies of important notes.
