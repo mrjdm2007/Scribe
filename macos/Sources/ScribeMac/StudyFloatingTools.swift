@@ -107,7 +107,9 @@ struct ScribeReadingMode: View {
     let title: String
     let bodyText: String
     let attachments: [ScribeItem]
+    let allItems: [ScribeItem]
     @Environment(\.dismiss) private var dismiss
+    @State private var showingAI = false
 
     var body: some View {
         NavigationStack {
@@ -131,8 +133,12 @@ struct ScribeReadingMode: View {
                 ToolbarItem(placement: .principal) {
                     ScribeReadingTimerStatus()
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showingAI = true } label: { Label("Ask AI", systemImage: "sparkles") }
+                }
                 ToolbarItem(placement: .primaryAction) { Button("Done") { dismiss() } }
             }
         }.frame(minWidth: 560, minHeight: 520)
+        .sheet(isPresented: $showingAI) { ScribeIntelligenceView(items: allItems) }
     }
 }
