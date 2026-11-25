@@ -186,6 +186,14 @@ struct NodeEditorView: View {
     @State private var showAttachmentPicker = false
     @State private var showHistory = false
     @State private var showTopicLinker = false
+    @State private var showPDFExporter = false
+    @State private var pdfDocument = ScribePDFDocument(data: Data())
+    private func preparePDFExport() {
+        do {
+            pdfDocument = ScribePDFDocument(data: try makeScribePDF(title: item.title, blocks: library.children(of: item.id)))
+            showPDFExporter = true
+        } catch { library.lastError = error.localizedDescription }
+    }
     private func wrapBody(_ marker: String) {
         guard !item.body.isEmpty else { item.body = "\(marker)text\(marker)"; library.update(item); return }
         item.body = "\(marker)\(item.body)\(marker)"
@@ -280,6 +288,7 @@ struct NodeEditorView: View {
                 if item.kind == "page" {
                     Button { showTopicLinker = true } label: { Label("Link topic", systemImage: "link") }
                     Button { showAttachmentPicker = true } label: { Label("Attach photo or PDF", systemImage: "paperclip") }
+                    Button { preparePDFExport() } label: { Label("Export page PDF", systemImage: "doc.richtext") }
                 }
                 Spacer()
                 Text("Updated \(item.updatedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.tertiary)
@@ -298,6 +307,10 @@ struct NodeEditorView: View {
         .padding(28)
         .fileImporter(isPresented: $showAttachmentPicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { do { try library.importAttachment(from: url, parent: item.id) } catch { library.lastError = error.localizedDescription } } }
+        }
+        .fileExporter(isPresented: $showPDFExporter, document: pdfDocument, contentType: .pdf,
+                      defaultFilename: item.title.replacingOccurrences(of: "/", with: "-") + ".pdf") { result in
+            if case .failure(let error) = result { library.lastError = "PDF export failed: \\(error.localizedDescription)" }
         }
         .sheet(isPresented: $showTopicLinker) {
             NavigationStack {
