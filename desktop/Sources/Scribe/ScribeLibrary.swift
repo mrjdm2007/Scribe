@@ -209,12 +209,15 @@ final class ScribeLibrary: ObservableObject {
         let folder = root.appendingPathComponent("attachments", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let ext = source.pathExtension
+        let type = UTType(filenameExtension: ext)
+        let kind: String
+        if type?.conforms(to: .image) == true { kind = "image" }
+        else if type?.conforms(to: .pdf) == true { kind = "pdf" }
+        else { throw NSError(domain: "ScribeAttachments", code: 415, userInfo: [NSLocalizedDescriptionKey: "Scribe accepts photos and PDF files only."]) }
         let target = folder.appendingPathComponent(UUID().uuidString).appendingPathExtension(ext)
         try FileManager.default.copyItem(at: source, to: target)
-        let type = UTType(filenameExtension: ext)
-        let kind = type?.conforms(to: .image) == true ? "image" : (type?.conforms(to: .pdf) == true ? "pdf" : "file")
         _ = add(kind: "block", parent: parent, title: source.deletingPathExtension().lastPathComponent,
-                body: "Attached \(kind)", uri: target.path, tags: "type:\(kind)")
+                body: "Attached \\(kind)", uri: target.path, tags: "type:\\(kind)")
     }
 
     func backupData() throws -> Data {
