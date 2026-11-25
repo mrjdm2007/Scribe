@@ -538,7 +538,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         title = { Text("Supabase cloud sync") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
-                Text("Enter your Supabase project details. Your password is used only for this sync and is not saved.", color = Muted, fontSize = 12.sp)
+                Text("Sign in once to enable automatic sync every 6 hours when this device is online. Your password is never saved; the refresh session is encrypted on this device.", color = Muted, fontSize = 12.sp)
                 OutlinedTextField(cloudUrl, { cloudUrl = it }, label = { Text("Project URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(cloudKey, { cloudKey = it }, label = { Text("Anon / publishable key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(cloudEmail, { cloudEmail = it }, label = { Text("Account email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
