@@ -16,8 +16,10 @@ struct RichBlockPreview: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(12)
                 }.background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
             case "equation":
-                Text(bodyText).font(.system(.title3, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                MathJaxPreview(source: bodyText)
+                    .frame(minHeight: 72, maxHeight: 150)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
                     .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
             case "table":
                 tablePreview
