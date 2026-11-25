@@ -35,7 +35,7 @@ class StudyProgressTest {
     @Test fun streakIncludesTodayOrStartsFromYesterday() {
         val rows = listOf(session(24, 20), session(25, 25), session(26, 45))
         assertEquals(3, StudyProgress.streakDays(rows, at(2026, 11, 26), utc))
-        assertEquals(2, StudyProgress.streakDays(rows, at(2026, 11, 27), utc))
+        assertEquals(3, StudyProgress.streakDays(rows, at(2026, 11, 27), utc))
     }
 
     @Test fun missingMinutesMetadataDoesNotCount() {
