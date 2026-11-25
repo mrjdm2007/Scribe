@@ -315,13 +315,14 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         guard !anonKey.isEmpty, !email.isEmpty, !password.isEmpty else {
             throw NSError(domain: "ScribeCloud", code: 2, userInfo: [NSLocalizedDescriptionKey: "Enter the anon key, email and password."])
         }
-        func request(_ path: String, method: String, token: String? = nil, prefer: String? = nil, body: Data? = nil) async throws -> Data {
+        func request(_ path: String, method: String, token: String? = nil, prefer: String? = nil, body: Data? = nil, contentType: String = "application/json", upsert: Bool = false) async throws -> Data {
             let endpoint = URL(string: path, relativeTo: base.appendingPathComponent(""))!
             var req = URLRequest(url: endpoint)
             req.httpMethod = method
             req.timeoutInterval = 30
             req.setValue(anonKey, forHTTPHeaderField: "apikey")
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+            if upsert { req.setValue("true", forHTTPHeaderField: "x-upsert") }
             if let token { req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
             if let prefer { req.setValue(prefer, forHTTPHeaderField: "Prefer") }
             req.httpBody = body
@@ -360,8 +361,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         }
         persist()
 
-        var skippedAttachments = 0
-        func makePayload(_ item: ScribeItem, cloudIDs: [Int64: String]) -> [String: Any] {
+        func makePayload(_ item: ScribeItem, cloudIDs: [Int64: String]) async throws -> [String: Any] {
             let id = cloudIDs[item.id] ?? cloudID(item.tags) ?? UUID().uuidString.lowercased()
             var payload: [String: Any] = [
                 "cloudId": id, "kind": item.kind, "title": item.title, "body": item.body,
@@ -373,11 +373,17 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             else { payload["parentCloudId"] = NSNull() }
             payload["deletedAt"] = item.deletedAt.map { $0 as Any } ?? NSNull()
             if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
+                let fileName = URL(fileURLWithPath: item.uri).lastPathComponent
+                payload["attachmentName"] = fileName
                 if data.count <= 8 * 1024 * 1024 {
-                    payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
                     payload["attachmentBase64"] = data.base64EncodedString()
                 } else {
-                    skippedAttachments += 1
+                    let safeName = fileName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "attachment"
+                    let objectPath = "\(userID)/\(id)/\(safeName)"
+                    _ = try await request("storage/v1/object/scribe-attachments/\(objectPath)",
+                        method: "POST", token: token, body: data,
+                        contentType: "application/octet-stream", upsert: true)
+                    payload["attachmentPath"] = objectPath
                 }
             }
             return payload
@@ -388,7 +394,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                 let body = try JSONSerialization.data(withJSONObject: [
                     "p_cloud_id": cloud,
                     "p_updated_at": item.updatedAt,
-                    "p_payload": makePayload(item, cloudIDs: cloudIDs)
+                    "p_payload": try await makePayload(item, cloudIDs: cloudIDs)
                 ])
                 _ = try await request("rest/v1/rpc/scribe_upsert_item",
                     method: "POST", token: token, body: body)
@@ -428,6 +434,20 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         }
         var inserted = 0
         var changed = 0
+        func restoreAttachment(_ data: [String: Any], cloud: String) async throws -> String {
+            let bytes: Data
+            if let objectPath = data["attachmentPath"] as? String, !objectPath.isEmpty {
+                bytes = try await request("storage/v1/object/authenticated/scribe-attachments/\(objectPath)", method: "GET", token: token)
+            } else if let encoded = data["attachmentBase64"] as? String, let decoded = Data(base64Encoded: encoded) {
+                bytes = decoded
+            } else { return "" }
+            let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let destination = folder.appendingPathComponent("cloud_" + cloud)
+            try bytes.write(to: destination, options: .atomic)
+            return destination.path
+        }
+
         var madeProgress = true
         while !pending.isEmpty && madeProgress {
             madeProgress = false
@@ -441,13 +461,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                 if let localID = localByCloud[cloud], let index = items.firstIndex(where: { $0.id == localID }) {
                     if remoteUpdated > items[index].updatedAt {
                         var uri = items[index].uri
-                        if (uri.isEmpty || !FileManager.default.fileExists(atPath: uri)),
-                           let encoded = data["attachmentBase64"] as? String, let bytes = Data(base64Encoded: encoded) {
-                            let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
-                            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                            let destination = folder.appendingPathComponent("cloud_" + cloud)
-                            try bytes.write(to: destination, options: .atomic)
-                            uri = destination.path
+                        if uri.isEmpty || !FileManager.default.fileExists(atPath: uri) {
+                            uri = try await restoreAttachment(data, cloud: cloud)
                         }
                         items[index] = ScribeItem(id: localID, parentId: parentID,
                             kind: data["kind"] as? String ?? items[index].kind,
@@ -462,14 +477,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                         changed += 1
                     }
                 } else {
-                    var uri = ""
-                    if let encoded = data["attachmentBase64"] as? String, let bytes = Data(base64Encoded: encoded) {
-                        let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
-                        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                        let destination = folder.appendingPathComponent("cloud_" + cloud)
-                        try bytes.write(to: destination, options: .atomic)
-                        uri = destination.path
-                    }
+                    let uri = try await restoreAttachment(data, cloud: cloud)
                     let id = nextID
                     nextID += 1
                     let item = ScribeItem(id: id, parentId: parentID, kind: data["kind"] as? String ?? "block",
@@ -495,8 +503,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         persist()
         cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
         try await upload(items, cloudIDs: cloudIDs)
-        let attachmentNote = skippedAttachments > 0 ? " \(skippedAttachments) attachment(s) over 8 MB were not uploaded." : ""
-        return "Synced \(inserted) new and \(changed) updated records." + attachmentNote
+        return "Synced \(inserted) new and \(changed) updated records, including attachments."
     }
 
     public func persist() {
