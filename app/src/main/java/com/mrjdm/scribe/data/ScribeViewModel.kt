@@ -40,6 +40,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun removeTree(item: ScribeItem) {
         viewModelScope.launch {
+            database.withTransaction {
             val all = dao.allItems()
             val deletedAt = System.currentTimeMillis()
             suspend fun mark(id: Long) {
@@ -51,6 +52,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun restoreTree(item: ScribeItem) {
         viewModelScope.launch {
+            database.withTransaction {
             val all = dao.allItems()
             val rootDeletedAt = dao.byId(item.id)?.deletedAt ?: item.deletedAt ?: return@launch
             suspend fun restore(id: Long) {
@@ -65,6 +67,7 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun deleteForever(item: ScribeItem) {
         viewModelScope.launch {
+            database.withTransaction {
             val all = dao.allItems()
             suspend fun remove(id: Long) {
                 all.filter { it.parentId == id }.forEach { remove(it.id) }
