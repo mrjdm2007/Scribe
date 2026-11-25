@@ -426,10 +426,7 @@ private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: Sc
     LaunchedEffect(topic.id, pages.map { it.id }) {
         allItems = vm.all()
     }
-    val pageIDs = pages.map { it.id }.toSet()
-    val words = allItems.asSequence()
-        .filter { it.parentId != null && it.parentId in pageIDs && it.uri.isBlank() && !it.tags.contains("type:image") && !it.tags.contains("type:pdf") }
-        .sumOf { it.body.trim().split(Regex("\\s+")).count { word -> word.isNotBlank() } }
+    val words = TopicWordCount.count(allItems, topic.id)
     val goal = savedGoal
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1C20)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
