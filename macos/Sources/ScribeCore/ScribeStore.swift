@@ -98,6 +98,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     private let historyURL: URL
     private let deletionQueueURL: URL
     private var pendingCloudDeletions: [String: Int64] = [:]
+    private var cloudSyncTimer: Timer?
 
     public init() {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -113,6 +114,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         if let data = try? Data(contentsOf: historyURL), let archives = try? JSONDecoder().decode([ScribeHistoryArchive].self, from: data) {
             snapshots = Dictionary(uniqueKeysWithValues: archives.map { ($0.itemId, $0.entries) })
         }
+        if ScribeCloudSessionVault.load() != nil { scheduleCloudSync() }
     }
     public var selected: ScribeItem? { items.first { $0.id == selectedID } }
     public var visibleItems: [ScribeItem] {
@@ -315,12 +317,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         update(item, tags: flashcardReviewTags(item.tags, rating: rating, nowMillis: now))
     }
 
-    public func syncSupabase(url: String, anonKey: String, email: String, password: String) async throws -> String {
+    public func syncSupabase(url: String, anonKey: String, email: String, password: String = "", refreshToken: String? = nil) async throws -> String {
         guard url.hasPrefix("https://"), let base = URL(string: url.trimmingCharacters(in: CharacterSet(charactersIn: "/"))) else {
             throw NSError(domain: "ScribeCloud", code: 1, userInfo: [NSLocalizedDescriptionKey: "Enter a valid HTTPS Supabase project URL."])
         }
-        guard !anonKey.isEmpty, !email.isEmpty, !password.isEmpty else {
-            throw NSError(domain: "ScribeCloud", code: 2, userInfo: [NSLocalizedDescriptionKey: "Enter the anon key, email and password."])
+        guard !anonKey.isEmpty, (!email.isEmpty && !password.isEmpty) || !(refreshToken ?? "").isEmpty else {
+            throw NSError(domain: "ScribeCloud", code: 2, userInfo: [NSLocalizedDescriptionKey: "Enter the anon key and sign in with your account."])
         }
         func request(_ path: String, method: String, token: String? = nil, prefer: String? = nil, body: Data? = nil, contentType: String = "application/json", upsert: Bool = false) async throws -> Data {
             let endpoint = URL(string: path, relativeTo: base.appendingPathComponent(""))!
@@ -341,13 +343,23 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             }
             return data
         }
-        let authBody = try JSONSerialization.data(withJSONObject: ["email": email, "password": password])
-        let authData = try await request("auth/v1/token?grant_type=password", method: "POST", body: authBody)
+        let usingRefreshToken = !(refreshToken ?? "").isEmpty
+        let authBody = try JSONSerialization.data(withJSONObject: usingRefreshToken
+            ? ["refresh_token": refreshToken!] : ["email": email, "password": password])
+        let grant = usingRefreshToken ? "refresh_token" : "password"
+        let authData = try await request("auth/v1/token?grant_type=\(grant)", method: "POST", body: authBody)
         let auth = try JSONSerialization.jsonObject(with: authData) as? [String: Any] ?? [:]
-        guard let token = auth["access_token"] as? String, let user = auth["user"] as? [String: Any],
+        guard let token = auth["access_token"] as? String,
+              let newRefreshToken = auth["refresh_token"] as? String,
+              let user = auth["user"] as? [String: Any],
               let userID = user["id"] as? String else {
             throw NSError(domain: "ScribeCloud", code: 3, userInfo: [NSLocalizedDescriptionKey: "Supabase did not return a valid session."])
         }
+        try ScribeCloudSessionVault.save(ScribeSavedCloudSession(
+            url: url.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
+            anonKey: anonKey, email: email, refreshToken: newRefreshToken
+        ))
+        scheduleCloudSync()
 
         for (cloud, deletedAt) in Array(pendingCloudDeletions) {
             let body = try JSONSerialization.data(withJSONObject: ["p_cloud_id": cloud, "p_deleted_at": deletedAt])
@@ -511,6 +523,26 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
         try await upload(items, cloudIDs: cloudIDs)
         return "Synced \(inserted) new and \(changed) updated records, including attachments."
+    }
+
+    public func syncSavedCloudSession() async throws -> String {
+        guard let session = ScribeCloudSessionVault.load() else {
+            throw NSError(domain: "ScribeCloud", code: 5, userInfo: [NSLocalizedDescriptionKey: "No saved cloud session. Sign in once to enable automatic sync."])
+        }
+        return try await syncSupabase(
+            url: session.url, anonKey: session.anonKey,
+            email: session.email, refreshToken: session.refreshToken
+        )
+    }
+
+    private func scheduleCloudSync() {
+        cloudSyncTimer?.invalidate()
+        cloudSyncTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                _ = try? await self.syncSavedCloudSession()
+            }
+        }
     }
 
     public func persist() {
