@@ -350,12 +350,8 @@ struct ScribeMacRoot: View {
         VStack(alignment:.leading,spacing:16) {
             HStack { Text("Flashcards").font(.largeTitle.bold()); Spacer(); Button { showingFlashcardComposer = true } label: { Label("Add flashcard", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
             let cards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }
-            func deckName(_ card: ScribeItem) -> String {
-                let tag = card.tags.split(separator: ";").first(where: { $0.hasPrefix("deck:") }) ?? card.tags.split(separator: ";").first(where: { $0.hasPrefix("subject:") })
-                return tag.map { String($0.drop(while: { $0 != ":" }).dropFirst()) }.flatMap { $0.isEmpty ? nil : $0 } ?? "General"
-            }
-            let decks = ["All decks"] + Array(Set(cards.map(deckName))).sorted()
-            let visibleCards = cards.filter { flashcardDeckFilter == "All decks" || deckName($0) == flashcardDeckFilter }
+            let decks = ["All decks"] + Array(Set(cards.map(flashcardDeckName))).sorted()
+            let visibleCards = cards.filter { flashcardDeckFilter == "All decks" || flashcardDeckName($0) == flashcardDeckFilter }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
             let dueCards = visibleCards.filter { card in
                 let dueAt = card.tags.split(separator: ";").first(where: { $0.hasPrefix("dueAt:") }).flatMap { Int64($0.dropFirst("dueAt:".count)) } ?? 0
@@ -383,6 +379,13 @@ struct ScribeMacRoot: View {
             else { VStack(spacing: 10) { Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(gold); Text("All caught up").font(.headline); Text("\(upcomingCount) cards scheduled for later review.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 180) }
             Spacer()
         }.padding(24)
+    }
+    private func flashcardDeckName(_ card: ScribeItem) -> String {
+        let tags = card.tags.split(separator: ";")
+        let tag = tags.first(where: { $0.hasPrefix("deck:") }) ?? tags.first(where: { $0.hasPrefix("subject:") })
+        guard let tag else { return "General" }
+        let value = String(tag.split(separator: ":", maxSplits: 1).last ?? "")
+        return value.isEmpty ? "General" : value
     }
     private func reviewButton(_ title:String,_ rating:Int,_ card:ScribeItem)->some View { Button(title) { store.review(card,rating:rating); revealed=false }.buttonStyle(.bordered) }
     private var focus: some View {
