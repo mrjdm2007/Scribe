@@ -503,8 +503,11 @@ struct ScribeMacRoot: View {
                             Button("S") { applyMarkup("~~", "~~") }
                             Button("Heading") { applyMarkup("## ", "") }
                             Button("List") { applyMarkup("- ", "") }
+                            Button("Task") { applyMarkup("- [ ] ", "") }
+                            Button("1. List") { applyMarkup("1. ", "") }
                             Button("Code") { applyMarkup("```\n", "\n```") }
                             Button("Math") { applyMarkup("\\(", "\\)") }
+                            Button("Display math") { applyMarkup("$\n", "\n$") }
                             Button("Quote") { applyMarkup("> ", "") }
                             Button("Link") { applyMarkup("[", "](https://)") }
                             Button("1. List") { applyMarkup("1. ", "") }
