@@ -55,7 +55,7 @@ struct ScribeMacRoot: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
         }
         .fileImporter(isPresented: $showingImport, allowedContentTypes: [.json]) { result in if case .success(let url) = result { _ = url.startAccessingSecurityScopedResource(); defer { url.stopAccessingSecurityScopedResource() }; try? store.importBackup(from: url) } }
-        .fileImporter(isPresented: $showingPDFImport, allowedContentTypes: [.pdf]) { result in
+        .fileImporter(isPresented: $showingPDFImport, allowedContentTypes: [.pdf, .image, .plainText]) { result in
             guard case .success(let source) = result else { return }
             let access = source.startAccessingSecurityScopedResource()
             defer { if access { source.stopAccessingSecurityScopedResource() } }
@@ -64,8 +64,11 @@ struct ScribeMacRoot: View {
             try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             let destination = root.appendingPathComponent(UUID().uuidString + "-" + source.lastPathComponent)
             if (try? FileManager.default.copyItem(at: source, to: destination)) != nil {
+                let ext = source.pathExtension.lowercased()
+                let typeTag = ext == "pdf" ? "pdf" : (["png", "jpg", "jpeg", "heic", "webp", "gif"].contains(ext) ? "image" : "text")
+                let body = typeTag == "text" ? ((try? String(contentsOf: destination, encoding: .utf8)) ?? "") : "\(typeTag.capitalized) attachment"
                 store.create(kind: "block", title: source.lastPathComponent, parentId: store.selectedID,
-                    body: "PDF attachment", tags: "type:pdf", uri: destination.path)
+                    body: body, tags: "type:\(typeTag)", uri: destination.path, switchToLibrary: false)
             }
         }
         .sheet(isPresented: $showingFlashcardComposer) {
@@ -103,7 +106,7 @@ struct ScribeMacRoot: View {
     }
     private var library: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic notebook").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import PDF", systemImage: "doc.richtext") } }
+            HStack { VStack(alignment: .leading) { Text("Your library").font(.largeTitle.bold()); Text("Course → Chapter → Topic notebook").foregroundStyle(.secondary) }; Spacer(); Button { showingPDFImport = true } label: { Label("Import attachment", systemImage: "paperclip") } }
             HStack(spacing: 12) {
                 if store.searchText.isEmpty {
                     hierarchy(parent: nil, title: "Courses")
@@ -209,6 +212,36 @@ struct ScribeMacRoot: View {
                         }.buttonStyle(.bordered).controlSize(.small)
                     }
                     Text("Notes use portable Markdown text, preserving line breaks and formatting markers across Android, Mac and window resizing.").font(.caption).foregroundStyle(.secondary)
+                    ForEach(store.children(of: item.id)) { block in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(block.title).font(.headline)
+                                Spacer()
+                                Button { store.update(block, bookmarked: !block.bookmarked) } label: {
+                                    Image(systemName: block.bookmarked ? "bookmark.fill" : "bookmark")
+                                }
+                                Button(role: .destructive) { store.remove(block) } label: {
+                                    Image(systemName: "trash")
+                                }
+                            }
+                            if block.tags.contains("type:pdf"), !block.uri.isEmpty {
+                                ScribePDFPreview(url: URL(fileURLWithPath: block.uri)).frame(minHeight: 240)
+                                Button("Extract PDF text") {
+                                    Task {
+                                        if let text = try? await ScribePDFOCR.extractText(from: URL(fileURLWithPath: block.uri)) {
+                                            store.update(block, body: text)
+                                        }
+                                    }
+                                }
+                            } else if block.tags.contains("type:image"), let image = NSImage(contentsOfFile: block.uri) {
+                                Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 240)
+                            } else {
+                                Text(block.body).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(12)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
                 }
                 if item.tags.contains("type:pdf"), !item.uri.isEmpty {
                     ScribePDFPreview(url: URL(fileURLWithPath: item.uri)).frame(minHeight: 340).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
