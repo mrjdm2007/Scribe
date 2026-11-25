@@ -14,6 +14,10 @@ public func belongsToTrashBatch(_ candidateDeletedAt: Int64?, rootDeletedAt: Int
     return abs(Double(candidateDeletedAt) - Double(rootDeletedAt)) <= 5_000
 }
 
+public func shouldCreateSnapshot(previousBody: String, nextBody: String, latestSnapshotAt: Int64, now: Int64) -> Bool {
+    previousBody != nextBody && (latestSnapshotAt <= 0 || now - latestSnapshotAt >= 60_000)
+}
+
 public func appendingTag(_ existingTags: String, tag rawTag: String) -> String {
     let clean = rawTag.replacingOccurrences(of: ";", with: " ").components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
     guard !clean.isEmpty else { return existingTags }
@@ -164,7 +168,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let old = items[index]
         let nextBody = body ?? old.body
-        if nextBody != old.body {
+        let latestSnapshotAt = snapshots[old.id]?.first?.savedAt ?? 0
+        if shouldCreateSnapshot(previousBody: old.body, nextBody: nextBody, latestSnapshotAt: latestSnapshotAt, now: now) {
             var history = snapshots[old.id, default: []]
             history.insert(ScribeHistoryEntry(title: old.title, body: old.body, savedAt: now), at: 0)
             snapshots[old.id] = Array(history.prefix(30))
