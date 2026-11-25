@@ -19,6 +19,18 @@ serve(async (request) => {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) return respond({ error: "Study AI is not configured. Add OPENAI_API_KEY to Supabase Edge Function secrets." }, 503);
 
+  // Require a real signed-in Supabase user; the public anon key alone must never
+  // be sufficient to spend the project's AI quota.
+  const authorization = request.headers.get("Authorization") ?? "";
+  const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  const supabaseURL = Deno.env.get("SUPABASE_URL");
+  const supabaseAnon = request.headers.get("apikey") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!bearer || !supabaseURL || !supabaseAnon) return respond({ error: "Sign in to Scribe Cloud before using the study assistant." }, 401);
+  const authCheck = await fetch(`${supabaseURL.replace(/\\/$/, "")}/auth/v1/user`, {
+    headers: { "apikey": supabaseAnon, "Authorization": `Bearer ${bearer}` },
+  });
+  if (!authCheck.ok) return respond({ error: "Your Scribe Cloud session is invalid or expired. Sign in again." }, 401);
+
   try {
     const body = await request.json() as RequestBody;
     const question = (body.question ?? "").trim();
