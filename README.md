@@ -23,9 +23,10 @@ The `desktop/` directory now contains a native SwiftUI app foundation with:
 - Note editing, search, bookmarks, soft-delete trash, restore, duplicate and reorder.
 - File/image/PDF attachment import and native PDF viewing with text extraction.
 - JSON backup/restore including attachment bytes and note snapshots.
-- Engineering unit conversion, formula storage, basic function plotting, question and flashcard entry, scientific table creation, and concept/circuit diagram starters.
+- Dimension-aware engineering unit conversion, formula storage, basic function plotting, scientific table creation, and concept/circuit diagram starters.
+- Flashcard review with Again/Hard/Good/Easy scheduling, question-and-answer practice, and a foreground focus timer with local session history.
 
-This is a meaningful first parity slice, **not full Android parity**. Missing desktop capabilities include rich formatted block editing/rendering, full study/revision scheduling, reminders and focus history, interactive flashcard/practice sessions, PDF export, OCR parity, persistent PDF annotations, full circuit tooling, and several Android-specific workflows. Google Drive sync and AI are not implemented on either platform.
+This is a meaningful first parity slice, **not full Android parity**. Missing desktop capabilities include rich formatted block editing/rendering, study reminders, PDF export, OCR parity, persistent PDF annotations, full circuit tooling, and several Android-specific workflows. Desktop rich-text editing and rendering also remain simpler than Android. Google Drive sync and the AI client/backend integration are not implemented on either platform.
 
 Build locally with Swift 5.9+ on macOS 13+:
 
