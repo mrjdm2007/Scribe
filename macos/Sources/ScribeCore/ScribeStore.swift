@@ -388,7 +388,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                       let savedAt = (entry["savedAt"] as? NSNumber)?.int64Value else { return nil }
                 return ScribeHistoryEntry(title: title, body: body, savedAt: savedAt)
             }
-            var byDate = Dictionary(uniqueKeysWithValues: (snapshots[itemID] ?? []).map { ($0.savedAt, $0) })
+            var byDate: [Int64: ScribeHistoryEntry] = [:]
+            for entry in snapshots[itemID] ?? [] { byDate[entry.savedAt] = entry }
             remoteEntries.forEach { byDate[$0.savedAt] = $0 }
             snapshots[itemID] = byDate.values.sorted { $0.savedAt > $1.savedAt }.prefix(30).map { $0 }
         }
@@ -425,7 +426,6 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                             createdAt: (data["createdAt"] as? NSNumber)?.int64Value ?? items[index].createdAt,
                             updatedAt: remoteUpdated,
                             deletedAt: (data["deletedAt"] as? NSNumber)?.int64Value)
-                        mergeHistory(data, itemID: localID)
                         changed += 1
                     }
                 } else {
@@ -449,9 +449,9 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                         deletedAt: (data["deletedAt"] as? NSNumber)?.int64Value)
                     items.append(item)
                     localByCloud[cloud] = id
-                    mergeHistory(data, itemID: id)
                     inserted += 1
                 }
+                if let mergedID = localByCloud[cloud] { mergeHistory(data, itemID: mergedID) }
                 madeProgress = true
             }
             pending = remaining

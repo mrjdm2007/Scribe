@@ -149,7 +149,6 @@ internal class ScribeSupabaseSync(
                                 updatedAt = remoteUpdated,
                                 deletedAt = if (data.isNull("deletedAt")) null else data.optLong("deletedAt"))
                             dao.update(updated)
-                            mergeHistory(updated.id, data)
                             localByCloud[cloud] = updated
                             changed++
                         }
@@ -171,9 +170,9 @@ internal class ScribeSupabaseSync(
                             deletedAt = if (data.isNull("deletedAt")) null else data.optLong("deletedAt"))
                         val id = dao.insert(newItem)
                         localByCloud[cloud] = newItem.copy(id = id)
-                        mergeHistory(id, data)
                         inserted++
                     }
+                    localByCloud[cloud]?.let { mergeHistory(it.id, data) }
                     iterator.remove()
                     progress = true
                 }
