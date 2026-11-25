@@ -47,6 +47,7 @@ struct ScribeMacRoot: View {
                 case .formulas: formulas
                 case .converter: converter
                 case .settings: backup
+                case .academic: AcademicToolsView()
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
         }
@@ -93,6 +94,7 @@ struct ScribeMacRoot: View {
         case .formulas: return "function"
         case .converter: return "arrow.left.arrow.right"
         case .settings: return "externaldrive"
+        case .academic: return "graduationcap"
         }
     }
     private var library: some View {
