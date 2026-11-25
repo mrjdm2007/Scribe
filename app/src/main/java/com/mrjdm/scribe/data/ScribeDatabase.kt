@@ -1,7 +1,9 @@
 package com.mrjdm.scribe.data
 
 import android.content.Context
-import androidx.room.*\nimport androidx.room.migration.Migration\nimport androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "scribe_items", indices = [Index("parentId"), Index("kind"), Index("updatedAt"), Index("deletedAt")])
