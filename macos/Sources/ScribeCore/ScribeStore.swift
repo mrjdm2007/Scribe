@@ -14,6 +14,13 @@ public func belongsToTrashBatch(_ candidateDeletedAt: Int64?, rootDeletedAt: Int
     return abs(Double(candidateDeletedAt) - Double(rootDeletedAt)) <= 5_000
 }
 
+public func appendingTag(_ existingTags: String, tag rawTag: String) -> String {
+    let clean = rawTag.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ";", with: " ")
+    guard !clean.isEmpty else { return existingTags }
+    let tags = existingTags.split(separator: ";").map(String.init).filter { !$0.isEmpty }
+    return tags.contains(clean) ? tags.joined(separator: ";") : (tags + [clean]).joined(separator: ";")
+}
+
 public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
     let current = min(365, max(1, currentDays))
     let next: Int64
@@ -302,10 +309,10 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         for item in selected {
             guard let index = items.firstIndex(where: { $0.id == item.id }) else { continue }
-            var tags = items[index].tags.split(separator: ";").map(String.init).filter { !$0.isEmpty }
-            if !tags.contains(clean) { tags.append(clean) }
-            items[index].tags = tags.joined(separator: ";")
-            items[index].updatedAt = now
+            let nextTags = appendingTag(items[index].tags, tag: clean)
+            guard nextTags != items[index].tags else { continue }
+            items[index].tags = nextTags
+            items[index].updatedAt = max(now, items[index].updatedAt + 1)
         }
         persist()
     }
