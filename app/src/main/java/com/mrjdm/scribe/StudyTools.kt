@@ -186,7 +186,9 @@ private fun replaceTag(tags: String, key: String, value: String): String {
 fun AcademicToolsHub(vm: ScribeViewModel) {
     var selected by remember { mutableStateOf("Converter") }
     val sections = listOf("Converter", "Graph", "Equations", "Circuit", "Tables", "Formula", "Questions", "Practice", "Reminders", "Focus", "Diagrams")
-    Column(Modifier.fillMaxSize()) {
+    val workbenchScroll = rememberScrollState()
+    val usesLazyQuestionList = selected == "Questions" || selected == "Practice"
+    Column(Modifier.fillMaxSize().then(if (usesLazyQuestionList) Modifier else Modifier.verticalScroll(workbenchScroll)).padding(bottom = 88.dp)) {
         Text("SCRIBE / WORKBENCH", color = ToolGold, fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
         Text("Academic workbench", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
