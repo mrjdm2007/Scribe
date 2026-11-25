@@ -102,15 +102,51 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     }
     public func update(_ item: ScribeItem, title: String? = nil, body: String? = nil, tags: String? = nil, bookmarked: Bool? = nil) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        items[index].title = title ?? item.title; items[index].body = body ?? item.body
-        items[index].tags = tags ?? item.tags; items[index].bookmarked = bookmarked ?? item.bookmarked
-        items[index].updatedAt = Int64(Date().timeIntervalSince1970 * 1000); persist()
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let old = items[index]
+        let nextBody = body ?? old.body
+        if nextBody != old.body {
+            var history = snapshots[old.id, default: []]
+            history.insert(ScribeHistoryEntry(title: old.title, body: old.body, savedAt: now), at: 0)
+            snapshots[old.id] = Array(history.prefix(30))
+        }
+        items[index].title = title ?? old.title
+        items[index].body = nextBody
+        items[index].tags = tags ?? old.tags
+        items[index].bookmarked = bookmarked ?? old.bookmarked
+        items[index].updatedAt = now
+        persist()
     }
     public func remove(_ item: ScribeItem) {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         func mark(_ id: Int64) { for child in items where child.parentId == id && child.deletedAt == nil { mark(child.id) }; if let i = items.firstIndex(where: { $0.id == id }) { items[i].deletedAt = now } }
         mark(item.id); persist()
     }
+    public func restoreFromTrash(_ item: ScribeItem) {
+        func restore(_ id: Int64) {
+            if let index = items.firstIndex(where: { $0.id == id }) {
+                items[index].deletedAt = nil
+            }
+            let childIDs = items.filter { $0.parentId == id }.map(\.id)
+            childIDs.forEach(restore)
+        }
+        restore(item.id)
+        persist()
+    }
+    public func deletePermanently(_ item: ScribeItem) {
+        func remove(_ id: Int64) {
+            let childIDs = items.filter { $0.parentId == id }.map(\.id)
+            childIDs.forEach(remove)
+            items.removeAll { $0.id == id }
+            snapshots.removeValue(forKey: id)
+        }
+        remove(item.id)
+        persist()
+    }
+    public func restoreVersion(_ item: ScribeItem, entry: ScribeHistoryEntry) {
+        update(item, title: entry.title, body: entry.body)
+    }
+
     public func review(_ item: ScribeItem, rating: Int) {
         let next = nextReviewIntervalDays(item.interval, rating: rating)
         let tags = item.tags.replacingOccurrences(of: #"interval:[0-9]+"#, with: "interval:\(next)", options: .regularExpression)

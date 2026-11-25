@@ -7,6 +7,8 @@ struct ScribeMacRoot: View {
     @State private var showingImport = false
     @State private var showingExport = false
     @State private var showingPDFImport = false
+    @State private var showingTrash = false
+    @State private var historyItem: ScribeItem?
     @State private var showingFlashcardComposer = false
     @State private var flashcardQuestion = ""
     @State private var flashcardAnswer = ""
@@ -75,6 +77,8 @@ struct ScribeMacRoot: View {
                 }.buttonStyle(.borderedProminent).tint(gold) }
             }.padding(22).frame(width: 420, height: 300)
         }
+        .sheet(isPresented: $showingTrash) { trashSheet }
+        .sheet(item: $historyItem) { item in historySheet(item) }
         .fileExporter(isPresented: $showingExport, document: BackupDocument(data: (try? store.backupData()) ?? Data("[]".utf8)), contentType: .json, defaultFilename: "Scribe-backup") { _ in }
         .onChange(of: store.focusSearch) { value in
             if value { searchFocused = true; store.focusSearch = false }
@@ -202,7 +206,16 @@ struct ScribeMacRoot: View {
                 } else {
                     TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) })).font(.system(size: 15)).scrollContentBackground(.hidden).padding(8).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 }
-                HStack { Button { store.update(item,bookmarked:!item.bookmarked) } label: { Label(item.bookmarked ? "Bookmarked" : "Bookmark",systemImage:"bookmark") }; Spacer(); Button(role:.destructive) { store.remove(item) } label: { Label("Move to trash",systemImage:"trash") } }
+                HStack {
+                    Button { store.update(item, bookmarked: !item.bookmarked) } label: {
+                        Label(item.bookmarked ? "Bookmarked" : "Bookmark", systemImage: "bookmark")
+                    }
+                    Button { historyItem = item } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+                    Spacer()
+                    Button(role: .destructive) { store.remove(item) } label: {
+                        Label("Move to trash", systemImage: "trash")
+                    }
+                }
             } else { VStack(spacing: 10) { Image(systemName: "text.book.closed").font(.system(size: 34)); Text("Select a course, topic or page").font(.headline); Text("Your notes and study material will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity) }
         }.padding(14).frame(minWidth: 440, maxWidth:.infinity,maxHeight:.infinity).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:14)).overlay(RoundedRectangle(cornerRadius:14).stroke(.white.opacity(0.10),lineWidth:1)).shadow(color:.black.opacity(0.24),radius:16,x:0,y:8)
     }
@@ -281,12 +294,58 @@ struct ScribeMacRoot: View {
             "nF": (1e-9, "C"), "µF": (1e-6, "C"), "mF": (1e-3, "C"), "F": (1, "C")
         ]
     }
+    private var trashSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recently deleted").font(.title2.bold())
+            let deleted = store.items.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? 0) > ($1.deletedAt ?? 0) }
+            if deleted.isEmpty {
+                ContentUnavailableView("Trash is empty", systemImage: "trash", description: Text("Deleted notes will appear here."))
+            } else {
+                List(deleted) { item in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.title)
+                            Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Restore") { store.restoreFromTrash(item) }
+                        Button(role: .destructive) { store.deletePermanently(item) } label: { Image(systemName: "trash.slash") }
+                    }
+                }
+            }
+        }
+        .padding(20).frame(minWidth: 520, minHeight: 360)
+    }
+    private func historySheet(_ item: ScribeItem) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Version history").font(.title2.bold())
+            let entries = store.snapshots[item.id] ?? []
+            if entries.isEmpty {
+                ContentUnavailableView("No previous versions", systemImage: "clock.arrow.circlepath", description: Text("Previous note versions will appear here after edits."))
+            } else {
+                List(Array(entries.enumerated()), id: \.offset) { _, entry in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(Date(timeIntervalSince1970: Double(entry.savedAt) / 1000), style: .date)
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(entry.body).lineLimit(3)
+                        HStack { Spacer(); Button("Restore this version") {
+                            store.restoreVersion(item, entry: entry)
+                            historyItem = nil
+                        } }
+                    }.padding(.vertical, 4)
+                }
+            }
+        }
+        .padding(20).frame(minWidth: 520, minHeight: 360)
+    }
+
     private var backup: some View {
         VStack(alignment:.leading,spacing:16) {
             Text("Backup & settings").font(.largeTitle.bold())
             Text("Scribe for macOS stores your library locally. Exchange JSON backups with the Android app.")
             Button { showingExport=true } label: { Label("Export Scribe JSON backup",systemImage:"square.and.arrow.up") }.buttonStyle(.borderedProminent).tint(gold)
             Button { showingImport=true } label: { Label("Restore Scribe JSON backup",systemImage:"square.and.arrow.down") }
+            Button { showingTrash = true } label: { Label("Recently deleted", systemImage: "trash") }
             Text("This initial macOS client supports the shared note hierarchy, search, flashcards, focus timer, formula shelf and electrical unit conversion. Some Android-only tools are not yet available on macOS.").foregroundStyle(.secondary)
             Spacer()
         }.padding(24)
