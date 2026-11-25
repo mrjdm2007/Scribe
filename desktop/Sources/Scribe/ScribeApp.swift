@@ -25,6 +25,9 @@ struct ScribeRootView: View {
     @State private var showBackupExporter = false
     @State private var showBackupImporter = false
     @State private var backupDocument = ScribeBackupDocument(data: Data())
+    @State private var showQuickCapture = false
+    @State private var quickTitle = ""
+    @State private var quickBody = ""
 
     private var selected: ScribeNode? { selectedID.flatMap(library.node) }
     private var displayed: [ScribeNode] {
@@ -63,8 +66,17 @@ struct ScribeRootView: View {
                         NavigationLink(value: item.id) { Label(item.title, systemImage: symbol(item.kind)) }
                     }
                 } else if section == "Trash" {
-                    List(library.trash, selection: $selectedID) { item in
-                        NavigationLink(value: item.id) { Label(item.title, systemImage: "trash") }
+                    List {
+                        ForEach(library.trash) { item in
+                            HStack(spacing: 8) {
+                                NavigationLink(value: item.id) { Label(item.title, systemImage: "trash") }
+                                Spacer(minLength: 4)
+                                Button { library.restore(item.id) } label: { Image(systemName: "arrow.uturn.backward") }
+                                    .buttonStyle(.borderless).help("Restore")
+                                Button(role: .destructive) { library.deleteForever(item.id) } label: { Image(systemName: "trash.slash") }
+                                    .buttonStyle(.borderless).help("Delete permanently")
+                            }
+                        }
                     }
                 } else {
                     List {
@@ -81,6 +93,7 @@ struct ScribeRootView: View {
             .toolbar {
                 ToolbarItemGroup {
                     Button { _ = library.add(kind: "course") } label: { Image(systemName: "plus") }.help("New course")
+                    Button { showQuickCapture = true } label: { Image(systemName: "square.and.pencil") }.help("Quick capture")
                     Menu {
                         Button("Export backup…") { exportBackup() }
                         Button("Import backup…") { showBackupImporter = true }
@@ -93,7 +106,7 @@ struct ScribeRootView: View {
             } else if section == "Study" {
                 DesktopStudyView()
             } else if let item = selected {
-                NodeEditorView(item: item)
+                NodeEditorView(item: item, selectedID: $selectedID)
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "books.vertical").font(.system(size: 38)).foregroundStyle(.secondary)
@@ -106,6 +119,24 @@ struct ScribeRootView: View {
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             guard let selected, selected.kind == "page", case .success(let urls) = result else { return }
             for url in urls { do { try library.importAttachment(from: url, parent: selected.id) } catch { library.lastError = error.localizedDescription } }
+        }
+        .sheet(isPresented: $showQuickCapture) {
+            NavigationStack {
+                Form {
+                    TextField("Note title", text: $quickTitle)
+                    TextEditor(text: $quickBody).frame(minHeight: 180)
+                }
+                .navigationTitle("Quick capture")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showQuickCapture = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            _ = library.add(kind: "topic", title: quickTitle, body: quickBody, tags: "quick-capture")
+                            quickTitle = ""; quickBody = ""; showQuickCapture = false
+                        }.disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }.frame(minWidth: 460, minHeight: 320)
         }
         .fileImporter(isPresented: $showBackupImporter, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
             do { if case .success(let urls) = result, let url = urls.first { let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }; try library.restoreBackup(Data(contentsOf: url)) } }
