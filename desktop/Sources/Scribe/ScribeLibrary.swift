@@ -351,6 +351,18 @@ final class ScribeLibrary: ObservableObject {
 
     func history(for id: UUID) -> [ScribeSnapshot] { snapshots.filter { $0.itemID == id }.sorted { $0.savedAt > $1.savedAt } }
 
+    func integritySummary() -> String {
+        let missing = visibleNodes.filter { node in
+            !node.uri.isEmpty && !FileManager.default.fileExists(atPath: node.uri)
+        }.count
+        let duplicates = Dictionary(grouping: visibleNodes.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            "\\($0.parentID?.uuidString ?? "root")|\\($0.kind)|\\($0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+        }.values.reduce(0) { $0 + max($1.count - 1, 0) }
+        let ids = Set(nodes.map(\\.id))
+        let brokenParents = nodes.filter { $0.parentID != nil && !ids.contains($0.parentID!) }.count
+        return "Checked \\(nodes.count) records.\\n\\nMissing attachment files: \\(missing)\\nPossible duplicate entries: \\(duplicates)\\nBroken parent references: \\(brokenParents)\\n\\nNo data was changed."
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: fileURL) else { return }
         do {
