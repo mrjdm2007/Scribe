@@ -1,0 +1,21 @@
+name: macOS build
+on:
+  push:
+    branches: [main, "feature/**"]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/macos.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/macos.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Scribe for macOS
+        working-directory: desktop
+        run: swift build -v
