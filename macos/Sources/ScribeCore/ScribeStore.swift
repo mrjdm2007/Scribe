@@ -16,18 +16,18 @@ public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
 }
 
 public struct ScribeItem: Identifiable, Codable, Hashable {
-    var id: Int64
-    var parentId: Int64?
-    var kind: String
-    var title: String
-    var body: String
-    var uri: String
-    var tags: String
-    var bookmarked: Bool
-    var position: Int
-    var createdAt: Int64
-    var updatedAt: Int64
-    var deletedAt: Int64?
+    public var id: Int64
+    public var parentId: Int64?
+    public var kind: String
+    public var title: String
+    public var body: String
+    public var uri: String
+    public var tags: String
+    public var bookmarked: Bool
+    public var position: Int
+    public var createdAt: Int64
+    public var updatedAt: Int64
+    public var deletedAt: Int64?
     public var interval: Int64 { Int64(tags.range(of: #"interval:[0-9]+"#, options: .regularExpression).map { String(tags[$0].dropFirst(9)) } ?? "1") ?? 1 }
 
     enum CodingKeys: String, CodingKey { case id, parentId, kind, title, body, uri, tags, bookmarked, position, createdAt, updatedAt, deletedAt }
@@ -56,7 +56,7 @@ enum CodableValue: Codable { case string(String), integer(Int64), bool(Bool), nu
     func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); switch self { case .string(let v): try c.encode(v); case .integer(let v): try c.encode(v); case .bool(let v): try c.encode(v); case .null: try c.encodeNil() } }
 }
 
-public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings"; var id: String { rawValue } }
+public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings"; public var id: String { rawValue } }
 
 @MainActor public final class ScribeStore: ObservableObject {
     @Published public var items: [ScribeItem] = []
