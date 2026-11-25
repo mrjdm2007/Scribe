@@ -155,6 +155,49 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun restore(items: List<ScribeItem>, snapshots: List<NoteSnapshot> = emptyList()) {
         dao.replaceLibrary(items, snapshots)
     }
+    fun bulkMove(items: List<ScribeItem>, targetParentId: Long?) {
+        viewModelScope.launch {
+            val all = dao.allItems()
+            val movingIds = items.map { it.id }.toSet()
+            if (targetParentId != null) {
+                var cursor: Long? = targetParentId
+                val visited = mutableSetOf<Long>()
+                while (cursor != null && visited.add(cursor)) {
+                    if (cursor in movingIds) return@launch
+                    cursor = all.firstOrNull { it.id == cursor }?.parentId
+                }
+            }
+            database.withTransaction {
+                var position = dao.children(targetParentId).first().size
+                items.distinctBy { it.id }.forEach { item ->
+                    if (item.deletedAt == null) dao.update(item.copy(parentId = targetParentId, position = position++, updatedAt = System.currentTimeMillis()))
+                }
+            }
+        }
+    }
+    fun bulkArchive(items: List<ScribeItem>) {
+        viewModelScope.launch { items.distinctBy { it.id }.forEach { item -> if (item.deletedAt == null) removeTree(item) } }
+    }
+    fun bulkRestore(items: List<ScribeItem>) {
+        viewModelScope.launch { items.distinctBy { it.id }.forEach { item -> if (item.deletedAt != null) restoreTree(item) } }
+    }
+    fun bulkTag(items: List<ScribeItem>, tag: String) {
+        val clean = tag.trim().replace(";", " ")
+        if (clean.isEmpty()) return
+        viewModelScope.launch {
+            database.withTransaction {
+                items.distinctBy { it.id }.forEach { item ->
+                    val current = dao.byId(item.id) ?: return@forEach
+                    val tags = current.tags.split(";").filter { it.isNotBlank() && !it.startsWith("bulk:") }
+                    dao.update(current.copy(tags = (tags + clean).distinct().joinToString(";"), updatedAt = System.currentTimeMillis()))
+                }
+            }
+        }
+    }
+    fun bulkDeleteForever(items: List<ScribeItem>) {
+        viewModelScope.launch { items.distinctBy { it.id }.forEach { item -> deleteForever(item) } }
+    }
+
     companion object {
         fun defaultTitle(kind: String) = when(kind) {
             "course" -> "Untitled course"; "chapter" -> "Untitled chapter"; "topic" -> "Untitled topic"

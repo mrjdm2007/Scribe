@@ -25,6 +25,8 @@ struct ScribeMacRoot: View {
     @State private var searchKindFilter = "All"
     @State private var searchSavedOnly = false
     @State private var searchSort = "Recent"
+    @State private var bulkSelectedIDs = Set<Int64>()
+    @State private var bulkTagDraft = ""
     @State private var draftTitle = ""
     @State private var draftBody = ""
     @State private var converterValue = "1"
@@ -246,8 +248,41 @@ struct ScribeMacRoot: View {
                             }
                         }
                         Text("SEARCH RESULTS · \(filteredSearchItems.count)").font(.caption.bold()).foregroundStyle(.secondary)
+                        if !bulkSelectedIDs.isEmpty {
+                            HStack(spacing: 8) {
+                                Text("\\(bulkSelectedIDs.count) selected").font(.caption.weight(.semibold))
+                                Button("Select all") { bulkSelectedIDs = Set(filteredSearchItems.map(\\.id)) }
+                                Menu("Move to") {
+                                    ForEach(store.items.filter { $0.deletedAt == nil && ["course", "chapter", "topic"].contains($0.kind) }) { target in
+                                        Button(target.title) {
+                                            store.bulkMove(filteredSearchItems.filter { bulkSelectedIDs.contains($0.id) }, to: target.id)
+                                            bulkSelectedIDs.removeAll()
+                                        }
+                                    }
+                                }
+                                TextField("Add tag", text: $bulkTagDraft).textFieldStyle(.roundedBorder).frame(maxWidth: 150)
+                                Button("Apply") {
+                                    store.bulkTag(filteredSearchItems.filter { bulkSelectedIDs.contains($0.id) }, tag: bulkTagDraft)
+                                    bulkTagDraft = ""
+                                    bulkSelectedIDs.removeAll()
+                                }.disabled(bulkTagDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                Button("Archive", role: .destructive) {
+                                    store.bulkArchive(filteredSearchItems.filter { bulkSelectedIDs.contains($0.id) })
+                                    bulkSelectedIDs.removeAll()
+                                }
+                                Button("Clear") { bulkSelectedIDs.removeAll() }
+                            }.font(.caption)
+                        }
                         List(filteredSearchItems, selection: $store.selectedID) { item in
-                            VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 8) {
+                                Button {
+                                    if bulkSelectedIDs.contains(item.id) { bulkSelectedIDs.remove(item.id) }
+                                    else { bulkSelectedIDs.insert(item.id) }
+                                } label: {
+                                    Image(systemName: bulkSelectedIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(bulkSelectedIDs.contains(item.id) ? gold : .secondary)
+                                }.buttonStyle(.plain).help("Select for bulk actions")
+                                VStack(alignment: .leading, spacing: 3) {
                                 Text(item.title)
                                 let bodyPreview = item.body.isEmpty ? "No content yet" : String(item.body.prefix(80))
                                 Text("\(item.kind.capitalized) · \(bodyPreview)")
@@ -257,6 +292,7 @@ struct ScribeMacRoot: View {
                                     .formatted(date: .abbreviated, time: .omitted)
                                 Text("\(wordCount) words · Edited \(editedDate)")
                                     .font(.system(size: 10)).foregroundStyle(.tertiary)
+                            }
                             }
                             .tag(item.id)
                             .contextMenu {

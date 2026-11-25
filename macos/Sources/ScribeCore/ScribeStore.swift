@@ -247,6 +247,50 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         remove(item.id)
         persist()
     }
+    public func bulkMove(_ selected: [ScribeItem], to targetParentID: Int64?) {
+        let movingIDs = Set(selected.map(\.id))
+        if var cursor = targetParentID {
+            var visited = Set<Int64>()
+            while visited.insert(cursor).inserted {
+                if movingIDs.contains(cursor) { return }
+                guard let parent = items.first(where: { $0.id == cursor })?.parentId else { break }
+                cursor = parent
+            }
+        }
+        var position = children(of: targetParentID).count
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        for item in selected where item.deletedAt == nil {
+            guard let index = items.firstIndex(where: { $0.id == item.id }) else { continue }
+            items[index].parentId = targetParentID
+            items[index].position = position
+            items[index].updatedAt = now
+            position += 1
+        }
+        persist()
+    }
+    public func bulkArchive(_ selected: [ScribeItem]) {
+        for item in selected where item.deletedAt == nil { remove(item) }
+    }
+    public func bulkRestore(_ selected: [ScribeItem]) {
+        for item in selected where item.deletedAt != nil { restoreFromTrash(item) }
+    }
+    public func bulkTag(_ selected: [ScribeItem], tag: String) {
+        let clean = tag.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ";", with: " ")
+        guard !clean.isEmpty else { return }
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        for item in selected {
+            guard let index = items.firstIndex(where: { $0.id == item.id }) else { continue }
+            var tags = items[index].tags.split(separator: ";").map(String.init).filter { !$0.isEmpty }
+            if !tags.contains(clean) { tags.append(clean) }
+            items[index].tags = tags.joined(separator: ";")
+            items[index].updatedAt = now
+        }
+        persist()
+    }
+    public func bulkDeletePermanently(_ selected: [ScribeItem]) {
+        for item in selected { deletePermanently(item) }
+    }
+
     public func restoreVersion(_ item: ScribeItem, entry: ScribeHistoryEntry) {
         update(item, title: entry.title, body: entry.body)
     }

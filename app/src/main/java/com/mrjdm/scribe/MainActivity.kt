@@ -121,6 +121,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var searchKind by rememberSaveable { mutableStateOf("All") }
     var searchSavedOnly by rememberSaveable { mutableStateOf(false) }
     var searchSort by rememberSaveable { mutableStateOf("Recent") }
+    var bulkSelectedIds by remember { mutableStateOf(setOf<Long>()) }
+    var bulkTagInput by remember { mutableStateOf("") }
+    var showBulkMove by remember { mutableStateOf(false) }
     var quickCapture by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
@@ -351,12 +354,44 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                             }
                             Spacer(Modifier.height(8.dp)); Text("SEARCH RESULTS · ${filteredSearchResults.size}", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             if (filteredSearchResults.isEmpty()) EmptyState("No matching notes", "Try another type, turn off Saved only, or change your search.")
-                            LazyColumn { items(filteredSearchResults, key = { it.id }) { item -> SearchRow(item) {
+                            if (bulkSelectedIds.isNotEmpty()) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${bulkSelectedIds.size} selected", color = Gold, fontSize = 12.sp)
+                                    TextButton(onClick = { bulkSelectedIds = filteredSearchResults.map { it.id }.toSet() }) { Text("All") }
+                                    TextButton(onClick = { showBulkMove = true }) { Text("Move") }
+                                    OutlinedTextField(bulkTagInput, { bulkTagInput = it }, modifier = Modifier.width(120.dp), singleLine = true, placeholder = { Text("Tag") })
+                                    TextButton(onClick = {
+                                        vm.bulkTag(filteredSearchResults.filter { it.id in bulkSelectedIds }, bulkTagInput)
+                                        bulkTagInput = ""; bulkSelectedIds = emptySet()
+                                    }, enabled = bulkTagInput.isNotBlank()) { Text("Tag") }
+                                    TextButton(onClick = {
+                                        vm.bulkArchive(filteredSearchResults.filter { it.id in bulkSelectedIds })
+                                        bulkSelectedIds = emptySet()
+                                    }) { Text("Archive", color = Color(0xFFE39A8F)) }
+                                    TextButton(onClick = { bulkSelectedIds = emptySet() }) { Text("Clear") }
+                                }
+                                DropdownMenu(expanded = showBulkMove, onDismissRequest = { showBulkMove = false }) {
+                                    children.filter { it.kind in listOf("course", "chapter", "topic") }.forEach { target ->
+                                        DropdownMenuItem(text = { Text(target.title) }, onClick = {
+                                            vm.bulkMove(filteredSearchResults.filter { it.id in bulkSelectedIds }, target.id)
+                                            bulkSelectedIds = emptySet(); showBulkMove = false
+                                        })
+                                    }
+                                }
+                            }
+                            LazyColumn { items(filteredSearchResults, key = { it.id }) { item ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(checked = item.id in bulkSelectedIds, onCheckedChange = { checked ->
+                                        bulkSelectedIds = if (checked) bulkSelectedIds + item.id else bulkSelectedIds - item.id
+                                    })
+                                    SearchRow(item) {
                                 scope.launch {
                                     if (item.kind == "block" && item.parentId != null) {
                                         val parent = vm.get(item.parentId)
                                         stack = if (parent != null) listOf(parent) else listOf(item)
                                     } else stack = listOf(item)
+                                }
+                                    }
                                 }
                             } } }
                         } else {
