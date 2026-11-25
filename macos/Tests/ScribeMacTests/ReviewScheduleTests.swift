@@ -94,4 +94,17 @@ final class ReviewScheduleTests: XCTestCase {
         XCTAssertEqual(independentCopyTags("subject:ECE;cloud_id:abc-123;priority:high"), "subject:ECE;priority:high")
         XCTAssertEqual(independentCopyTags("cloud_id:abc-123"), "")
     }
+    func testBulkTaggingPreservesMetadataAndAvoidsDuplicates() {
+        XCTAssertEqual(appendingTag("subject:ECE;bulk:review;priority:high", tag: "exam"),
+                       "subject:ECE;bulk:review;priority:high;exam")
+        XCTAssertEqual(appendingTag("subject:ECE;bulk:review", tag: "bulk:review"),
+                       "subject:ECE;bulk:review")
+    }
+
+    func testBulkTaggingSanitizesSeparatorsAndIgnoresBlankTags() {
+        XCTAssertEqual(appendingTag("subject:ECE", tag: " revision; notes "),
+                       "subject:ECE;revision  notes")
+        XCTAssertEqual(appendingTag("subject:ECE", tag: "  "), "subject:ECE")
+    }
+
 }
