@@ -191,6 +191,17 @@ struct NodeEditorView: View {
             if !item.uri.isEmpty {
                 HStack { Image(systemName: "paperclip"); Text(URL(fileURLWithPath: item.uri).lastPathComponent); Spacer(); Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.uri)]) } }
                     .font(.caption)
+                if URL(fileURLWithPath: item.uri).pathExtension.lowercased() == "pdf" {
+                    PDFPreview(url: URL(fileURLWithPath: item.uri)).frame(minHeight: 420)
+                    Button("Extract PDF text into this note") {
+                        if let document = PDFDocument(url: URL(fileURLWithPath: item.uri)), let text = document.string {
+                            item.body += (item.body.isEmpty ? "" : "\\n\\n") + text
+                            library.update(item)
+                        }
+                    }
+                } else if let image = NSImage(contentsOfFile: item.uri) {
+                    Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 360)
+                }
             }
             Spacer()
         }
@@ -209,6 +220,21 @@ struct NodeEditorView: View {
                 }.navigationTitle("Version history").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showHistory = false } } }
             }.frame(minWidth: 480, minHeight: 360)
         }
+    }
+}
+
+struct PDFPreview: NSViewRepresentable {
+    let url: URL
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.document = PDFDocument(url: url)
+        return view
+    }
+    func updateNSView(_ view: PDFView, context: Context) {
+        if view.document?.documentURL != url { view.document = PDFDocument(url: url) }
     }
 }
 
