@@ -12,6 +12,7 @@ struct DesktopStudyView: View {
     @State private var selectedDuration = 25
     @State private var sessionLabel = ""
     @State private var endDate: Date?
+    @State private var pausedRemaining: Int?
     @State private var completed = false
     @State private var reminderTime = Calendar.current.date(from: DateComponents(hour: 18, minute: 0)) ?? .now
     @State private var reminderStatus = "No daily reminder scheduled."
@@ -148,12 +149,28 @@ struct DesktopStudyView: View {
                         }
                     }
                 }
-                Button("End session") { self.endDate = nil; completed = false }.buttonStyle(.bordered)
+                HStack {
+                    Button("Pause") {
+                        pausedRemaining = max(0, Int(endDate.timeIntervalSinceNow))
+                        self.endDate = nil
+                    }.buttonStyle(.borderedProminent)
+                    Button("Reset") { self.endDate = nil; pausedRemaining = nil; completed = false }.buttonStyle(.bordered)
+                }
+            } else if let pausedRemaining {
+                Text(String(format: "%02d:%02d", pausedRemaining / 60, pausedRemaining % 60))
+                    .font(.system(size: 58, weight: .light, design: .rounded).monospacedDigit())
+                HStack {
+                    Button("Resume") {
+                        endDate = Date.now.addingTimeInterval(Double(pausedRemaining))
+                        self.pausedRemaining = nil
+                    }.buttonStyle(.borderedProminent)
+                    Button("Reset") { self.pausedRemaining = nil; completed = false }.buttonStyle(.bordered)
+                }
             } else {
                 Picker("Duration", selection: $selectedDuration) {
                     Text("15 min").tag(15); Text("25 min").tag(25); Text("45 min").tag(45); Text("60 min").tag(60)
                 }.pickerStyle(.segmented).frame(maxWidth: 420)
-                Button("Start focus") { completed = false; endDate = Date.now.addingTimeInterval(Double(selectedDuration * 60)) }
+                Button("Start focus") { completed = false; pausedRemaining = nil; endDate = Date.now.addingTimeInterval(Double(selectedDuration * 60)) }
                     .buttonStyle(.borderedProminent)
             }
             HStack(spacing: 12) {
