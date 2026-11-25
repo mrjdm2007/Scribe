@@ -49,6 +49,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var expanded by remember { mutableStateOf(false) }
     var reading by remember { mutableStateOf(false) }
+    var readingText by remember { mutableStateOf("") }
     var aiOpen by remember { mutableStateOf(false) }
     var aiQuestion by remember { mutableStateOf("") }
     var aiAnswer by remember { mutableStateOf("") }
@@ -97,8 +98,23 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
             Spacer(Modifier.width(6.dp))
             Text(clock, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
         }
-        if (item != null) {
-            FilledTonalButton(onClick = { reading = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+        if (item != null && item.kind in listOf("topic", "page", "block")) {
+            FilledTonalButton(onClick = {
+                reading = true
+                scope.launch {
+                    val all = vm.all()
+                    val output = StringBuilder(item.body)
+                    fun appendDescendants(parentId: Long, depth: Int) {
+                        all.filter { it.parentId == parentId && it.deletedAt == null }.sortedBy { it.position }.forEach { child ->
+                            output.append("\n\n").append("#".repeat((depth + 1).coerceAtMost(4))).append(" ").append(child.title).append("\n\n")
+                            if (child.body.isNotBlank()) output.append(child.body)
+                            appendDescendants(child.id, depth + 1)
+                        }
+                    }
+                    appendDescendants(item.id, 0)
+                    readingText = output.toString()
+                }
+            }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
                 Icon(Icons.Rounded.Book, null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Read")
@@ -199,7 +215,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                     Text(item.title, style = MaterialTheme.typography.headlineMedium, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(16.dp))
                     Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                        Text(item.body, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Serif, lineHeight = 29.sp), color = MaterialTheme.colorScheme.onSurface)
+                        Text(readingText.ifBlank { item.body }, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Serif, lineHeight = 29.sp), color = MaterialTheme.colorScheme.onSurface)
                     }
                     Divider()
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
