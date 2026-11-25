@@ -96,7 +96,7 @@ final class ScribeLibrary: ObservableObject {
         guard let index = nodes.firstIndex(where: { $0.id == item.id }) else { return }
         var revised = item; revised.updatedAt = .now
         if nodes[index].body != revised.body || nodes[index].title != revised.title {
-            let lastSnapshot = snapshots.filter { $0.itemID == item.id }.map(\\.savedAt).max()
+            let lastSnapshot = snapshots.filter { $0.itemID == item.id }.map(\.savedAt).max()
             if lastSnapshot == nil || Date().timeIntervalSince(lastSnapshot!) >= 60 {
                 snapshots.append(ScribeSnapshot(itemID: item.id, title: nodes[index].title, body: nodes[index].body))
             }
@@ -356,11 +356,11 @@ final class ScribeLibrary: ObservableObject {
             !node.uri.isEmpty && !FileManager.default.fileExists(atPath: node.uri)
         }.count
         let duplicates = Dictionary(grouping: visibleNodes.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-            "\\($0.parentID?.uuidString ?? "root")|\\($0.kind)|\\($0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+            "\($0.parentID?.uuidString ?? "root")|\($0.kind)|\($0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
         }.values.reduce(0) { $0 + max($1.count - 1, 0) }
-        let ids = Set(nodes.map(\\.id))
+        let ids = Set(nodes.map(\.id))
         let brokenParents = nodes.filter { $0.parentID != nil && !ids.contains($0.parentID!) }.count
-        return "Checked \\(nodes.count) records.\\n\\nMissing attachment files: \\(missing)\\nPossible duplicate entries: \\(duplicates)\\nBroken parent references: \\(brokenParents)\\n\\nNo data was changed."
+        return "Checked \(nodes.count) records.\n\nMissing attachment files: \(missing)\nPossible duplicate entries: \(duplicates)\nBroken parent references: \(brokenParents)\n\nNo data was changed."
     }
 
     private func load() {
