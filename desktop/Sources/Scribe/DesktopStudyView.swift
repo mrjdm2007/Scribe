@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 struct DesktopStudyView: View {
     @EnvironmentObject private var library: ScribeLibrary
