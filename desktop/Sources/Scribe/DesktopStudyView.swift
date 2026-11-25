@@ -74,8 +74,8 @@ struct DesktopStudyView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
             } else {
-                ContentUnavailableView("All caught up", systemImage: "checkmark.circle",
-                    description: Text("There are no flashcards due right now. Create cards in Study tools."))
+                Label("All caught up", systemImage: "checkmark.circle").font(.title2)
+                    Text("There are no flashcards due right now. Create cards in Study tools.").foregroundStyle(.secondary)
             }
         }
     }
@@ -96,8 +96,8 @@ struct DesktopStudyView: View {
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
             } else {
-                ContentUnavailableView("No questions yet", systemImage: "questionmark.circle",
-                    description: Text("Create questions in Study tools to practise them here."))
+                Label("No questions yet", systemImage: "questionmark.circle").font(.title2)
+                    Text("Create questions in Study tools to practise them here.").foregroundStyle(.secondary)
             }
         }
     }
