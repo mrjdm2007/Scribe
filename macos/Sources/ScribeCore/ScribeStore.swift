@@ -95,10 +95,10 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         return active.filter { $0.title.localizedCaseInsensitiveContains(searchText) || $0.body.localizedCaseInsensitiveContains(searchText) || $0.tags.localizedCaseInsensitiveContains(searchText) }
     }
     public func children(of parent: Int64?) -> [ScribeItem] { visibleItems.filter { $0.parentId == parent }.sorted { $0.position < $1.position } }
-    public func create(kind: String, title: String, parentId: Int64? = nil, body: String = "", tags: String = "", uri: String = "") {
+    public func create(kind: String, title: String, parentId: Int64? = nil, body: String = "", tags: String = "", uri: String = "", switchToLibrary: Bool = true) {
         let siblings = children(of: parentId)
         let item = ScribeItem(id: nextID, parentId: parentId, kind: kind, title: title, body: body, uri: uri, tags: tags, position: siblings.count)
-        nextID += 1; items.append(item); selectedID = item.id; activeTool = .library; persist()
+        nextID += 1; items.append(item); selectedID = item.id; if switchToLibrary { activeTool = .library }; persist()
     }
     public func update(_ item: ScribeItem, title: String? = nil, body: String? = nil, tags: String? = nil, bookmarked: Bool? = nil) {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }

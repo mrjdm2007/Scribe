@@ -86,7 +86,7 @@ struct AcademicToolsView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             Button("Save graph to library") {
                 store.create(kind: "block", title: "Graph · y = \(slope)x + \(intercept)",
-                             body: "Linear graph: y = \(slope)x + \(intercept)", tags: "type:graph")
+                             body: "Linear graph: y = \(slope)x + \(intercept)", tags: "type:graph", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
             Spacer()
         }
@@ -101,7 +101,7 @@ struct AcademicToolsView: View {
             Button("Save equation") {
                 guard !equationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                 store.create(kind: "formula", title: equationTitle.isEmpty ? "Equation" : equationTitle,
-                             body: equationText, tags: "subject:engineering")
+                             body: equationText, tags: "subject:engineering", switchToLibrary: false)
                 equationTitle = ""; equationText = ""
             }.buttonStyle(.borderedProminent)
             Text("Equations are stored as portable text so their source is preserved in Android backups.").font(.caption).foregroundStyle(.secondary)
@@ -120,7 +120,7 @@ struct AcademicToolsView: View {
             Button("Save circuit") {
                 store.create(kind: "block", title: circuitTitle,
                              body: circuitComponents + "\n\n" + circuitNotes,
-                             tags: "type:circuit;subject:electronics")
+                             tags: "type:circuit;subject:electronics", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
             Text("Use one component per line and describe node connections explicitly.").font(.caption).foregroundStyle(.secondary)
             Spacer()
@@ -143,7 +143,7 @@ struct AcademicToolsView: View {
             }
             Button("Save table") {
                 let text = tableCells.map { $0.joined(separator: "\t") }.joined(separator: "\n")
-                store.create(kind: "block", title: tableTitle, body: text, tags: "type:table")
+                store.create(kind: "block", title: tableTitle, body: text, tags: "type:table", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
             Spacer()
         }
@@ -161,7 +161,7 @@ struct AcademicToolsView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
             Button("Add question") {
                 guard !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                store.create(kind: "question", title: question, body: answer, tags: "subject:general")
+                store.create(kind: "question", title: question, body: answer, tags: "subject:general", switchToLibrary: false)
                 question = ""; answer = ""
             }.buttonStyle(.borderedProminent)
             Text("\(questions.count) saved questions").foregroundStyle(.secondary)
@@ -238,7 +238,7 @@ struct AcademicToolsView: View {
             TextEditor(text: $diagramOutline).frame(minHeight: 180).padding(6)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
             Button("Save diagram outline") {
-                store.create(kind: "block", title: diagramTitle, body: diagramOutline, tags: "type:diagram")
+                store.create(kind: "block", title: diagramTitle, body: diagramOutline, tags: "type:diagram", switchToLibrary: false)
             }.buttonStyle(.borderedProminent)
             Text("Create a structured outline here; it remains editable and can be exported with your library.").font(.caption).foregroundStyle(.secondary)
             Spacer()
