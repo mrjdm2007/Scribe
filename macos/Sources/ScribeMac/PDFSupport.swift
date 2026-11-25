@@ -16,7 +16,13 @@ struct ScribePDFWorkspace: View {
             HStack(spacing: 8) {
                 Button {
                     command = "highlight|" + UUID().uuidString
-                } label: { Label("Highlight selection", systemImage: "highlighter") }
+                } label: { Label("Highlight", systemImage: "highlighter") }
+                Button {
+                    command = "underline|" + UUID().uuidString
+                } label: { Label("Underline", systemImage: "underline") }
+                Button {
+                    command = "markup|" + UUID().uuidString
+                } label: { Label("Markup", systemImage: "square.dashed") }
                 TextField("Note annotation text", text: $annotationText)
                     .textFieldStyle(.roundedBorder)
                 Button {
@@ -58,7 +64,11 @@ struct ScribePDFPreview: NSViewRepresentable {
         let command = annotationCommand.components(separatedBy: "|").first ?? ""
         switch command {
         case "highlight":
-            context.coordinator.highlightSelection(in: view)
+            context.coordinator.annotateSelection(in: view, type: .highlight)
+        case "underline":
+            context.coordinator.annotateSelection(in: view, type: .underline)
+        case "markup":
+            context.coordinator.annotateSelection(in: view, type: .square)
         case "note":
             context.coordinator.addNote(annotationText, in: view)
         default:
@@ -70,7 +80,7 @@ struct ScribePDFPreview: NSViewRepresentable {
         var url: URL?
         var lastCommand = ""
 
-        func highlightSelection(in view: PDFView) {
+        func annotateSelection(in view: PDFView, type: PDFAnnotationSubtype) {
             guard let document = view.document,
                   let selection = view.currentSelection else { return }
             let lineSelections = selection.selectionsByLine()
@@ -79,8 +89,17 @@ struct ScribePDFPreview: NSViewRepresentable {
                 for page in line.pages {
                     let bounds = line.bounds(for: page).insetBy(dx: -1, dy: -1)
                     guard bounds.width > 0, bounds.height > 0 else { continue }
-                    let annotation = PDFAnnotation(bounds: bounds, forType: .highlight, withProperties: nil)
-                    annotation.color = NSColor.systemYellow.withAlphaComponent(0.48)
+                    let annotation = PDFAnnotation(bounds: bounds, forType: type, withProperties: nil)
+                    switch type {
+                    case .highlight:
+                        annotation.color = NSColor.systemYellow.withAlphaComponent(0.48)
+                    case .underline:
+                        annotation.color = NSColor.systemBlue
+                    default:
+                        annotation.color = NSColor.systemRed.withAlphaComponent(0.75)
+                        annotation.border = PDFBorder()
+                        annotation.border?.lineWidth = 1.5
+                    }
                     page.addAnnotation(annotation)
                 }
             }
