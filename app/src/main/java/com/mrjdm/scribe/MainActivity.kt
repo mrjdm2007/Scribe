@@ -319,7 +319,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        Row(Modifier.fillMaxSize().padding(padding).animateContentSize()) {
+        Row(Modifier.fillMaxSize().padding(padding).animateContentSize().background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.055f), Color.Transparent), radius = 1050f))) {
             if (isWide) {
                 NavigationRail(containerColor = Color(0xFF17181B), contentColor = Gold) {
                     Spacer(Modifier.height(12.dp))
