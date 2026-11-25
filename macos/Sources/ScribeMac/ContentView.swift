@@ -388,7 +388,7 @@ struct ScribeMacRoot: View {
                 }
                 Spacer()
             }
-        }.padding(12).frame(minWidth: 200).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.08), lineWidth: 1)).shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 6)
+        }.padding(12).frame(minWidth: 200).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).overlay(RoundedRectangle(cornerRadius: 14).stroke(LinearGradient(colors: [.white.opacity(0.24), .white.opacity(0.035), gold.opacity(0.14)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)).shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 6).shadow(color: gold.opacity(0.05), radius: 18, x: 0, y: 4)
     }
     private func hierarchyRow(_ item: ScribeItem) -> some View {
         HStack(spacing: 10) {
@@ -578,10 +578,14 @@ struct ScribeMacRoot: View {
                         .frame(minHeight: 340)
                         .padding(8)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(LinearGradient(colors: [.white.opacity(0.26), .white.opacity(0.035), gold.opacity(0.16)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+                        .shadow(color: gold.opacity(0.07), radius: 18, x: 0, y: 6)
                     } else {
                         TextEditor(text: Binding(get: { store.selected?.body ?? "" }, set: { store.update(item,body:$0) }))
                             .font(.system(size: 15)).scrollContentBackground(.hidden).padding(8)
                             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.035), gold.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+                            .shadow(color: gold.opacity(0.055), radius: 14, x: 0, y: 5)
                     }
                 }
                 HStack {
@@ -595,7 +599,7 @@ struct ScribeMacRoot: View {
                     }
                 }
             } else { VStack(spacing: 10) { Image(systemName: "text.book.closed").font(.system(size: 34)); Text("Select a course, topic or page").font(.headline); Text("Your notes and study material will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity) }
-        }.padding(14).frame(minWidth: 440, maxWidth:.infinity,maxHeight:.infinity).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:14)).overlay(RoundedRectangle(cornerRadius:14).stroke(.white.opacity(0.10),lineWidth:1)).shadow(color:.black.opacity(0.24),radius:16,x:0,y:8)
+        }.padding(14).frame(minWidth: 440, maxWidth:.infinity,maxHeight:.infinity).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:14)).overlay(RoundedRectangle(cornerRadius:14).stroke(LinearGradient(colors:[.white.opacity(0.24),.white.opacity(0.035),gold.opacity(0.15)],startPoint:.topLeading,endPoint:.bottomTrailing),lineWidth:1)).shadow(color:.black.opacity(0.24),radius:16,x:0,y:8).shadow(color:gold.opacity(0.055),radius:20,x:0,y:4)
     }
     private func searchRanges(in text: String, query: String) -> [NSRange] {
         guard !query.isEmpty else { return [] }
