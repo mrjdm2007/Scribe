@@ -1,7 +1,7 @@
 package com.mrjdm.scribe
 
 import android.content.Context
-import com.mrjdm.scribe.data.ScribeViewModel
+import com.mrjdm.scribe.data.ScribeViewModel\nimport com.mrjdm.scribe.data.ScribeItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
