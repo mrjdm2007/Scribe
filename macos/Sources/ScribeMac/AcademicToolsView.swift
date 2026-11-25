@@ -75,7 +75,7 @@ struct AcademicToolsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(24)
-        }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var graph: some View {
