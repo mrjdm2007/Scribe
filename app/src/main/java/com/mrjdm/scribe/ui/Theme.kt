@@ -98,3 +98,5 @@ fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier =
             ),
             shape
         )
+        // Re-clip the final reflective edge so no square draw layer leaks beyond the card radius.
+        .clip(shape)
