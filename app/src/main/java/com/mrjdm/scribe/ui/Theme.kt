@@ -1,12 +1,20 @@
 package com.mrjdm.scribe.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.Modifier
@@ -87,3 +95,35 @@ fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier =
             ),
             shape
         )
+
+/** Layered translucent surface with a soft top reflection and champagne edge. */
+fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier = this
+    .shadow(15.dp, shape, clip = false)
+    .background(
+        Brush.linearGradient(
+            listOf(
+                Color(0xFF343941).copy(alpha = 0.82f),
+                Color(0xFF20242A).copy(alpha = 0.94f),
+                Color(0xFF15181D).copy(alpha = 0.98f)
+            )
+        ),
+        shape
+    )
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            Brush.verticalGradient(
+                colors = listOf(Color.White.copy(alpha = 0.105f), Color.White.copy(alpha = 0.018f), Color.Transparent),
+                endY = size.height * 0.48f
+            )
+        )
+    }
+    .border(
+        BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(Color.White.copy(alpha = 0.27f), Color.White.copy(alpha = 0.045f), Color(0xFFD9BD91).copy(alpha = 0.20f))
+            )
+        ),
+        shape
+    )
