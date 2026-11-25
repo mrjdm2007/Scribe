@@ -235,6 +235,7 @@ struct ScribeMacRoot: View {
                                 ForEach(["All", "course", "chapter", "topic", "page", "block"], id: \.self) { Text($0.capitalized).tag($0) }
                             }.pickerStyle(.menu).frame(width: 120)
                             Toggle("Saved only", isOn: $searchSavedOnly).toggleStyle(.checkbox)
+                            Button("Reset") { searchKindFilter = "All"; searchSavedOnly = false; searchSort = "Recent" }
                             Spacer()
                             Button("Sort: \\(searchSort)") {
                                 let order = ["Recent", "Oldest", "Created", "Title", "Longest", "Shortest"]

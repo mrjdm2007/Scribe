@@ -344,6 +344,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                 }
                                 FilterChip(selected = searchSavedOnly, onClick = { searchSavedOnly = !searchSavedOnly }, label = { Text("Saved only") })
                                 TextButton(onClick = { searchSort = when (searchSort) { "Recent" -> "Oldest"; "Oldest" -> "Created"; "Created" -> "Title"; "Title" -> "Longest"; "Longest" -> "Shortest"; else -> "Recent" } }) { Text("Sort: $searchSort") }
+                                TextButton(onClick = { searchKind = "All"; searchSavedOnly = false; searchSort = "Recent" }) { Text("Reset") }
                             }
                             Spacer(Modifier.height(8.dp)); Text("SEARCH RESULTS · ${filteredSearchResults.size}", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
                             if (filteredSearchResults.isEmpty()) EmptyState("No matching notes", "Try another type, turn off Saved only, or change your search.")
