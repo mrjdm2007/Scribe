@@ -746,7 +746,6 @@ private fun TopicNotebook(
             TextButton(onClick = { noteValue = noteValue.wrapSelection("\\(", "\\)"); vm.update(liveTopic, body = noteValue.text) }) { Text("Math") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("> ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Quote") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("[", "](https://)") ; vm.update(liveTopic, body = noteValue.text) }) { Text("Link") }
-            TextButton(onClick = { noteValue = noteValue.wrapSelection("1. ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("1. List") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("| ", " |  |"); vm.update(liveTopic, body = noteValue.text) }) { Text("Table") }
             TextButton(onClick = { showLatexPreview = !showLatexPreview }) { Text(if (showLatexPreview) "Edit" else "Preview") }
             Box {
