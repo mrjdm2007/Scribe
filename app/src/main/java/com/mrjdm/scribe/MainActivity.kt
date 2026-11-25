@@ -1214,7 +1214,7 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~~\n", "\n~~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Code") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("| ", " |  |") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Table") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("\\(", "\\)") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Math") }
-                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("$\\n", "\\n$") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Display") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("$$\\n", "\\n$$") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Display") }
                 TextButton(onClick = { preview = !preview }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text(if (preview) "Edit" else "Preview") }
             }
             if (preview) LatexPreviewWebView(bodyValue.text, Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 420.dp))
