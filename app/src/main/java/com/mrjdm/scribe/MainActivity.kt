@@ -393,7 +393,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                 }
                                     }
                                 }
-                            } } }
+                            } }
                         } else {
                             if (recentItems.isNotEmpty()) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

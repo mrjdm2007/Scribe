@@ -243,7 +243,7 @@ struct ScribeMacRoot: View {
                             Toggle("Saved only", isOn: $searchSavedOnly).toggleStyle(.checkbox)
                             Button("Reset") { searchKindFilter = "All"; searchSavedOnly = false; searchSort = "Recent" }
                             Spacer()
-                            Button("Sort: \\(searchSort)") {
+                            Button("Sort: \(searchSort)") {
                                 let order = ["Recent", "Oldest", "Created", "Title", "Longest", "Shortest"]
                                 let index = order.firstIndex(of: searchSort) ?? 0
                                 searchSort = order[(index + 1) % order.count]
@@ -252,8 +252,8 @@ struct ScribeMacRoot: View {
                         Text("SEARCH RESULTS · \(filteredSearchItems.count)").font(.caption.bold()).foregroundStyle(.secondary)
                         if !bulkSelectedIDs.isEmpty {
                             HStack(spacing: 8) {
-                                Text("\\(bulkSelectedIDs.count) selected").font(.caption.weight(.semibold))
-                                Button("Select all") { bulkSelectedIDs = Set(filteredSearchItems.map(\\.id)) }
+                                Text("\(bulkSelectedIDs.count) selected").font(.caption.weight(.semibold))
+                                Button("Select all") { bulkSelectedIDs = Set(filteredSearchItems.map(\.id)) }
                                 Menu("Move to") {
                                     ForEach(store.items.filter { $0.deletedAt == nil && ["course", "chapter", "topic"].contains($0.kind) }) { target in
                                         Button(target.title) {
@@ -458,14 +458,14 @@ struct ScribeMacRoot: View {
                     ScribePDFWorkspace(url: URL(fileURLWithPath: item.uri))
                     HStack(spacing: 8) {
                         Picker("Type", selection: $pdfAnnotationKind) {
-                            ForEach(["Highlight", "Underline", "Note", "Markup"], id: \\.self) { Text($0) }
+                            ForEach(["Highlight", "Underline", "Note", "Markup"], id: \.self) { Text($0) }
                         }.frame(width: 130)
                         TextField("Annotation text", text: $pdfAnnotationDraft)
                         Button("Save") {
                             guard !pdfAnnotationDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                            store.create(kind: "block", title: "\\(pdfAnnotationKind) · PDF note",
+                            store.create(kind: "block", title: "\(pdfAnnotationKind) · PDF note",
                                 parentId: item.id, body: pdfAnnotationDraft,
-                                tags: "type:pdf_annotation;annotation:\\(pdfAnnotationKind.lowercased())")
+                                tags: "type:pdf_annotation;annotation:\(pdfAnnotationKind.lowercased())")
                             pdfAnnotationDraft = ""
                         }.buttonStyle(.borderedProminent).tint(gold)
                     }
