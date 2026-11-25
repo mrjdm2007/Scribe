@@ -221,27 +221,7 @@ struct ScribeMacRoot: View {
                             Button("Clear") { recentItemIDs = "" }.font(.caption)
                                 .buttonStyle(.plain).foregroundStyle(.secondary)
                         }
-                        let checklistLines = item.body.components(separatedBy: .newlines).filter { $0.range(of: #"^\s*[-*]\s+\[[ xX]\]"#, options: .regularExpression) != nil }
-                    let checklistDone = checklistLines.filter { $0.range(of: #"^\s*[-*]\s+\[[xX]\]"#, options: .regularExpression) != nil }.count
-                    let goal = item.tags.split(separator: ";").first(where: { $0.hasPrefix("wordGoal:") }).flatMap { Int($0.dropFirst("wordGoal:".count)) } ?? 0
-                    if !checklistLines.isEmpty || goal > 0 {
-                        VStack(alignment: .leading, spacing: 5) {
-                            if !checklistLines.isEmpty {
-                                HStack { Text("CHECKLIST").font(.caption.bold()); Spacer(); Text("\(checklistDone) / \(checklistLines.count) completed").font(.caption).foregroundStyle(.secondary) }
-                                ProgressView(value: Double(checklistDone), total: Double(checklistLines.count)).tint(gold)
-                            }
-                            if goal > 0 {
-                                HStack {
-                                    Text("WRITING GOAL").font(.caption.bold())
-                                    Spacer()
-                                    Text("\(editorWordCount) / \(goal) words").font(.caption).foregroundStyle(.secondary)
-                                    Button("Edit") { wordGoalDraft = String(goal); showingWordGoal = true }.buttonStyle(.plain)
-                                }
-                                ProgressView(value: min(1, Double(editorWordCount) / Double(goal))).tint(gold)
-                            }
-                        }.padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                    }
-                    ScrollView(.horizontal, showsIndicators: false) {
+                        ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(recentItems) { item in
                                     Button { store.selectedID = item.id } label: {
