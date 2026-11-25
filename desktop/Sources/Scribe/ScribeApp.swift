@@ -342,10 +342,17 @@ struct NodeEditorView: View {
                             Button("Code") { wrapSelection("`") }
                         }.buttonStyle(.bordered).controlSize(.small)
                     }
-                    SelectableTextEditor(text: $item.body, selectedRange: $selectedTextRange)
-                        .padding(10).frame(minHeight: 220)
-                        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
-                        .onChange(of: item.body) { _ in library.update(item) }
+                    if blockType == "checklist" {
+                        ChecklistBlockEditor(text: $item.body)
+                            .padding(10)
+                            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+                            .onChange(of: item.body) { _ in library.update(item) }
+                    } else {
+                        SelectableTextEditor(text: $item.body, selectedRange: $selectedTextRange)
+                            .padding(10).frame(minHeight: 220)
+                            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+                            .onChange(of: item.body) { _ in library.update(item) }
+                    }
                     if !item.body.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("FORMATTED PREVIEW").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -514,6 +521,68 @@ struct NodeEditorView: View {
     }
 }
 
+
+
+struct ChecklistBlockEditor: View {
+    @Binding var text: String
+
+    private var lines: [String] {
+        text.isEmpty ? ["[ ] "] : text.components(separatedBy: "\n")
+    }
+
+    private func updateLine(_ index: Int, _ value: String) {
+        var updated = lines
+        guard updated.indices.contains(index) else { return }
+        updated[index] = value
+        text = updated.joined(separator: "\n")
+    }
+
+    private func toggle(_ index: Int) {
+        guard lines.indices.contains(index) else { return }
+        let line = lines[index]
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let isChecked = trimmed.lowercased().hasPrefix("[x]")
+        let content = trimmed.count >= 3 ? String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces) : trimmed
+        updateLine(index, (isChecked ? "[ ] " : "[x] ") + content)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("CHECKLIST").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                HStack(spacing: 8) {
+                    Button { toggle(index) } label: {
+                        Image(systemName: line.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("[x]") ? "checkmark.square.fill" : "square")
+                            .foregroundStyle(.tint)
+                    }
+                    .buttonStyle(.plain)
+                    TextField("Checklist item", text: Binding(
+                        get: {
+                            let current = lines.indices.contains(index) ? lines[index] : ""
+                            let trimmed = current.trimmingCharacters(in: .whitespaces)
+                            return trimmed.count >= 3 && trimmed.hasPrefix("[") ? String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces) : current
+                        },
+                        set: { value in
+                            let checked = lines.indices.contains(index) && lines[index].trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("[x]")
+                            updateLine(index, (checked ? "[x] " : "[ ] ") + value)
+                        }
+                    ))
+                    Button(role: .destructive) {
+                        var updated = lines
+                        if updated.indices.contains(index) { updated.remove(at: index) }
+                        text = updated.joined(separator: "\n")
+                    } label: { Image(systemName: "minus.circle").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button { text = (text.isEmpty ? "[ ] New item" : text + "\n[ ] New item") } label: {
+                Label("Add checklist item", systemImage: "plus")
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
 
 struct SelectableTextEditor: NSViewRepresentable {
     @Binding var text: String
