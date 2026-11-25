@@ -2,7 +2,8 @@ import SwiftUI
 import ScribeCore
 
 /// Persistent compact focus timer shared by every macOS screen.
-struct ScribeFloatingStudyTimer: View {\n    let onAskAI: () -> Void
+struct ScribeFloatingStudyTimer: View {
+    let onAskAI: () -> Void
     @AppStorage("scribe.focus.runningSince") private var runningSince = 0.0
     @AppStorage("scribe.focus.elapsedBeforeRun") private var elapsedBeforeRun = 0.0
     @AppStorage("scribe.focus.visible") private var visible = true
@@ -18,7 +19,8 @@ struct ScribeFloatingStudyTimer: View {\n    let onAskAI: () -> Void
 
     var body: some View {
         if visible {
-            VStack(alignment: .trailing, spacing: 8) {\n                Button(action: onAskAI) { Label("Ask Scribe AI", systemImage: "sparkles").padding(.horizontal, 13).padding(.vertical, 9).background(.ultraThinMaterial, in: Capsule()).overlay(Capsule().stroke(.white.opacity(0.17))) }.buttonStyle(.plain)
+            VStack(alignment: .trailing, spacing: 8) {
+                Button(action: onAskAI) { Label("Ask Scribe AI", systemImage: "sparkles").padding(.horizontal, 13).padding(.vertical, 9).background(.ultraThinMaterial, in: Capsule()).overlay(Capsule().stroke(.white.opacity(0.17))) }.buttonStyle(.plain)
                 if expanded {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack { Text("STUDY TIME").font(.caption.bold()).tracking(1.2); Spacer(); Button { expanded = false } label: { Image(systemName: "xmark") }.buttonStyle(.plain) }
