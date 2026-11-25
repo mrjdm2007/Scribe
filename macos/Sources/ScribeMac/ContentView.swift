@@ -408,7 +408,7 @@ struct ScribeMacRoot: View {
                         }.listStyle(.inset).frame(minWidth: 250)
                     }.padding(12).scribeGlassPanel(cornerRadius: 14)
                 }
-                editor.frame(minWidth: 320).padding(14).scribeGlassPanel()
+                editor.frame(minWidth: 320).padding(14).scribeGlassPanel().accessibilityLabel("Notebook editor")
             }
         }.padding(22)
     }
