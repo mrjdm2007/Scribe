@@ -24,7 +24,8 @@ The `desktop/` directory now contains a native SwiftUI app foundation with:
 - File/image/PDF attachment import and native PDF viewing with text extraction.
 - JSON backup/restore including attachment bytes and note snapshots.
 - Dimension-aware engineering unit conversion, formula storage, basic function plotting, scientific table creation, and concept/circuit diagram starters.
-- Flashcard review with Again/Hard/Good/Easy scheduling, question-and-answer practice, and a foreground focus timer with local session history.
+- Markdown formatting controls and live formatted preview for desktop note blocks.
+- Flashcard review with Again/Hard/Good/Easy scheduling, question-and-answer practice, foreground focus timer with local session history, and daily local study reminders.
 
 This is a meaningful first parity slice, **not full Android parity**. Missing desktop capabilities include rich formatted block editing/rendering, study reminders, PDF export, OCR parity, persistent PDF annotations, full circuit tooling, and several Android-specific workflows. Desktop rich-text editing and rendering also remain simpler than Android. Google Drive sync and the AI client/backend integration are not implemented on either platform.
 
