@@ -346,6 +346,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         }
         persist()
 
+        var skippedAttachments = 0
         func makePayload(_ item: ScribeItem, cloudIDs: [Int64: String]) -> [String: Any] {
             let id = cloudIDs[item.id] ?? cloudID(item.tags) ?? UUID().uuidString.lowercased()
             var payload: [String: Any] = [
@@ -357,9 +358,13 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             if let parent = item.parentId, let parentCloud = cloudIDs[parent] { payload["parentCloudId"] = parentCloud }
             else { payload["parentCloudId"] = NSNull() }
             payload["deletedAt"] = item.deletedAt.map { $0 as Any } ?? NSNull()
-            if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)), data.count <= 8 * 1024 * 1024 {
-                payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
-                payload["attachmentBase64"] = data.base64EncodedString()
+            if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
+                if data.count <= 8 * 1024 * 1024 {
+                    payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
+                    payload["attachmentBase64"] = data.base64EncodedString()
+                } else {
+                    skippedAttachments += 1
+                }
             }
             return payload
         }
@@ -456,10 +461,14 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             }
             pending = remaining
         }
+        if !pending.isEmpty {
+            throw NSError(domain: "ScribeCloud", code: 4, userInfo: [NSLocalizedDescriptionKey: "Sync stopped safely: \\(pending.count) cloud record(s) have missing parent records. No incomplete sync was reported as successful."])
+        }
         persist()
         cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
         try await upload(items, cloudIDs: cloudIDs)
-        return "Synced \\(inserted) new and \\(changed) updated records."
+        let attachmentNote = skippedAttachments > 0 ? " \\(skippedAttachments) attachment(s) over 8 MB were not uploaded." : ""
+        return "Synced \\(inserted) new and \\(changed) updated records." + attachmentNote
     }
 
     public func persist() {
