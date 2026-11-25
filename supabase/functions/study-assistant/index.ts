@@ -66,7 +66,7 @@ serve(async (request) => {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-6.2-astra",
+        model: Deno.env.get("OPENAI_MODEL") ?? "gpt-6-mini",
         instructions,
         tools,
         input: `STUDY MODE: ${mode}\n\nSTUDENT QUESTION:\n${question}\n\nRETRIEVED NOTE CONTEXT:\n${context || "No matching notes were supplied."}`,
