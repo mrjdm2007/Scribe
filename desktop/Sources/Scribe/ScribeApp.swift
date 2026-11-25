@@ -95,8 +95,11 @@ struct ScribeRootView: View {
             } else if let item = selected {
                 NodeEditorView(item: item)
             } else {
-                ContentUnavailableView("Your notes, organised.", systemImage: "books.vertical",
-                    description: Text("Choose a notebook item or create a course to begin."))
+                VStack(spacing: 12) {
+                    Image(systemName: "books.vertical").font(.system(size: 38)).foregroundStyle(.secondary)
+                    Text("Your notes, organised.").font(.title2.weight(.semibold))
+                    Text("Choose a notebook item or create a course to begin.").foregroundStyle(.secondary)
+                }
             }
         }
         .background(.regularMaterial)
