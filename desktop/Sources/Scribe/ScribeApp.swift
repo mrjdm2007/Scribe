@@ -272,7 +272,7 @@ struct NodeEditorView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(12).background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
                             if blockType == "crosslink", let targetID = linkedTopicID, let target = library.node(targetID) {
-                                Button("Open linked topic: \\(target.title)") { selectedID = targetID }
+                                Button("Open linked topic: \(target.title)") { selectedID = targetID }
                                     .buttonStyle(.link)
                             }
                         }
@@ -292,7 +292,7 @@ struct NodeEditorView: View {
                 if item.kind == "page" {
                     Button { showAddBlock = true } label: { Label("Add content", systemImage: "plus") }.buttonStyle(.borderedProminent)
                 } else if let childKind {
-                    Button { _ = library.add(kind: childKind, parent: item.id) } label: { Label("Add \\(childKind.capitalized)", systemImage: "plus") }.buttonStyle(.borderedProminent)
+                    Button { _ = library.add(kind: childKind, parent: item.id) } label: { Label("Add \(childKind.capitalized)", systemImage: "plus") }.buttonStyle(.borderedProminent)
                 }
                 if item.kind == "page" {
                     Button { showTopicLinker = true } label: { Label("Link topic", systemImage: "link") }
@@ -319,7 +319,7 @@ struct NodeEditorView: View {
         }
         .fileExporter(isPresented: $showPDFExporter, document: pdfDocument, contentType: .pdf,
                       defaultFilename: item.title.replacingOccurrences(of: "/", with: "-") + ".pdf") { result in
-            if case .failure(let error) = result { library.lastError = "PDF export failed: \\(error.localizedDescription)" }
+            if case .failure(let error) = result { library.lastError = "PDF export failed: \(error.localizedDescription)" }
         }
         .sheet(isPresented: $showAddBlock) {
             NavigationStack {
@@ -336,7 +336,7 @@ struct NodeEditorView: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showAddBlock = false } }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Add") {
-                            let tags = "type:\\(newBlockType)" + (newBlockTags.isEmpty ? "" : ";\\(newBlockTags)")
+                            let tags = "type:\(newBlockType)" + (newBlockTags.isEmpty ? "" : ";\(newBlockTags)")
                             _ = library.add(kind: "block", parent: item.id, title: newBlockTitle.isEmpty ? newBlockType.capitalized : newBlockTitle,
                                             body: newBlockBody, tags: tags)
                             newBlockType = "text"; newBlockTitle = ""; newBlockBody = ""; newBlockTags = ""; showAddBlock = false
@@ -350,7 +350,7 @@ struct NodeEditorView: View {
                 List(library.visibleNodes.filter { $0.kind == "topic" }) { topic in
                     Button {
                         _ = library.add(kind: "block", parent: item.id, title: topic.title,
-                                        body: "topic-ref:\\(topic.id)", tags: "type:crosslink;target:\\(topic.id)")
+                                        body: "topic-ref:\(topic.id)", tags: "type:crosslink;target:\(topic.id)")
                         showTopicLinker = false
                     } label: {
                         Label(topic.title, systemImage: "link")
