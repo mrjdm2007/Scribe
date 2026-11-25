@@ -15,7 +15,7 @@ public func belongsToTrashBatch(_ candidateDeletedAt: Int64?, rootDeletedAt: Int
 }
 
 public func appendingTag(_ existingTags: String, tag rawTag: String) -> String {
-    let clean = rawTag.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ";", with: " ")
+    let clean = rawTag.replacingOccurrences(of: ";", with: " ").components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
     guard !clean.isEmpty else { return existingTags }
     let tags = existingTags.split(separator: ";").map(String.init).filter { !$0.isEmpty }
     return tags.contains(clean) ? tags.joined(separator: ";") : (tags + [clean]).joined(separator: ";")
