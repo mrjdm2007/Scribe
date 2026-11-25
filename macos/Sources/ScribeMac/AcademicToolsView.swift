@@ -2,7 +2,8 @@ import SwiftUI
 import UserNotifications
 import ScribeCore
 
-// macOS academic tools use the same portable question encoding as Android.\nstruct AcademicToolsView: View {
+// macOS academic tools use the same portable question encoding as Android.
+struct AcademicToolsView: View {
     @EnvironmentObject private var store: ScribeStore
     @State private var section = "Graph"
     @State private var graphExpression = "sin(x)"
@@ -31,7 +32,7 @@ import ScribeCore
     @State private var reminderStatus = ""
 
     private let sections = ["Graph", "Equations", "Circuit", "Tables", "Questions", "Practice", "Reminders", "Diagrams"]
-    private var questions: [ScribeItem] { store.items.filter { $0.kind == "study_question" && $0.deletedAt == nil }.sorted { $0.updatedAt > $1.updatedAt } }
+    private var questions: [ScribeItem] { store.items.filter { $0.kind == "study_question" && $0.deletedAt == nil && $0.body.contains("---OPTIONS---") }.sorted { $0.updatedAt > $1.updatedAt } }
 
     private func parsedQuestion(_ item: ScribeItem) -> (prompt: String, options: [String], correct: String, explanation: String) {
         let optionsMarker = "\n---OPTIONS---\n"
