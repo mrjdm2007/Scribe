@@ -11,7 +11,6 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.net.URLEncoder
 import java.util.UUID
 
 /**
@@ -48,28 +47,6 @@ internal class ScribeSupabaseSync(
                     val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                     val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                     if (code !in 200..299) error("Supabase request failed ($code): $response")
-                    return response
-                } finally { connection.disconnect() }
-            }
-            fun requestBytes(path: String, method: String, bytes: ByteArray? = null, token: String? = null,
-                             contentType: String = "application/octet-stream", upsert: Boolean = false): ByteArray {
-                val connection = URL("$root/$path").openConnection() as HttpURLConnection
-                try {
-                    connection.requestMethod = method
-                    connection.connectTimeout = 20_000
-                    connection.readTimeout = 60_000
-                    connection.setRequestProperty("apikey", anonKey)
-                    connection.setRequestProperty("Content-Type", contentType)
-                    if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
-                    if (upsert) connection.setRequestProperty("x-upsert", "true")
-                    if (bytes != null) {
-                        connection.doOutput = true
-                        connection.outputStream.use { it.write(bytes) }
-                    }
-                    val code = connection.responseCode
-                    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                    val response = stream?.use { it.readBytes() } ?: byteArrayOf()
-                    if (code !in 200..299) error("Supabase storage request failed ($code): ${String(response)}")
                     return response
                 } finally { connection.disconnect() }
             }
@@ -126,25 +103,6 @@ internal class ScribeSupabaseSync(
                 request("rest/v1/rpc/scribe_delete_item", "POST",
                     JSONObject().put("p_cloud_id", deletion.cloudId).put("p_deleted_at", deletion.deletedAt).toString(), token)
                 dao.clearCloudDeletion(deletion.cloudId)
-            }
-            dao.pendingCloudDeletions().forEach { deletion ->
-                request("rest/v1/rpc/scribe_delete_item", "POST",
-                    JSONObject().put("p_cloud_id", deletion.cloudId).put("p_deleted_at", deletion.deletedAt).toString(), token)
-                dao.clearCloudDeletion(deletion.cloudId)
-            }
-            val tombstoneRows = JSONArray(request("rest/v1/scribe_cloud_tombstones?select=cloud_id", "GET", token = token))
-            val tombstonedIds = (0 until tombstoneRows.length()).mapNotNull { tombstoneRows.optJSONObject(it)?.optString("cloud_id") }.toSet()
-            if (tombstonedIds.isNotEmpty()) {
-                val allForDeletion = dao.allItems()
-                val cloudForItem = allForDeletion.associate { it.id to cloudId(it.tags) }
-                val roots = allForDeletion.filter { cloudForItem[it.id] in tombstonedIds }.map { it.id }.toMutableSet()
-                fun addDescendants(parent: Long) {
-                    allForDeletion.filter { it.parentId == parent }.forEach { child ->
-                        if (roots.add(child.id)) addDescendants(child.id)
-                    }
-                }
-                roots.toList().forEach(::addDescendants)
-                roots.forEach { id -> dao.deleteSnapshotsForItem(id); dao.deleteId(id) }
             }
             var local = dao.allItems()
             val ids = mutableMapOf<Long, String>()
@@ -277,7 +235,7 @@ internal class ScribeSupabaseSync(
             }
             // Re-upload the merged local view so records pulled from another device are
             // present in this device's next sync cycle as well.
-            local = dao.allItems().filter { cloudId(it.tags) !in tombstonedIds }
+            local = dao.allItems()
             ids.clear()
             local.forEach { item -> cloudId(item.tags)?.let { ids[item.id] = it } }
             upload(local)
