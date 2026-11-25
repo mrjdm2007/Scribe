@@ -351,6 +351,13 @@ struct ScribeMacRoot: View {
     }
     private func reviewButton(_ title:String,_ rating:Int,_ card:ScribeItem)->some View { Button(title) { store.review(card,rating:rating); reviewedCardIDs.insert(card.id); revealed=false }.buttonStyle(.bordered) }
     private var focus: some View {
+        let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Calendar.current.startOfDay(for: Date())
+        let weeklySessions = store.items.filter { $0.kind == "study_session" && $0.deletedAt == nil && Date(timeIntervalSince1970: Double($0.createdAt) / 1000) >= weekStart }
+        let weeklyMinutes = weeklySessions.reduce(0) { total, item in
+            let value = item.tags.range(of: #"minutes:\\d+"#, options: .regularExpression)
+                .map { Int(item.tags[$0].dropFirst(8)) ?? 0 } ?? 0
+            return total + value
+        }
         VStack(spacing:20) {
             Text("Focus mode").font(.largeTitle.bold())
             TextField("What are you studying?",text:$store.sessionLabel).textFieldStyle(.roundedBorder).frame(maxWidth:360)
@@ -358,6 +365,20 @@ struct ScribeMacRoot: View {
             HStack { ForEach([15,25,45,60],id:\.self) { m in Button("\(m) min") { store.focusMinutes=m;store.remaining=m*60 }.disabled(store.isRunning) } }
             HStack { Button(store.isRunning ? "Pause":"Start") { store.startTimer() }.buttonStyle(.borderedProminent).tint(gold); Button("Reset") { store.resetTimer() } }
             Text("\(store.completedSessions) completed this visit").foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("THIS WEEK").font(.caption.bold()).foregroundStyle(.secondary)
+                    Text("\(weeklyMinutes / 60)h \(weeklyMinutes % 60)m").font(.title2.bold()).foregroundStyle(gold)
+                    Text("Study time").font(.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SESSIONS").font(.caption.bold()).foregroundStyle(.secondary)
+                    Text("\(weeklySessions.count)").font(.title2.bold()).foregroundStyle(gold)
+                    Text("Completed this week").font(.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
+            }
+            Text("Completion notifications appear even when Scribe is not the active window, if notifications are allowed in macOS settings.")
+                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Spacer()
         }.padding(30)
     }

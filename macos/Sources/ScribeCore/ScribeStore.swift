@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import UserNotifications
 
 public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
     let current = max(1, currentDays)
@@ -272,16 +273,26 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     }
     public func startTimer() {
         guard !isRunning else { isRunning = false; timer?.invalidate(); return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         isRunning = true
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
                 if self.remaining > 0 { self.remaining -= 1 } else {
                     self.isRunning = false; self.timer?.invalidate(); self.completedSessions += 1
-                    let session = ScribeItem(id: self.nextID, kind: "study_session", title: self.sessionLabel, body: "Completed a \(self.focusMinutes)-minute focus session.")
+                    let session = ScribeItem(id: self.nextID, kind: "study_session", title: self.sessionLabel,
+                        body: "Completed a \(self.focusMinutes)-minute focus session.",
+                        tags: "minutes:\(self.focusMinutes)")
                     self.nextID += 1
                     self.items.append(session)
                     self.persist()
+                    let content = UNMutableNotificationContent()
+                    content.title = "Focus session complete"
+                    content.body = "\(self.sessionLabel) · \(self.focusMinutes) minutes completed."
+                    content.sound = .default
+                    let request = UNNotificationRequest(
+                        identifier: "scribe-focus-\(session.id)", content: content, trigger: nil)
+                    UNUserNotificationCenter.current().add(request)
                 }
             }
         }
