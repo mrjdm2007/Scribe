@@ -535,6 +535,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         )
     }
 
+    public func disableCloudSync() {
+        cloudSyncTimer?.invalidate()
+        cloudSyncTimer = nil
+        ScribeCloudSessionVault.clear()
+    }
+
     private func scheduleCloudSync() {
         cloudSyncTimer?.invalidate()
         cloudSyncTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
