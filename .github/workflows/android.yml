@@ -1,7 +1,7 @@
 name: Android CI
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "feature/**"]
     paths: ["app/**", "gradle/**", "build.gradle.kts", "settings.gradle.kts", "gradle.properties", "gradlew", ".github/workflows/android.yml"]
   pull_request:
     branches: ["main"]
