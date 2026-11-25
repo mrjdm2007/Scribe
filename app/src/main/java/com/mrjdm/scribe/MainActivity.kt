@@ -413,9 +413,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 }
 
 @Composable
-@Composable
 private fun TopicWordGoalCard(topic: ScribeItem, pages: List<ScribeItem>, vm: ScribeViewModel) {
-    val scope = rememberCoroutineScope()
     var allItems by remember(topic.id) { mutableStateOf(emptyList<ScribeItem>()) }
     var goalDraft by remember(topic.id) {
         mutableStateOf(topic.tags.split(';', ',').firstOrNull { it.trim().startsWith("wordGoal:") }
