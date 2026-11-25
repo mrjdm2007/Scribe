@@ -24,6 +24,23 @@ internal fun appendTag(existingTags: String, rawTag: String): String {
     return if (clean in tags) tags.joinToString(";") else (tags + clean).joinToString(";")
 }
 
+internal fun validateBackupItems(items: List<ScribeItem>): String? {
+    if (items.any { it.id <= 0L }) return "Backup contains an invalid item ID."
+    val ids = items.map { it.id }
+    if (ids.distinct().size != ids.size) return "Backup contains duplicate item IDs."
+    val byId = items.associateBy { it.id }
+    for (item in items) {
+        if (item.parentId != null && item.parentId !in byId) return "Backup contains an item with a missing parent."
+        val visited = mutableSetOf<Long>()
+        var cursor: Long? = item.id
+        while (cursor != null) {
+            if (!visited.add(cursor)) return "Backup contains a circular notebook hierarchy."
+            cursor = byId[cursor]?.parentId
+        }
+    }
+    return null
+}
+
 class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     private val database = ScribeDatabase.get(app)
     private val dao = database.dao()
