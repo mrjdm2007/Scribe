@@ -35,6 +35,7 @@ struct ScribeRootView: View {
     private var selected: ScribeNode? { selectedID.flatMap(library.node) }
     private var displayed: [ScribeNode] {
         switch section {
+        case "Recent": return library.recentlyEdited
         case "Bookmarks": return library.bookmarks
         case "Trash": return library.trash
         case "Search": return library.search(query)
@@ -47,6 +48,7 @@ struct ScribeRootView: View {
             VStack(spacing: 0) {
                 Picker("Section", selection: $section) {
                     Text("Library").tag("Library")
+                    Text("Recent").tag("Recent")
                     Text("Bookmarks").tag("Bookmarks")
                     Text("Trash").tag("Trash")
                     Text("Tools").tag("Tools")
@@ -65,6 +67,19 @@ struct ScribeRootView: View {
                         }
                     }
                     .listStyle(.sidebar)
+                } else if section == "Recent" {
+                    List(library.recentlyEdited, selection: $selectedID) { item in
+                        NavigationLink(value: item.id) {
+                            HStack(spacing: 10) {
+                                Image(systemName: symbol(item.kind)).foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(item.title.isEmpty ? "Untitled" : item.title)
+                                    Text("\(item.kind.capitalized) · \(item.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
                 } else if section == "Bookmarks" {
                     List(library.bookmarks, selection: $selectedID) { item in
                         NavigationLink(value: item.id) { Label(item.title, systemImage: symbol(item.kind)) }
@@ -142,7 +157,7 @@ struct ScribeRootView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "books.vertical").font(.system(size: 38)).foregroundStyle(.secondary)
                     Text("Your notes, organised.").font(.title2.weight(.semibold))
-                    Text("Choose a notebook item or create a course to begin.").foregroundStyle(.secondary)
+                    Text(section == "Recent" ? "Pages and topics you have edited recently will appear here." : "Choose a notebook item or create a course to begin.").foregroundStyle(.secondary)
                 }
             }
         }
