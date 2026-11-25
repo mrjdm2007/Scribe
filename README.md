@@ -17,6 +17,7 @@ Scribe is an offline-first notebook for Android and macOS. The macOS app is bein
 - Spaced-repetition flashcards.
 - Multiple-choice question bank and local practice sessions with explanations and scoring.
 - Local study reminders, focus timer, saved session history, configurable daily goals, study streaks and weekly study statistics on both platforms.
+- Per-topic word-count goals across every page in the topic, with photo/PDF attachments excluded.
 - Formula pad and searchable formula shelf, with MathJax-rendered equation previews on Android and macOS (source fallback when offline).
 - Engineering unit conversion across length, voltage, current, resistance, capacitance, frequency, power, energy, time, speed, charge and inductance.
 - Function plotting for supported functions, scientific tables, circuit sketch starter and concept-map outline.
