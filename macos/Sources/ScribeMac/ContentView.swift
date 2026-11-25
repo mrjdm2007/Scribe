@@ -303,11 +303,11 @@ struct ScribeMacRoot: View {
                 TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
                 let editorWordCount = item.body.split(whereSeparator: { $0.isWhitespace }).count
                 HStack(spacing: 7) {
-                    Text("\\(editorWordCount) words")
+                    Text("\(editorWordCount) words")
                     Text("·")
-                    Text("\\(max(1, (editorWordCount + 199) / 200)) min read")
+                    Text("\(max(1, (editorWordCount + 199) / 200)) min read")
                     Text("·")
-                    Text("\\(item.body.count) characters")
+                    Text("\(item.body.count) characters")
                 }.font(.caption).foregroundStyle(.secondary)
                 if item.kind == "topic" {
                     HStack {
