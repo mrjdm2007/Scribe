@@ -89,7 +89,11 @@ serve(async (request) => {
         (part.annotations ?? []).filter((annotation: any) => annotation.type === "url_citation")
       )
     );
-    return respond({ answer: output, citations, response_id: payload.id ?? null });
+    const sourceLines = citations
+      .filter((citation: any) => typeof citation.url === "string" && citation.url.startsWith("https://"))
+      .map((citation: any) => `- ${citation.title ?? "External source"}: ${citation.url}`);
+    const answer = output + (sourceLines.length ? "\\n\\nSources:\\n" + sourceLines.join("\\n") : "");
+    return respond({ answer, citations, response_id: payload.id ?? null });
   } catch (error) {
     return respond({ error: error instanceof Error ? error.message : "Unexpected study assistant error." }, 500);
   }
