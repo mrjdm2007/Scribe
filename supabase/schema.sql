@@ -96,3 +96,30 @@ begin
 end;
 $$;
 grant execute on function public.scribe_delete_item(uuid, bigint) to authenticated;
+
+
+-- Private object storage for attachments larger than the JSON sync threshold.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('scribe-attachments', 'scribe-attachments', false, 52428800)
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
+
+drop policy if exists "Scribe users read own attachments" on storage.objects;
+create policy "Scribe users read own attachments" on storage.objects
+for select to authenticated
+using (bucket_id = 'scribe-attachments' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Scribe users upload own attachments" on storage.objects;
+create policy "Scribe users upload own attachments" on storage.objects
+for insert to authenticated
+with check (bucket_id = 'scribe-attachments' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Scribe users update own attachments" on storage.objects;
+create policy "Scribe users update own attachments" on storage.objects
+for update to authenticated
+using (bucket_id = 'scribe-attachments' and (storage.foldername(name))[1] = auth.uid()::text)
+with check (bucket_id = 'scribe-attachments' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "Scribe users delete own attachments" on storage.objects;
+create policy "Scribe users delete own attachments" on storage.objects
+for delete to authenticated
+using (bucket_id = 'scribe-attachments' and (storage.foldername(name))[1] = auth.uid()::text);
