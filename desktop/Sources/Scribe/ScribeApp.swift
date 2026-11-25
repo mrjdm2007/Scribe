@@ -256,6 +256,7 @@ struct NodeEditorView: View {
     @State private var newBlockBody = ""
     @State private var newBlockTags = ""
     @State private var showPDFExporter = false
+    @State private var selectedTextRange = NSRange(location: 0, length: 0)
     @State private var pdfDocument = ScribePDFDocument(data: Data())
     private func preparePDFExport() {
         do {
@@ -263,14 +264,25 @@ struct NodeEditorView: View {
             showPDFExporter = true
         } catch { library.lastError = error.localizedDescription }
     }
-    private func wrapBody(_ marker: String) {
-        guard !item.body.isEmpty else { item.body = "\(marker)text\(marker)"; library.update(item); return }
-        item.body = "\(marker)\(item.body)\(marker)"
+    private func wrapSelection(_ marker: String) {
+        let source = item.body as NSString
+        let safeRange = NSIntersectionRange(selectedTextRange, NSRange(location: 0, length: source.length))
+        let selected = source.substring(with: safeRange)
+        let content = selected.isEmpty ? "text" : selected
+        let replacement = marker + content + marker
+        item.body = source.replacingCharacters(in: safeRange, with: replacement)
+        selectedTextRange = selected.isEmpty
+            ? NSRange(location: safeRange.location + marker.utf16.count, length: content.utf16.count)
+            : NSRange(location: safeRange.location + replacement.utf16.count, length: 0)
         library.update(item)
     }
-    private func prefixBody(_ prefix: String) {
-        item.body = item.body.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { prefix + $0 }.joined(separator: "\n")
+    private func prefixSelection(_ prefix: String) {
+        let source = item.body as NSString
+        let safeRange = NSIntersectionRange(selectedTextRange, NSRange(location: 0, length: source.length))
+        let selected = source.substring(with: safeRange)
+        let content = selected.isEmpty ? "text" : selected
+        item.body = source.replacingCharacters(in: safeRange, with: prefix + content)
+        selectedTextRange = NSRange(location: safeRange.location + prefix.utf16.count, length: content.utf16.count)
         library.update(item)
     }
 
@@ -315,17 +327,17 @@ struct NodeEditorView: View {
                 if !isMediaAttachment {
                     if item.kind == "block" {
                         HStack(spacing: 8) {
-                            Button("Bold") { wrapBody("**") }
-                            Button("Italic") { wrapBody("*") }
-                            Button("Underline") { wrapBody("__") }
-                            Button("Strike") { wrapBody("~~") }
-                            Button("Heading") { prefixBody("## ") }
-                            Button("Bullet") { prefixBody("- ") }
-                            Button("Quote") { prefixBody("> ") }
-                            Button("Code") { wrapBody("`") }
+                            Button("Bold") { wrapSelection("**") }
+                            Button("Italic") { wrapSelection("*") }
+                            Button("Underline") { wrapSelection("__") }
+                            Button("Strike") { wrapSelection("~~") }
+                            Button("Heading") { prefixSelection("## ") }
+                            Button("Bullet") { prefixSelection("- ") }
+                            Button("Quote") { prefixSelection("> ") }
+                            Button("Code") { wrapSelection("`") }
                         }.buttonStyle(.bordered).controlSize(.small)
                     }
-                    TextEditor(text: $item.body).font(.body).scrollContentBackground(.hidden)
+                    SelectableTextEditor(text: $item.body, selectedRange: $selectedTextRange)
                         .padding(10).frame(minHeight: 220)
                         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
                         .onChange(of: item.body) { _ in library.update(item) }
@@ -493,6 +505,68 @@ struct NodeEditorView: View {
                     }
                 }.navigationTitle("Version history").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showHistory = false } } }
             }.frame(minWidth: 480, minHeight: 360)
+        }
+    }
+}
+
+
+struct SelectableTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var selectedRange: NSRange
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .noBorder
+        let editor = NSTextView()
+        editor.isRichText = false
+        editor.allowsUndo = true
+        editor.font = NSFont.systemFont(ofSize: 14)
+        editor.textContainerInset = NSSize(width: 8, height: 8)
+        editor.isVerticallyResizable = true
+        editor.isHorizontallyResizable = false
+        editor.autoresizingMask = [.width]
+        editor.textContainer?.widthTracksTextView = true
+        editor.delegate = context.coordinator
+        editor.string = text
+        scroll.documentView = editor
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let editor = scroll.documentView as? NSTextView else { return }
+        context.coordinator.parent = self
+        if editor.string != text {
+            context.coordinator.isApplyingExternalChange = true
+            editor.string = text
+            context.coordinator.isApplyingExternalChange = false
+        }
+        let maxLength = (editor.string as NSString).length
+        let location = min(max(selectedRange.location, 0), maxLength)
+        let length = min(max(selectedRange.length, 0), maxLength - location)
+        let safeRange = NSRange(location: location, length: length)
+        if editor.selectedRange() != safeRange { editor.setSelectedRange(safeRange) }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: SelectableTextEditor
+        var isApplyingExternalChange = false
+
+        init(_ parent: SelectableTextEditor) { self.parent = parent }
+
+        func textDidChange(_ notification: Notification) {
+            guard !isApplyingExternalChange,
+                  let editor = notification.object as? NSTextView else { return }
+            parent.text = editor.string
+            parent.selectedRange = editor.selectedRange()
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard !isApplyingExternalChange,
+                  let editor = notification.object as? NSTextView else { return }
+            parent.selectedRange = editor.selectedRange()
         }
     }
 }
