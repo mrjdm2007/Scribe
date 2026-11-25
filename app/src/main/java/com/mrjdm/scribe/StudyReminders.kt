@@ -25,6 +25,19 @@ private const val EXTRA_MESSAGE = "reminder_message"
 private const val ACTION_MARK_DONE = "com.mrjdm.scribe.REMINDER_DONE"
 private const val ACTION_SNOOZE = "com.mrjdm.scribe.REMINDER_SNOOZE"
 
+internal fun isReminderCompleted(item: ScribeItem): Boolean =
+    Regex("(?:^|;)completedAt:\\d+(?:;|$)").containsMatchIn(item.tags)
+
+internal fun completedReminder(item: ScribeItem, completedAtMillis: Long): ScribeItem {
+    val withoutCompletion = item.tags.split(";").filter {
+        it.isNotBlank() && !it.startsWith("completedAt:")
+    }
+    return item.copy(
+        tags = (withoutCompletion + "completedAt:$completedAtMillis").joinToString(";"),
+        updatedAt = completedAtMillis
+    )
+}
+
 internal fun snoozedReminder(item: ScribeItem, dueAtMillis: Long): ScribeItem {
     val dueTag = "dueAt:$dueAtMillis"
     val matcher = Regex("(^|;)dueAt:\\d+")
@@ -69,13 +82,15 @@ class StudyReminderReceiver : BroadcastReceiver() {
                     if (intent.action == ACTION_MARK_DONE) {
                         val dao = ScribeDatabase.get(context).dao()
                         dao.byId(id)?.let { item ->
-                            dao.update(item.copy(deletedAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()))
+                            if (!isReminderCompleted(item)) {
+                                dao.update(completedReminder(item, System.currentTimeMillis()))
+                            }
                         }
                     } else {
                         val dueAt = System.currentTimeMillis() + 10 * 60 * 1000L
                         val dao = ScribeDatabase.get(context).dao()
                         val item = dao.byId(id)
-                        if (item != null && item.deletedAt == null) {
+                        if (item != null && item.deletedAt == null && !isReminderCompleted(item)) {
                             dao.update(snoozedReminder(item, dueAt))
                             scheduleStudyReminder(context, id, item.title, item.body, dueAt)
                         }
@@ -131,7 +146,7 @@ class StudyBootReceiver : BroadcastReceiver() {
                 runCatching {
                     val items = ScribeDatabase.get(context).dao().allItems()
                     val now = System.currentTimeMillis()
-                    items.filter { it.kind == "study_reminder" && it.deletedAt == null }.forEach { item ->
+                    items.filter { it.kind == "study_reminder" && it.deletedAt == null && !isReminderCompleted(it) }.forEach { item ->
                         val at = item.tags.substringAfter("dueAt:", "").substringBefore(";").toLongOrNull()
                         if (at != null && at > now) scheduleStudyReminder(context, item.id, item.title, item.body, at)
                     }

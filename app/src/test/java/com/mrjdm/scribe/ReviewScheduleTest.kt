@@ -84,3 +84,23 @@ class ReviewScheduleTest {
         assertEquals(365L, nextReviewIntervalDays(Long.MAX_VALUE, 3))
     }
 }
+
+    @Test fun markDoneCompletesReminderWithoutMovingItToTrash() {
+        val original = com.mrjdm.scribe.data.ScribeItem(
+            id = 8, kind = "study_reminder", title = "Revise ECE",
+            tags = "subject:ECE;dueAt:1000;priority:high"
+        )
+        val completed = completedReminder(original, 9000)
+        assertEquals("subject:ECE;dueAt:1000;priority:high;completedAt:9000", completed.tags)
+        assertEquals(null, completed.deletedAt)
+        assertEquals(true, isReminderCompleted(completed))
+        assertEquals(false, isReminderCompleted(original))
+    }
+
+    @Test fun completingReminderReplacesOldCompletionTimestamp() {
+        val original = com.mrjdm.scribe.data.ScribeItem(
+            id = 9, kind = "study_reminder", title = "Revise",
+            tags = "completedAt:100;subject:Math"
+        )
+        assertEquals("subject:Math;completedAt:200", completedReminder(original, 200).tags)
+    }
