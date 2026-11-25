@@ -1075,7 +1075,7 @@ private fun RichMarkdownEditor(value: String, onValueChange: (String, Int, Int) 
 <style>body{margin:0;padding:12px;background:transparent;color:#e8e3da;font:16px/1.7 sans-serif}#editor{min-height:320px;outline:none;overflow-wrap:anywhere}#editor:empty:before{content:"Start writing…";color:#888}h1,h2,h3{color:#f0d8ad}blockquote{border-left:3px solid #d5b98c;padding-left:12px}pre,code{background:#24272d;padding:4px;border-radius:5px}table{border-collapse:collapse}td,th{border:1px solid #555;padding:5px}</style>
 </head><body><div id="editor" contenteditable="true" spellcheck="true"></div><script>
 const e=document.getElementById("editor");let last="";
-function md(n){if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType!==1)return "";const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
+function md(n){if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
 if(t==="br")return "\n";if(t==="b"||t==="strong")return "**"+c()+"**";if(t==="i"||t==="em")return "*"+c()+"*";if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
 if(/^h[1-6]$/.test(t))return "#".repeat(+t[1])+" "+c()+"\n\n";if(t==="blockquote")return c().split("\n").map(x=>"> "+x).join("\n")+"\n\n";
 if(t==="pre")return "    "+(n.innerText||"").replace(/\n/g,"\n    ")+"\n\n";if(t==="a")return "["+c()+"]("+n.getAttribute("href")+")";
