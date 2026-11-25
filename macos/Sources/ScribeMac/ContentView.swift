@@ -603,7 +603,7 @@ private struct FlashcardEditSheet: View {
         _answer = State(initialValue: card.body)
         let parts = card.tags.split(separator: ";")
         let tag = parts.first(where: { $0.hasPrefix("deck:") }) ?? parts.first(where: { $0.hasPrefix("subject:") })
-        _deck = State(initialValue: tag.map { String($0.dropFirst(6)) } ?? "General")
+        _deck = State(initialValue: tag.map { String($0.split(separator: ":", maxSplits: 1).last ?? "General") } ?? "General")
     }
 
     var body: some View {
