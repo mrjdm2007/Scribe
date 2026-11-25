@@ -56,6 +56,7 @@ a{color:#b18a52}#editor mark{background:#f2d36b;color:#242424}
 <script>
 const editor=document.getElementById("editor");let lastMarkdown="";
 function inlineCode(value){const tick=String.fromCharCode(96);const runs=value.match(new RegExp(tick+"+","g"))||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence=tick.repeat(longest+1);const pad=value.startsWith(" ")||value.endsWith(" ")?" ":"";return fence+pad+value+pad+fence;}
+function restoreTaskLists(root){root.querySelectorAll("li").forEach(li=>{const container=li.querySelector(":scope > p")||li;const first=container.firstChild;if(first&&first.nodeType===3){const match=(first.nodeValue||"").match(/^\s*\[([ xX])\]\s+/);if(match){const box=document.createElement("input");box.type="checkbox";box.checked=match[1].toLowerCase()==="x";box.contentEditable="false";box.setAttribute("aria-label",box.checked?"Completed task":"Incomplete task");container.insertBefore(box,first);first.nodeValue=first.nodeValue.slice(match[0].length);}}});}
 function md(n){
  if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
  const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
@@ -81,7 +82,7 @@ function selectionOffsets(){
  return {start:start,length:length};
 }
 function publish(){const value=toMarkdown();const range=selectionOffsets();if(value!==lastMarkdown)lastMarkdown=value;window.webkit.messageHandlers.scribeEditor.postMessage({markdown:value,start:range.start,length:range.length});}
-window.setMarkdown=function(value){if(value===lastMarkdown)return;lastMarkdown=value;const parser=window.markdownit?window.markdownit({html:false,linkify:false,typographer:false}).enable(["table","strikethrough"]):null;if(parser){editor.style.whiteSpace="normal";editor.innerHTML=parser.render(value);}else{editor.style.whiteSpace="pre-wrap";editor.textContent=value;}};
+window.setMarkdown=function(value){if(value===lastMarkdown)return;lastMarkdown=value;const parser=window.markdownit?window.markdownit({html:false,linkify:false,typographer:false}).enable(["table","strikethrough"]):null;if(parser){editor.style.whiteSpace="normal";editor.innerHTML=parser.render(value).replace(/&lt;u&gt;([\s\S]*?)&lt;\/u&gt;/g,"<u>$1</u>");restoreTaskLists(editor);}else{editor.style.whiteSpace="pre-wrap";editor.textContent=value;}};
 window.findText=function(query,index){if(!query)return;const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let node,found=[];while(node=walker.nextNode()){let at=0;while((at=node.textContent.indexOf(query,at))>=0){found.push({node:node,at:at});at+=query.length;}}if(found.length){const item=found[Math.min(index,found.length-1)];const range=document.createRange();range.setStart(item.node,item.at);range.setEnd(item.node,item.at+query.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);range.startContainer.parentElement.scrollIntoView({block:"center"});}};
 editor.addEventListener("input",publish);editor.addEventListener("keyup",publish);editor.addEventListener("mouseup",publish);editor.addEventListener("blur",publish);document.addEventListener("selectionchange",()=>{if(document.activeElement===editor)publish();});
 window.addEventListener("DOMContentLoaded",()=>window.setMarkdown(__INITIAL__));
