@@ -197,17 +197,47 @@ struct OutlineNodeRow: View {
     @EnvironmentObject private var library: ScribeLibrary
     let item: ScribeNode
     @Binding var selectedID: UUID?
+
+    @ViewBuilder
+    private var nodeLink: some View {
+        NavigationLink(value: item.id) {
+            HStack(spacing: 6) {
+                Label(item.title, systemImage: symbol(item.kind))
+                if item.bookmarked {
+                    Image(systemName: "bookmark.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.tint)
+                }
+            }
+        }
+        .contextMenu {
+            Button("Open / Rename / Edit") { selectedID = item.id }
+            Button(item.bookmarked ? "Remove bookmark" : "Bookmark") {
+                library.toggleBookmark(item.id)
+            }
+            Button("Move up") { library.move(item.id, offset: -1) }
+            Button("Move down") { library.move(item.id, offset: 1) }
+            Button("Duplicate") { _ = library.duplicate(item.id) }
+            if item.kind == "page" {
+                Divider()
+                Button("Split page at middle") { library.splitPage(item.id) }
+                Button("Merge with next page") { library.mergePageWithNext(item.id) }
+            }
+            Divider()
+            Button("Move to Trash", role: .destructive) { library.moveToTrash(item.id) }
+        }
+    }
+
     var body: some View {
         if library.children(of: item.id).isEmpty {
-            NavigationLink(value: item.id) { Label(item.title, systemImage: symbol(item.kind)) }
+            nodeLink
         } else {
             DisclosureGroup {
                 ForEach(library.children(of: item.id)) { child in
                     OutlineNodeRow(item: child, selectedID: $selectedID)
                 }
             } label: {
-                NavigationLink(value: item.id) { Label(item.title, systemImage: symbol(item.kind)) }
-                    .contextMenu { Button("Duplicate") { _ = library.duplicate(item.id) }; Button("Move to Trash", role: .destructive) { library.moveToTrash(item.id) } }
+                nodeLink
             }
         }
     }
