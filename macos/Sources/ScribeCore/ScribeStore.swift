@@ -462,12 +462,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             pending = remaining
         }
         if !pending.isEmpty {
-            throw NSError(domain: "ScribeCloud", code: 4, userInfo: [NSLocalizedDescriptionKey: "Sync stopped safely: \\(pending.count) cloud record(s) have missing parent records. No incomplete sync was reported as successful."])
+            throw NSError(domain: "ScribeCloud", code: 4, userInfo: [NSLocalizedDescriptionKey: "Sync stopped safely: \(pending.count) cloud record(s) have missing parent records. No incomplete sync was reported as successful."])
         }
         persist()
         cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
         try await upload(items, cloudIDs: cloudIDs)
-        let attachmentNote = skippedAttachments > 0 ? " \\(skippedAttachments) attachment(s) over 8 MB were not uploaded." : ""
+        let attachmentNote = skippedAttachments > 0 ? " \(skippedAttachments) attachment(s) over 8 MB were not uploaded." : ""
         return "Synced \\(inserted) new and \\(changed) updated records." + attachmentNote
     }
 
