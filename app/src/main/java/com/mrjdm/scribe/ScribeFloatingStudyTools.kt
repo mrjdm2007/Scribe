@@ -1,7 +1,8 @@
 package com.mrjdm.scribe
 
 import android.content.Context
-import com.mrjdm.scribe.data.ScribeViewModel\nimport com.mrjdm.scribe.data.ScribeItem
+import com.mrjdm.scribe.data.ScribeViewModel
+import com.mrjdm.scribe.data.ScribeItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -125,9 +126,9 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                     Button(enabled = aiQuestion.isNotBlank() && !aiBusy, onClick = {
                         aiBusy = true; aiError = ""; aiAnswer = ""
                         scope.launch {
+                            val all = vm.all()
                             val result = withContext(Dispatchers.IO) {
                                 runCatching {
-                                    val all = vm.all()
                                     val terms = aiQuestion.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length > 2 }.toSet()
                                     val relevant = all.filter { it.deletedAt == null && it.body.isNotBlank() }
                                         .map { note -> note to terms.count { term -> note.title.contains(term, true) || note.body.contains(term, true) } }
