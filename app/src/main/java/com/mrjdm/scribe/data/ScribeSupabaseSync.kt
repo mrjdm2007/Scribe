@@ -68,6 +68,7 @@ internal class ScribeSupabaseSync(
             }
             local = dao.allItems()
 
+            var skippedAttachments = 0
             suspend fun payload(item: ScribeItem): JSONObject {
                 val cloud = ids[item.id] ?: cloudId(item.tags) ?: UUID.randomUUID().toString()
                 val parentCloud = item.parentId?.let { ids[it] }
@@ -85,9 +86,13 @@ internal class ScribeSupabaseSync(
                 json.put("history", history)
                 if (item.uri.isNotBlank()) {
                     val file = File(item.uri)
-                    if (file.isFile && file.length() <= 8L * 1024L * 1024L) {
-                        json.put("attachmentName", file.name)
-                        json.put("attachmentBase64", Base64.encodeToString(file.readBytes(), Base64.NO_WRAP))
+                    if (file.isFile) {
+                        if (file.length() <= 8L * 1024L * 1024L) {
+                            json.put("attachmentName", file.name)
+                            json.put("attachmentBase64", Base64.encodeToString(file.readBytes(), Base64.NO_WRAP))
+                        } else {
+                            skippedAttachments++
+                        }
                     }
                 }
                 return json
@@ -176,12 +181,16 @@ internal class ScribeSupabaseSync(
                     progress = true
                 }
             }
+            if (pending.isNotEmpty()) {
+                error("Sync stopped safely: ${pending.size} cloud record(s) have missing parent records. No incomplete sync was reported as successful.")
+            }
             // Re-upload the merged local view so records pulled from another device are
             // present in this device's next sync cycle as well.
             local = dao.allItems()
             ids.clear()
             local.forEach { item -> cloudId(item.tags)?.let { ids[item.id] = it } }
             upload(local)
-            "Synced $inserted new and $changed updated records."
+            val attachmentNote = if (skippedAttachments > 0) " $skippedAttachments attachment(s) over 8 MB were not uploaded." else ""
+            "Synced $inserted new and $changed updated records." + attachmentNote
         }
 }
