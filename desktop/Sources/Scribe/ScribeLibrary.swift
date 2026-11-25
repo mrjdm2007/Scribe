@@ -96,7 +96,10 @@ final class ScribeLibrary: ObservableObject {
         guard let index = nodes.firstIndex(where: { $0.id == item.id }) else { return }
         var revised = item; revised.updatedAt = .now
         if nodes[index].body != revised.body || nodes[index].title != revised.title {
-            snapshots.append(ScribeSnapshot(itemID: item.id, title: nodes[index].title, body: nodes[index].body))
+            let lastSnapshot = snapshots.filter { $0.itemID == item.id }.map(\\.savedAt).max()
+            if lastSnapshot == nil || Date().timeIntervalSince(lastSnapshot!) >= 60 {
+                snapshots.append(ScribeSnapshot(itemID: item.id, title: nodes[index].title, body: nodes[index].body))
+            }
         }
         nodes[index] = revised; save()
     }
