@@ -423,7 +423,7 @@ private struct CircuitSymbolPreview: View {
                 symbol.move(to: CGPoint(x: size.width * 0.59, y: y - 24)); symbol.addLine(to: CGPoint(x: size.width * 0.59, y: y + 24))
             default:
                 symbol.move(to: CGPoint(x: size.width * 0.36, y: y))
-                for index in 0...5 { symbol.addLine(to: CGPoint(x: size.width * (0.39 + Double(index) * 0.05), y: y + (index.isMultiple(of: 2) ? -16 : 16))) }
+                for index in 0...5 { symbol.addLine(to: CGPoint(x: size.width * CGFloat(0.39 + Double(index) * 0.05), y: y + (index.isMultiple(of: 2) ? -16 : 16))) }
                 symbol.addLine(to: CGPoint(x: size.width * 0.64, y: y))
             }
             context.stroke(symbol, with: .color(.accentColor), style: StrokeStyle(lineWidth: 2, lineJoin: .round))
@@ -439,7 +439,7 @@ private struct ConceptMapPreview: View {
             let center = CGPoint(x: size.width/2, y: size.height/2)
             for index in nodes.indices where index > 0 {
                 let angle = Double(index-1) * 2 * .pi / Double(max(nodes.count-1,1))
-                let point = CGPoint(x: center.x + cos(angle)*size.width*0.34, y: center.y + sin(angle)*size.height*0.34)
+                let point = CGPoint(x: center.x + CGFloat(cos(angle))*size.width*0.34, y: center.y + CGFloat(sin(angle))*size.height*0.34)
                 var line = Path(); line.move(to: center); line.addLine(to: point)
                 context.stroke(line, with: .color(.secondary.opacity(0.7)), lineWidth: 1.5)
             }
@@ -447,7 +447,7 @@ private struct ConceptMapPreview: View {
             for index in nodes.indices where index > 0 {
                 let angle = Double(index-1) * 2 * .pi / Double(max(nodes.count-1,1))
                 let point = CGPoint(x: center.x + cos(angle)*size.width*0.34, y: center.y + sin(angle)*size.height*0.34)
-                context.fill(Path(roundedRect: CGRect(x: point.x-42,y: point.y-16,width:84,height:32), cornerRadius: 8), with: .color(.secondary.opacity(0.18)))
+                context.fill(RoundedRectangle(cornerRadius: 8).path(in: CGRect(x: point.x-42,y: point.y-16,width:84,height:32)), with: .color(.secondary.opacity(0.18)))
             }
         }
     }
