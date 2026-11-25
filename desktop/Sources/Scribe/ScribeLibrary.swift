@@ -339,11 +339,8 @@ final class ScribeLibrary: ObservableObject {
                 continue
             }
             guard let bytes = Data(base64Encoded: encoded), !bytes.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
-            let originalURI = row["uri"] as? String ?? ""
             let ext = URL(fileURLWithPath: originalURI).pathExtension
             let type = UTType(filenameExtension: ext)
-            let declaredType = (row["tags"] as? String ?? "").split(separator: ";").first(where: { $0.hasPrefix("type:") })
-                .map { String($0.dropFirst(5)).components(separatedBy: ",").first ?? "" } ?? ""
             guard type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true ||
                     declaredType == "image" || declaredType == "pdf" else {
                 throw NSError(domain: "ScribeBackup", code: 415, userInfo: [NSLocalizedDescriptionKey: "This backup contains an attachment that is not a photo or PDF."])
