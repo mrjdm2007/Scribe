@@ -46,6 +46,13 @@ security invoker
 set search_path = public
 as $$
 begin
+    -- A permanent-deletion tombstone wins over stale/offline uploads.
+    if exists (
+        select 1 from public.scribe_cloud_tombstones
+        where user_id = auth.uid() and cloud_id = p_cloud_id
+    ) then
+        return;
+    end if;
     insert into public.scribe_cloud_items (user_id, cloud_id, payload, updated_at)
     values (auth.uid(), p_cloud_id, p_payload, p_updated_at)
     on conflict (user_id, cloud_id) do update
