@@ -226,14 +226,18 @@ final class ScribeLibrary: ObservableObject {
         let rows: [[String: Any]] = try nodes.map { item in
             var row: [String: Any] = [
                 "id": portableIDs[item.id] ?? 0,
-                "parentId": item.parentID.flatMap { portableIDs[$0] }.map { NSNumber(value: $0) } ?? NSNull(),
                 "kind": item.kind, "title": item.title, "body": item.body,
                 "uri": item.uri, "tags": portableTags(item.tags, ids: portableIDs),
                 "bookmarked": item.bookmarked, "position": item.position,
                 "createdAt": Int64(item.createdAt.timeIntervalSince1970 * 1000),
-                "updatedAt": Int64(item.updatedAt.timeIntervalSince1970 * 1000),
-                "deletedAt": item.deletedAt.map { NSNumber(value: Int64($0.timeIntervalSince1970 * 1000)) } ?? NSNull()
+                "updatedAt": Int64(item.updatedAt.timeIntervalSince1970 * 1000)
             ]
+            if let parentID = item.parentID, let numericParent = portableIDs[parentID] {
+                row["parentId"] = NSNumber(value: numericParent)
+            } else { row["parentId"] = NSNull() }
+            if let deletedAt = item.deletedAt {
+                row["deletedAt"] = NSNumber(value: Int64(deletedAt.timeIntervalSince1970 * 1000))
+            } else { row["deletedAt"] = NSNull() }
             if !item.uri.isEmpty {
                 let fileURL = URL(fileURLWithPath: item.uri)
                 let type = UTType(filenameExtension: fileURL.pathExtension)
