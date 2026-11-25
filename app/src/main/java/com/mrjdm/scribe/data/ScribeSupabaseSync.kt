@@ -10,6 +10,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.util.UUID
 
 /**
@@ -52,7 +53,46 @@ internal class ScribeSupabaseSync(
             val auth = JSONObject(request("auth/v1/token?grant_type=password", "POST",
                 JSONObject().put("email", email).put("password", password).toString()))
             val token = auth.getString("access_token")
-            auth.getJSONObject("user").getString("id")
+            val userId = auth.getJSONObject("user").getString("id")
+            fun requestBytes(path: String, method: String, body: ByteArray? = null, token: String? = null,
+                             contentType: String = "application/octet-stream", upsert: Boolean = false): ByteArray {
+                val connection = URL("$root/$path").openConnection() as HttpURLConnection
+                try {
+                    connection.requestMethod = method
+                    connection.connectTimeout = 20_000
+                    connection.readTimeout = 60_000
+                    connection.setRequestProperty("apikey", anonKey)
+                    connection.setRequestProperty("Content-Type", contentType)
+                    if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
+                    if (upsert) connection.setRequestProperty("x-upsert", "true")
+                    if (body != null) { connection.doOutput = true; connection.outputStream.use { it.write(body) } }
+                    val code = connection.responseCode
+                    val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                    val response = stream?.use { it.readBytes() } ?: ByteArray(0)
+                    if (code !in 200..299) error("Supabase storage request failed ($code): " + String(response, Charsets.UTF_8))
+                    return response
+                } finally { connection.disconnect() }
+            }
+            suspend fun storeAttachment(file: File, cloud: String): String {
+                val name = URLEncoder.encode(file.name, "UTF-8").replace("+", "%20")
+                val objectPath = "$userId/$cloud/$name"
+                requestBytes("storage/v1/object/scribe-attachments/$objectPath", "POST", file.readBytes(), token, upsert = true)
+                return objectPath
+            }
+            suspend fun restoreAttachment(data: JSONObject, cloud: String): String {
+                val folder = File(context.filesDir, "attachments").apply { mkdirs() }
+                val target = File(folder, "cloud_$cloud")
+                val objectPath = data.optString("attachmentPath")
+                val bytes = if (objectPath.isNotBlank()) {
+                    requestBytes("storage/v1/object/authenticated/scribe-attachments/$objectPath", "GET", token = token)
+                } else {
+                    val encoded = data.optString("attachmentBase64")
+                    if (encoded.isBlank()) return ""
+                    Base64.decode(encoded, Base64.DEFAULT)
+                }
+                target.writeBytes(bytes)
+                return target.absolutePath
+            }
 
             fun cloudId(tags: String): String? = tags.split(";")
                 .firstOrNull { it.startsWith("cloud_id:") }?.substringAfter("cloud_id:")?.takeIf { it.isNotBlank() }
@@ -73,7 +113,6 @@ internal class ScribeSupabaseSync(
             }
             local = dao.allItems()
 
-            var skippedAttachments = 0
             suspend fun payload(item: ScribeItem): JSONObject {
                 val cloud = ids[item.id] ?: cloudId(item.tags) ?: UUID.randomUUID().toString()
                 val parentCloud = item.parentId?.let { ids[it] }
@@ -92,11 +131,11 @@ internal class ScribeSupabaseSync(
                 if (item.uri.isNotBlank()) {
                     val file = File(item.uri)
                     if (file.isFile) {
+                        json.put("attachmentName", file.name)
                         if (file.length() <= 8L * 1024L * 1024L) {
-                            json.put("attachmentName", file.name)
                             json.put("attachmentBase64", Base64.encodeToString(file.readBytes(), Base64.NO_WRAP))
                         } else {
-                            skippedAttachments++
+                            json.put("attachmentPath", storeAttachment(file, cloud))
                         }
                     }
                 }
@@ -156,12 +195,9 @@ internal class ScribeSupabaseSync(
                     if (current != null) {
                         if (remoteUpdated > current.updatedAt) {
                             var uri = current.uri
-                            val encoded = data.optString("attachmentBase64")
-                            if (encoded.isNotBlank() && (uri.isBlank() || !File(uri).isFile)) {
-                                val folder = File(context.filesDir, "attachments").apply { mkdirs() }
-                                val target = File(folder, "cloud_$cloud")
-                                target.writeBytes(Base64.decode(encoded, Base64.DEFAULT))
-                                uri = target.absolutePath
+                            if ((uri.isBlank() || !File(uri).isFile) &&
+                                (data.optString("attachmentPath").isNotBlank() || data.optString("attachmentBase64").isNotBlank())) {
+                                uri = restoreAttachment(data, cloud)
                             }
                             val updated = current.copy(parentId = parentLocal, kind = data.optString("kind", current.kind),
                                 title = data.optString("title", current.title), body = data.optString("body", current.body),
@@ -176,14 +212,8 @@ internal class ScribeSupabaseSync(
                             changed++
                         }
                     } else {
-                        var uri = ""
-                        val encoded = data.optString("attachmentBase64")
-                        if (encoded.isNotBlank()) {
-                            val folder = File(context.filesDir, "attachments").apply { mkdirs() }
-                            val target = File(folder, "cloud_$cloud")
-                            target.writeBytes(Base64.decode(encoded, Base64.DEFAULT))
-                            uri = target.absolutePath
-                        }
+                        val uri = if (data.optString("attachmentPath").isNotBlank() ||
+                            data.optString("attachmentBase64").isNotBlank()) restoreAttachment(data, cloud) else ""
                         val newItem = ScribeItem(parentId = parentLocal, kind = data.optString("kind", "block"),
                             title = data.optString("title", "Synced note"), body = data.optString("body"),
                             uri = uri, tags = withCloudId(data.optString("tags"), cloud),
@@ -209,7 +239,6 @@ internal class ScribeSupabaseSync(
             ids.clear()
             local.forEach { item -> cloudId(item.tags)?.let { ids[item.id] = it } }
             upload(local)
-            val attachmentNote = if (skippedAttachments > 0) " $skippedAttachments attachment(s) over 8 MB were not uploaded." else ""
-            "Synced $inserted new and $changed updated records." + attachmentNote
+            "Synced $inserted new and $changed updated records, including attachments."
         }
 }
