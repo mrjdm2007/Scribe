@@ -26,6 +26,7 @@ struct ScribeRootView: View {
     @State private var showBackupImporter = false
     @State private var backupDocument = ScribeBackupDocument(data: Data())
     @State private var showQuickCapture = false
+    @State private var showBulkManage = false
     @State private var quickTitle = ""
     @State private var quickBody = ""
     @State private var showIntegrityReport = false
@@ -86,6 +87,7 @@ struct ScribeRootView: View {
                         Button { exportBackup() } label: { Label("Export full backup", systemImage: "square.and.arrow.up") }
                         Button { showBackupImporter = true } label: { Label("Restore backup", systemImage: "square.and.arrow.down") }
                         Button { section = "Trash" } label: { Label("Recently deleted", systemImage: "trash") }
+                        Button { showBulkManage = true } label: { Label("Manage multiple notes", systemImage: "checklist") }
                         Button {
                             integrityReport = library.integritySummary()
                             showIntegrityReport = true
@@ -109,6 +111,8 @@ struct ScribeRootView: View {
                     Button { _ = library.add(kind: "course") } label: { Image(systemName: "plus") }.help("New course")
                     Button { showQuickCapture = true } label: { Image(systemName: "square.and.pencil") }.help("Quick capture")
                     Menu {
+                        Button("Manage multiple notes…") { showBulkManage = true }
+                        Divider()
                         Button("Export backup…") { exportBackup() }
                         Button("Import backup…") { showBackupImporter = true }
                     } label: { Image(systemName: "ellipsis.circle") }
@@ -169,6 +173,7 @@ struct ScribeRootView: View {
                 }
             }.frame(minWidth: 460, minHeight: 320)
         }
+        .sheet(isPresented: $showBulkManage) { BulkManageView().environmentObject(library) }
         .fileImporter(isPresented: $showBackupImporter, allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
             do { if case .success(let urls) = result, let url = urls.first { let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }; try library.restoreBackup(Data(contentsOf: url)) } }
             catch { library.lastError = "Import failed: \(error.localizedDescription)" }
@@ -759,5 +764,90 @@ func symbol(_ kind: String) -> String {
     case "flashcard": return "rectangle.on.rectangle"; case "question": return "questionmark.circle"
     case "formula": return "function"; case "diagram": return "point.3.connected.trianglepath.dotted"
     default: return "text.alignleft"
+    }
+}
+
+struct BulkManageView: View {
+    @EnvironmentObject private var library: ScribeLibrary
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedIDs: Set<UUID> = []
+    @State private var filter = "All"
+    @State private var query = ""
+
+    private var candidates: [ScribeNode] {
+        library.visibleNodes.filter { item in
+            let matchesFilter = filter == "All" || item.kind == filter.lowercased()
+            let matchesQuery = query.isEmpty || item.title.localizedCaseInsensitiveContains(query) ||
+                item.tags.localizedCaseInsensitiveContains(query)
+            return matchesFilter && matchesQuery
+        }.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                TextField("Find notes to manage", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal)
+                Picker("Filter", selection: $filter) {
+                    ForEach(["All", "Course", "Chapter", "Topic", "Page", "Block", "Formula", "Flashcard", "Question"], id: \.self) {
+                        Text($0).tag($0)
+                    }
+                }
+                .pickerStyle(.menu)
+                .padding(.horizontal)
+                HStack {
+                    Text("\(selectedIDs.count) selected").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Select all") { selectedIDs = Set(candidates.map(\.id)) }
+                    Button("Clear") { selectedIDs.removeAll() }.disabled(selectedIDs.isEmpty)
+                }
+                .padding(.horizontal)
+                List(candidates) { item in
+                    Button {
+                        if selectedIDs.contains(item.id) { selectedIDs.remove(item.id) }
+                        else { selectedIDs.insert(item.id) }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: selectedIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(selectedIDs.contains(item.id) ? Color.accentColor : Color.secondary)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title).foregroundStyle(.primary)
+                                Text("\(item.kind.capitalized) · Updated \(item.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if item.bookmarked { Image(systemName: "bookmark.fill").foregroundStyle(.tint) }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                HStack {
+                    Button("Bookmark selected") {
+                        library.bulkSetBookmarked(selectedIDs, to: true)
+                        selectedIDs.removeAll()
+                    }
+                    .disabled(selectedIDs.isEmpty)
+                    Button("Remove bookmarks") {
+                        library.bulkSetBookmarked(selectedIDs, to: false)
+                        selectedIDs.removeAll()
+                    }
+                    .disabled(selectedIDs.isEmpty)
+                    Button(role: .destructive) {
+                        library.bulkMoveToTrash(selectedIDs)
+                        selectedIDs.removeAll()
+                    } label: { Text("Move to Trash") }
+                    .disabled(selectedIDs.isEmpty)
+                }
+                .buttonStyle(.bordered)
+                .padding()
+            }
+            .navigationTitle("Bulk note management")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+        .frame(minWidth: 620, minHeight: 540)
     }
 }
