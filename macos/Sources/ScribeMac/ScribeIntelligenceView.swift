@@ -19,6 +19,18 @@ struct ScribeIntelligenceView: View {
     @State private var busy = false
     private let modes = ["notes", "explain", "exam", "quiz", "research", "summary"]
 
+    private func notebookPath(for item: ScribeItem) -> String {
+        var names = [item.title]
+        var parentID = item.parentId
+        var seen = Set<Int64>()
+        while let id = parentID, seen.insert(id).inserted,
+              let parent = items.first(where: { $0.id == id }) {
+            names.append(parent.title)
+            parentID = parent.parentId
+        }
+        return names.reversed().joined(separator: " / ")
+    }
+
     private var relevantNotes: [ScribeAIContext] {
         let terms = Set(question.lowercased().split { !$0.isLetter && !$0.isNumber }.filter { $0.count > 2 })
         return items.filter { $0.deletedAt == nil && !$0.body.isEmpty }
@@ -32,7 +44,7 @@ struct ScribeIntelligenceView: View {
             .filter { $0.1 > 0 }
             .sorted { $0.1 > $1.1 }
             .prefix(24)
-            .map { ScribeAIContext(title: $0.0.title, path: $0.0.kind, content: String($0.0.body.prefix(12000))) }
+            .map { ScribeAIContext(title: $0.0.title, path: notebookPath(for: $0.0), content: String($0.0.body.prefix(12000))) }
     }
 
     var body: some View {
