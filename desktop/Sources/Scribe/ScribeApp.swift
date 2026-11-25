@@ -371,6 +371,7 @@ struct NodeEditorView: View {
     @State private var newBlockTags = ""
     @State private var showPDFExporter = false
     @State private var selectedTextRange = NSRange(location: 0, length: 0)
+    @State private var wordGoalDraft = "500"
     @State private var pdfDocument = ScribePDFDocument(data: Data())
     private func preparePDFExport() {
         do {
@@ -416,8 +417,28 @@ struct NodeEditorView: View {
     }
     private var pageBlocks: [ScribeNode] { item.kind == "page" ? library.children(of: item.id) : [] }
     private var pageWordCount: Int {
-        pageBlocks.filter { !$0.tags.contains("type:image") && !$0.tags.contains("type:pdf") }
+        pageBlocks.filter { $0.uri.isEmpty && !$0.tags.contains("type:image") && !$0.tags.contains("type:pdf") }
             .reduce(0) { $0 + $1.body.split { $0.isWhitespace || $0.isNewline }.count }
+    }
+    private var topicPages: [ScribeNode] {
+        item.kind == "topic" ? library.children(of: item.id).filter { $0.kind == "page" } : []
+    }
+    private var topicWordCount: Int {
+        topicPages.flatMap { library.children(of: $0.id) }
+            .filter { $0.uri.isEmpty && !$0.tags.contains("type:image") && !$0.tags.contains("type:pdf") }
+            .reduce(0) { $0 + $1.body.split { $0.isWhitespace || $0.isNewline }.count }
+    }
+    private var topicWordGoal: Int {
+        item.tags.split(separator: ";").first(where: { $0.hasPrefix("wordGoal:") })
+            .flatMap { Int($0.dropFirst(9)) }.map { max(0, $0) } ?? 0
+    }
+    private func saveTopicWordGoal() {
+        let goal = min(100_000, max(0, Int(wordGoalDraft) ?? 0))
+        let retained = item.tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("wordGoal:") }
+        if goal > 0 { item.tags = (retained + ["wordGoal:\(goal)"]).joined(separator: ";") }
+        else { item.tags = retained.joined(separator: ";") }
+        wordGoalDraft = goal > 0 ? String(goal) : "500"
+        library.update(item)
     }
     private var attachmentCount: Int {
         pageBlocks.filter { $0.tags.contains("type:image") || $0.tags.contains("type:pdf") }.count
@@ -470,6 +491,11 @@ struct NodeEditorView: View {
                             .padding(10)
                             .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
                             .onChange(of: item.body) { _ in library.update(item) }
+                    } else if item.kind == "block" && ["text", "heading", "quote", "list"].contains(blockType) {
+                        MarkdownEditor(text: $item.body, selection: $selectedTextRange, searchQuery: "", matchIndex: 0)
+                            .padding(10).frame(minHeight: 240)
+                            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
+                            .onChange(of: item.body) { _ in library.update(item) }
                     } else {
                         SelectableTextEditor(text: $item.body, selectedRange: $selectedTextRange)
                             .padding(10).frame(minHeight: 220)
@@ -495,6 +521,34 @@ struct NodeEditorView: View {
             } else {
                 Text(item.kind == "page" ? "Page content" : "Notebook contents")
                     .font(.headline).foregroundStyle(.secondary)
+                if item.kind == "topic" {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("TOPIC WORD GOAL").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                Text(topicWordGoal > 0 ? "\(topicWordCount) / \(topicWordGoal) words" : "\(topicWordCount) words")
+                                    .font(.title3.weight(.semibold))
+                            }
+                            Spacer()
+                            TextField("Target words", text: $wordGoalDraft)
+                                .frame(width: 110).textFieldStyle(.roundedBorder)
+                                .onSubmit { saveTopicWordGoal() }
+                            Button("Save goal") { saveTopicWordGoal() }.buttonStyle(.borderedProminent)
+                        }
+                        if topicWordGoal > 0 {
+                            ProgressView(value: Double(min(topicWordCount, topicWordGoal)), total: Double(topicWordGoal))
+                            Text(topicWordCount >= topicWordGoal ? "Word goal completed" : "\(topicWordGoal - topicWordCount) words remaining")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Button("Disable word goal") { wordGoalDraft = "0"; saveTopicWordGoal() }
+                                .buttonStyle(.link).font(.caption)
+                        } else {
+                            Text("Set a target to track writing progress across every page in this topic.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(12)
+                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
+                }
                 if item.kind == "page" {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 14) {
@@ -596,6 +650,7 @@ struct NodeEditorView: View {
             Spacer()
         }
         .padding(28)
+        .onAppear { wordGoalDraft = topicWordGoal > 0 ? String(topicWordGoal) : "500" }
         .fileImporter(isPresented: $showAttachmentPicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { do { try library.importAttachment(from: url, parent: item.id) } catch { library.lastError = error.localizedDescription } } }
         }
