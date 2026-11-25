@@ -117,6 +117,44 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         items[index].updatedAt = now
         persist()
     }
+    public func duplicateTree(_ item: ScribeItem) {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        var rootCopyID: Int64?
+        func clone(_ source: ScribeItem, parentId: Int64?, isRoot: Bool) {
+            var copy = source
+            copy.id = nextID
+            nextID += 1
+            copy.parentId = parentId
+            copy.title = isRoot ? source.title + " copy" : source.title
+            copy.position = children(of: parentId).count
+            copy.createdAt = now
+            copy.updatedAt = now
+            copy.deletedAt = nil
+            items.append(copy)
+            if isRoot { rootCopyID = copy.id }
+            let nested = items.filter { $0.parentId == source.id && $0.deletedAt == nil }
+                .sorted { $0.position < $1.position }
+            for child in nested { clone(child, parentId: copy.id, isRoot: false) }
+        }
+        clone(item, parentId: item.parentId, isRoot: true)
+        selectedID = rootCopyID
+        persist()
+    }
+
+    public func move(_ item: ScribeItem, direction: Int) {
+        guard direction == -1 || direction == 1 else { return }
+        let siblings = children(of: item.parentId)
+        guard let index = siblings.firstIndex(where: { $0.id == item.id }) else { return }
+        let target = index + direction
+        guard siblings.indices.contains(target),
+              let currentIndex = items.firstIndex(where: { $0.id == siblings[index].id }),
+              let targetIndex = items.firstIndex(where: { $0.id == siblings[target].id }) else { return }
+        let currentPosition = items[currentIndex].position
+        items[currentIndex].position = items[targetIndex].position
+        items[targetIndex].position = currentPosition
+        persist()
+    }
+
     public func remove(_ item: ScribeItem) {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         func mark(_ id: Int64) { for child in items where child.parentId == id && child.deletedAt == nil { mark(child.id) }; if let i = items.firstIndex(where: { $0.id == id }) { items[i].deletedAt = now } }

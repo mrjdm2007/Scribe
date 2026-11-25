@@ -140,7 +140,12 @@ struct ScribeMacRoot: View {
                         Button { store.selectedID = item.id } label: { hierarchyRow(item) }
                             .buttonStyle(.plain)
                             .contextMenu {
-                                Button("Bookmark") { store.update(item, bookmarked: !item.bookmarked) }
+                                Button(item.bookmarked ? "Remove bookmark" : "Bookmark") {
+                                    store.update(item, bookmarked: !item.bookmarked)
+                                }
+                                Button("Duplicate with contents") { store.duplicateTree(item) }
+                                Button("Move up") { store.move(item, direction: -1) }
+                                Button("Move down") { store.move(item, direction: 1) }
                                 Button("Delete", role: .destructive) { store.remove(item) }
                             }
                     }
