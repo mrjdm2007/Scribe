@@ -15,6 +15,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -34,6 +36,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -1088,6 +1093,8 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
     var ocrQuery by remember(item.id) { mutableStateOf("") }
     var annotationKind by remember(item.id) { mutableStateOf("Highlight") }
     var annotationText by remember(item.id) { mutableStateOf("") }
+    var annotationStart by remember(item.id) { mutableStateOf<Offset?>(null) }
+    var annotationEnd by remember(item.id) { mutableStateOf<Offset?>(null) }
     val annotations by vm.children(item.id).collectAsState(initial = emptyList())
     LaunchedEffect(pageIndex) {
         ocrText = ""
@@ -1128,8 +1135,58 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                 if (handle == null || pageCount == 0) {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text("This PDF could not be opened.", color = Muted) }
                 } else if (bitmap != null) {
-                    Image(bitmap!!.asImageBitmap(), contentDescription = "PDF page ${pageIndex + 1}",
-                        modifier = Modifier.weight(1f).fillMaxWidth(), contentScale = ContentScale.Fit)
+                    val pageBitmap = bitmap!!
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                        val viewportWidth = constraints.maxWidth.toFloat().coerceAtLeast(1f)
+                        val viewportHeight = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+                        val fitScale = minOf(viewportWidth / pageBitmap.width, viewportHeight / pageBitmap.height)
+                        val renderedWidth = pageBitmap.width * fitScale
+                        val renderedHeight = pageBitmap.height * fitScale
+                        val imageLeft = (viewportWidth - renderedWidth) / 2f
+                        val imageTop = (viewportHeight - renderedHeight) / 2f
+                        fun normalized(point: Offset): Offset = Offset(
+                            ((point.x - imageLeft) / renderedWidth).coerceIn(0f, 1f),
+                            ((point.y - imageTop) / renderedHeight).coerceIn(0f, 1f)
+                        )
+                        Image(pageBitmap.asImageBitmap(), contentDescription = "PDF page ${pageIndex + 1}",
+                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        Canvas(Modifier.fillMaxSize().pointerInput(pageIndex, renderedWidth, renderedHeight) {
+                            detectDragGestures(
+                                onDragStart = { point -> annotationStart = normalized(point); annotationEnd = normalized(point) },
+                                onDragEnd = { },
+                                onDragCancel = { annotationStart = null; annotationEnd = null }
+                            ) { change, _ ->
+                                annotationEnd = normalized(change.position)
+                                change.consume()
+                            }
+                        }) {
+                            fun drawAnnotation(rect: Offset, end: Offset, color: Color, filled: Boolean) {
+                                val left = imageLeft + minOf(rect.x, end.x) * renderedWidth
+                                val top = imageTop + minOf(rect.y, end.y) * renderedHeight
+                                val width = kotlin.math.abs(end.x - rect.x) * renderedWidth
+                                val height = kotlin.math.abs(end.y - rect.y) * renderedHeight
+                                if (width > 1f && height > 1f) {
+                                    drawRect(color = color, topLeft = Offset(left, top),
+                                        size = androidx.compose.ui.geometry.Size(width, height),
+                                        style = if (filled) androidx.compose.ui.graphics.drawscope.Fill else Stroke(width = 3f))
+                                }
+                            }
+                            annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${pageIndex + 1}") }.forEach { saved ->
+                                val values = saved.tags.split(";").firstOrNull { it.startsWith("rect:") }
+                                    ?.removePrefix("rect:")?.split(",")?.mapNotNull { it.toFloatOrNull() }
+                                if (values != null && values.size == 4) {
+                                    val a = Offset(values[0], values[1]); val z = Offset(values[0] + values[2], values[1] + values[3])
+                                    val color = if (saved.tags.contains("annotation:underline")) Color(0xFF55A8FF)
+                                        else if (saved.tags.contains("annotation:markup")) Color(0xFFFF7777)
+                                        else Color(0xFFFFD54F)
+                                    drawAnnotation(a, z, color.copy(alpha = 0.35f), true)
+                                }
+                            }
+                            if (annotationStart != null && annotationEnd != null) {
+                                drawAnnotation(annotationStart!!, annotationEnd!!, Gold.copy(alpha = 0.9f), false)
+                            }
+                        }
+                    }
                 } else {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Gold) }
                 }
@@ -1143,11 +1200,19 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                 OutlinedTextField(annotationText, { annotationText = it }, modifier = Modifier.fillMaxWidth(),
                     label = { Text("Annotation for page ${pageIndex + 1}") }, minLines = 1, maxLines = 3)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Button(enabled = annotationText.isNotBlank(), onClick = {
+                    Button(enabled = annotationText.isNotBlank() && annotationStart != null && annotationEnd != null, onClick = {
+                        val start = annotationStart ?: return@Button
+                        val end = annotationEnd ?: return@Button
+                        val x = minOf(start.x, end.x); val y = minOf(start.y, end.y)
+                        val w = kotlin.math.abs(end.x - start.x); val h = kotlin.math.abs(end.y - start.y)
+                        if (w < 0.003f || h < 0.003f) return@Button
+                        val rect = "rect:${x},${y},${w},${h}"
                         vm.add(item.id, "block", "${annotationKind} · Page ${pageIndex + 1}",
-                            body = annotationText.trim(), tags = "type:pdf_annotation;annotation:${annotationKind.lowercase()};page:${pageIndex + 1}")
+                            body = annotationText.trim(), tags = "type:pdf_annotation;annotation:${annotationKind.lowercase()};page:${pageIndex + 1};${rect}")
                         annotationText = ""
-                    }) { Text("Save annotation") }
+                        annotationStart = null
+                        annotationEnd = null
+                    }) { Text("Save page mark") }
                     Text("${annotations.count { it.tags.contains("type:pdf_annotation") }} saved", color = Muted, fontSize = 11.sp)
                 }
                 annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${pageIndex + 1}") }.forEach { note ->
