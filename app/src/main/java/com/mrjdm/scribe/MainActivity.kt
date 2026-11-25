@@ -1470,10 +1470,10 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
 
 
 private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: List<ScribeItem>, destination: Uri) {
-    org.apache.pdfbox.android.PDFBoxResourceLoader.init(context)
+    com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context)
     val source = File(item.uri)
     require(source.isFile) { "The original PDF file is missing." }
-    val document = org.apache.pdfbox.pdmodel.PDDocument.load(source)
+    val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(source)
     try {
         annotations.filter { it.tags.contains("type:pdf_annotation") }.forEach { annotation ->
             val pageNumber = annotation.tags.split(";").firstOrNull { it.startsWith("page:") }
@@ -1489,33 +1489,33 @@ private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: 
             val top = media.lowerLeftY + pageHeight - values[1].coerceIn(0f, 1f) * pageHeight
             val right = media.lowerLeftX + (values[0] + values[2]).coerceIn(0f, 1f) * pageWidth
             val bottom = media.lowerLeftY + pageHeight - (values[1] + values[3]).coerceIn(0f, 1f) * pageHeight
-            val rect = org.apache.pdfbox.pdmodel.common.PDRectangle(
+            val rect = com.tom_roush.pdfbox.pdmodel.common.PDRectangle(
                 minOf(left, right), minOf(bottom, top),
                 maxOf(1f, kotlin.math.abs(right - left)), maxOf(1f, kotlin.math.abs(top - bottom))
             )
             val kind = annotation.tags.split(";").firstOrNull { it.startsWith("annotation:") }
                 ?.substringAfter(":").orEmpty()
             val color = when (kind) {
-                "underline" -> org.apache.pdfbox.pdmodel.graphics.color.PDColor(
+                "underline" -> com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor(
                     floatArrayOf(0.25f, 0.57f, 0.95f),
-                    org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
+                    com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
                 )
-                "markup" -> org.apache.pdfbox.pdmodel.graphics.color.PDColor(
+                "markup" -> com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor(
                     floatArrayOf(0.88f, 0.25f, 0.25f),
-                    org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
+                    com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
                 )
-                else -> org.apache.pdfbox.pdmodel.graphics.color.PDColor(
+                else -> com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor(
                     floatArrayOf(1f, 0.82f, 0.18f),
-                    org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
+                    com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB.INSTANCE
                 )
             }
             when (kind) {
                 "highlight", "underline" -> {
-                    val mark = org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup(
+                    val mark = com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup(
                         if (kind == "underline")
-                            org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup.SUB_TYPE_UNDERLINE
+                            com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup.SUB_TYPE_UNDERLINE
                         else
-                            org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT
+                            com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationTextMarkup.SUB_TYPE_HIGHLIGHT
                     )
                     mark.rectangle = rect
                     mark.color = color
@@ -1524,7 +1524,7 @@ private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: 
                     page.annotations.add(mark)
                 }
                 "note" -> {
-                    val note = org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationText()
+                    val note = com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationText()
                     note.rectangle = rect
                     note.contents = annotation.body
                     note.color = color
@@ -1532,7 +1532,7 @@ private fun exportAnnotatedPdf(context: Context, item: ScribeItem, annotations: 
                     page.annotations.add(note)
                 }
                 else -> {
-                    val square = org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquare()
+                    val square = com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationSquare()
                     square.rectangle = rect
                     square.color = color
                     square.contents = annotation.body
