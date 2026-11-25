@@ -1091,7 +1091,7 @@ if(t==="table"){const rows=Array.from(n.querySelectorAll("tr"));if(!rows.length)
 if(t==="p"||t==="div")return c().trim()+"\n\n";if(t==="hr")return "\n---\n\n";return c();}
 function offsets(){const sel=window.getSelection();if(!sel||!sel.rangeCount||!e.contains(sel.anchorNode))return {start:last.length,length:0};const before=document.createRange();before.selectNodeContents(e);before.setEnd(sel.anchorNode,sel.anchorOffset);return {start:md(before.cloneContents()).length,length:md(sel.getRangeAt(0).cloneContents()).length};}
 function send(){const v=Array.from(e.childNodes).map(md).join("").replace(/\n{3,}/g,"\n\n").trim();const r=offsets();if(v!==last)last=v;if(window.ScribeEditor)window.ScribeEditor.onMarkdownChanged(v,r.start,r.length);}
-window.setMarkdown=function(v){if(v===last)return;last=v;const p=window.markdownit?window.markdownit({html:false}).enable("table"):null;if(p){e.innerHTML=p.render(v);}else{e.textContent=v;}};
+window.setMarkdown=function(v){if(v===last)return;last=v;const p=window.markdownit?window.markdownit({html:false}).enable("table"):null;if(p){e.style.whiteSpace="normal";e.innerHTML=p.render(v);}else{e.style.whiteSpace="pre-wrap";e.textContent=v;}};
 e.addEventListener("input",send);e.addEventListener("keyup",send);e.addEventListener("mouseup",send);e.addEventListener("blur",send);document.addEventListener("selectionchange",()=>{if(document.activeElement===e)send();});window.setMarkdown($initial);
 </script></body></html>
 """.trimIndent()
