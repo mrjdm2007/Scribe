@@ -24,5 +24,5 @@ fun flashcardReviewTags(tags: String, rating: Int, nowMillis: Long): String {
     val days = nextReviewIntervalDays(oldInterval, rating)
     val offset = days * FLASHCARD_DAY_MILLIS
     val dueAt = if (nowMillis > Long.MAX_VALUE - offset) Long.MAX_VALUE else nowMillis + offset
-    return tags.split(";").filter { it.isNotBlank() && !it.startsWith("interval:") && !it.startsWith("dueAt:") && !it.startsWith("ease:") }.plus("interval:$days").plus("dueAt:$dueAt").joinToString(";")
+    return tags.split(";").filter { it.isNotBlank() && !it.startsWith("interval:") && !it.startsWith("dueAt:") && !it.startsWith("ease:") && !it.startsWith("lastReviewedAt:") }.plus("interval:$days").plus("dueAt:$dueAt").plus("lastReviewedAt:$nowMillis").joinToString(";")
 }

@@ -22,8 +22,8 @@ public func flashcardReviewTags(_ tags: String, rating: Int, nowMillis: Int64) -
     let days = nextReviewIntervalDays(Int64(ceil(oldValue)), rating: rating)
     let offset = days * 86_400_000
     let dueAt = nowMillis > Int64.max - offset ? Int64.max : nowMillis + offset
-    let preserved = tags.split(separator: ";").map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("interval:") && !$0.hasPrefix("dueAt:") && !$0.hasPrefix("ease:") }
-    return (preserved + ["interval:\(days)", "dueAt:\(dueAt)"]).joined(separator: ";")
+    let preserved = tags.split(separator: ";").map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("interval:") && !$0.hasPrefix("dueAt:") && !$0.hasPrefix("ease:") && !$0.hasPrefix("lastReviewedAt:") }
+    return (preserved + ["interval:\(days)", "dueAt:\(dueAt)", "lastReviewedAt:\(nowMillis)"]).joined(separator: ";")
 }
 
 public struct ScribeItem: Identifiable, Codable, Hashable {

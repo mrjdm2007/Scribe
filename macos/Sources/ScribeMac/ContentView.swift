@@ -348,7 +348,13 @@ struct ScribeMacRoot: View {
                 return dueAt <= now
             }
             let upcomingCount = cards.count - dueCards.count
-            Text("\(dueCards.count) due now · \(upcomingCount) upcoming").foregroundStyle(.secondary)
+            let todayStart = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
+            let reviewedToday = cards.filter { card in
+                let reviewedAt = card.tags.split(separator: ";").first(where: { $0.hasPrefix("lastReviewedAt:") })
+                    .flatMap { Int64($0.dropFirst("lastReviewedAt:".count)) } ?? 0
+                return reviewedAt >= todayStart
+            }.count
+            Text("\(dueCards.count) due now · \(upcomingCount) upcoming · \(reviewedToday) reviewed today").foregroundStyle(.secondary)
             if let card = dueCards.first {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }

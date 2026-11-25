@@ -75,10 +75,10 @@ class ReviewScheduleTest {
     }
 
     @Test fun flashcardReviewTagsPreserveMetadataAndSetSharedDueDate() {
-        assertEquals("subject:ECE;custom:x;interval:4;dueAt:345610000", flashcardReviewTags("subject:ECE;interval:2;dueAt:1000;custom:x", 2, 10_000))
+        assertEquals("subject:ECE;custom:x;interval:4;dueAt:345610000;lastReviewedAt:10000", flashcardReviewTags("subject:ECE;interval:2;dueAt:1000;custom:x", 2, 10_000))
     }
     @Test fun flashcardAgainSchedulesOneDayAndHandlesLegacyDecimalIntervals() {
-        assertEquals("interval:1;dueAt:86400000", flashcardReviewTags("interval:2.5", 0, 0))
+        assertEquals("interval:1;dueAt:86400000;lastReviewedAt:0", flashcardReviewTags("interval:2.5", 0, 0))
     }
     @Test fun hugeIntervalsAreSafelyCappedBeforeMultiplication() {
         assertEquals(365L, nextReviewIntervalDays(Long.MAX_VALUE, 3))

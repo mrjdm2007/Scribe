@@ -77,10 +77,10 @@ final class ReviewScheduleTests: XCTestCase {
     }
 
     func testFlashcardReviewTagsPreserveMetadataAndSetSharedDueDate() {
-        XCTAssertEqual(flashcardReviewTags("subject:ECE;interval:2;dueAt:1000;custom:x", rating: 2, nowMillis: 10_000), "subject:ECE;custom:x;interval:4;dueAt:345610000")
+        XCTAssertEqual(flashcardReviewTags("subject:ECE;interval:2;dueAt:1000;custom:x", rating: 2, nowMillis: 10_000), "subject:ECE;custom:x;interval:4;dueAt:345610000;lastReviewedAt:10000")
     }
     func testFlashcardAgainSchedulesOneDayAndHandlesLegacyDecimalIntervals() {
-        XCTAssertEqual(flashcardReviewTags("interval:2.5", rating: 0, nowMillis: 0), "interval:1;dueAt:86400000")
+        XCTAssertEqual(flashcardReviewTags("interval:2.5", rating: 0, nowMillis: 0), "interval:1;dueAt:86400000;lastReviewedAt:0")
     }
     func testHugeFlashcardIntervalsAreSafelyCapped() {
         XCTAssertEqual(nextReviewIntervalDays(Int64.max, rating: 3), 365)

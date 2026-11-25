@@ -19,6 +19,7 @@ import com.mrjdm.scribe.data.ScribeItem
 import com.mrjdm.scribe.data.ScribeViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Calendar
 import java.util.Locale
 
 private val FlashGold = Color(0xFFD5B98C)
@@ -38,14 +39,19 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
     var revealed by remember(next?.id) { mutableStateOf(false) }
     var create by remember { mutableStateOf(false) }
     val upcoming = cards.count { (flashMeta(it.tags, "dueAt", "0").toLongOrNull() ?: 0L) > now }
+    val todayStart = Calendar.getInstance().apply {
+        timeInMillis = now
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val reviewedToday = cards.count { (flashMeta(it.tags, "lastReviewedAt", "0").toLongOrNull() ?: 0L) >= todayStart }
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("SPACED REPETITION", color = FlashMuted, fontSize = 10.sp, letterSpacing = 1.4.sp)
         Text("Flashcards", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatPill("TOTAL", cards.size.toString(), Modifier.weight(1f))
             StatPill("DUE NOW", due.size.toString(), Modifier.weight(1f))
             StatPill("UPCOMING", upcoming.toString(), Modifier.weight(1f))
+            StatPill("REVIEWED TODAY", reviewedToday.toString(), Modifier.weight(1f))
         }
         if (next == null) {
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FlashPanel)) {
@@ -56,7 +62,6 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
                 }
             }
         } else {
-            Text("REVIEWED ${cards.size - upcoming - due.size} · ${due.size} DUE", color = FlashMuted, fontSize = 10.sp, letterSpacing = 1.sp)
             Card(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FlashPanel)) {
                 Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -77,6 +82,7 @@ fun FlashcardsScreen(vm: ScribeViewModel) {
                 ReviewButton("Again", Color(0xFFE49A91), Modifier.weight(1f), enabled = revealed) {
                     scheduleFlashcard(vm, next, rating = 0)
                 }
+                ReviewButton("Hard", Color(0xFFE5C17B), Modifier.weight(1f), enabled = revealed) { scheduleFlashcard(vm, next, rating = 1) }
                 ReviewButton("Good", FlashGold, Modifier.weight(1f), enabled = revealed) {
                     scheduleFlashcard(vm, next, rating = 2)
                 }
