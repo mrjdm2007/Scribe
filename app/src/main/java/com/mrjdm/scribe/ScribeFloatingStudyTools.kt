@@ -3,6 +3,7 @@ package com.mrjdm.scribe
 import android.content.Context
 import com.mrjdm.scribe.data.ScribeViewModel
 import com.mrjdm.scribe.data.ScribeItem
+import com.mrjdm.scribe.data.ScribeCloudSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -137,14 +138,30 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                                     relevant.forEach { (note, _) ->
                                         contextArray.put(JSONObject().put("title", note.title).put("path", note.kind).put("content", note.body.take(12000)))
                                     }
-                                    val prefs = context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE)
-                                    val base = prefs.getString("url", ScribeCloudConfig.SUPABASE_URL).orEmpty().trimEnd('/')
-                                    val anon = prefs.getString("anon_key", ScribeCloudConfig.SUPABASE_ANON_KEY).orEmpty()
-                                    require(base.startsWith("https://") && anon.isNotBlank()) { "Configure your Supabase URL and anon key in Settings first." }
+                                    val session = ScribeCloudSession.read(context)
+                                        ?: error("Sign in to Scribe Cloud and sync once before using Scribe Intelligence.")
+                                    val base = session.url.trimEnd('/')
+                                    val anon = session.anonKey
+                                    val refresh = (URL("$base/auth/v1/token?grant_type=refresh_token").openConnection() as HttpURLConnection).apply {
+                                        requestMethod = "POST"; connectTimeout = 20000; readTimeout = 30000; doOutput = true
+                                        setRequestProperty("Content-Type", "application/json"); setRequestProperty("apikey", anon)
+                                    }
+                                    refresh.outputStream.use {
+                                        it.write(JSONObject().put("refresh_token", session.refreshToken).toString().toByteArray(Charsets.UTF_8))
+                                    }
+                                    val refreshCode = refresh.responseCode
+                                    val refreshStream = if (refreshCode in 200..299) refresh.inputStream else refresh.errorStream
+                                    val refreshed = JSONObject(refreshStream.bufferedReader().use { it.readText() })
+                                    refresh.disconnect()
+                                    if (refreshCode !in 200..299) error("Your Scribe Cloud session expired. Sign in again in Settings.")
+                                    val accessToken = refreshed.getString("access_token")
+                                    refreshed.optString("refresh_token").takeIf { it.isNotBlank() }?.let {
+                                        ScribeCloudSession.save(context, base, anon, session.email, it)
+                                    }
                                     val connection = (URL("$base/functions/v1/study-assistant").openConnection() as HttpURLConnection).apply {
                                         requestMethod = "POST"; connectTimeout = 20000; readTimeout = 90000; doOutput = true
                                         setRequestProperty("Content-Type", "application/json")
-                                        setRequestProperty("apikey", anon); setRequestProperty("Authorization", "Bearer $anon")
+                                        setRequestProperty("apikey", anon); setRequestProperty("Authorization", "Bearer $accessToken")
                                     }
                                     val payload = JSONObject().put("question", aiQuestion).put("mode", aiMode).put("note_context", contextArray)
                                     connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
