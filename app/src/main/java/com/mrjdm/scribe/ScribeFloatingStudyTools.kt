@@ -200,9 +200,10 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                                     val json = JSONObject(response)
                                     if (status !in 200..299) error(json.optString("error", "AI request failed ($status)"))
                                     json.optString("answer").ifBlank { "The assistant returned an empty response." }
-                                }.getOrElse { throw it }
+                                }
                             }
-                            aiAnswer = result
+                            result.onSuccess { aiAnswer = it }
+                                .onFailure { aiError = it.message ?: "Unable to reach Scribe Intelligence." }
                             aiBusy = false
                         }
                     }) { if (aiBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Ask Scribe") }
