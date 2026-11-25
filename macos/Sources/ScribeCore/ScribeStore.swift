@@ -89,14 +89,18 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     private var timer: Timer?
     private var nextID: Int64 = 1
     private let fileURL: URL
-    private let historyURL: URL\n    private let deletionQueueURL: URL\n    private var pendingCloudDeletions: [String: Int64] = [:]
+    private let historyURL: URL
+    private let deletionQueueURL: URL
+    private var pendingCloudDeletions: [String: Int64] = [:]
 
     public init() {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let folder = root.appendingPathComponent("Scribe", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         fileURL = folder.appendingPathComponent("library.json")
-        historyURL = folder.appendingPathComponent("history.json")\n        deletionQueueURL = folder.appendingPathComponent("cloud-deletions.json")\n        if let data = try? Data(contentsOf: deletionQueueURL), let queued = try? JSONDecoder().decode([String: Int64].self, from: data) { pendingCloudDeletions = queued }
+        historyURL = folder.appendingPathComponent("history.json")
+        deletionQueueURL = folder.appendingPathComponent("cloud-deletions.json")
+        if let data = try? Data(contentsOf: deletionQueueURL), let queued = try? JSONDecoder().decode([String: Int64].self, from: data) { pendingCloudDeletions = queued }
         if let data = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode([ScribeItem].self, from: data) {
             items = decoded; nextID = (decoded.map(\.id).max() ?? 0) + 1
         }
@@ -337,7 +341,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             throw NSError(domain: "ScribeCloud", code: 3, userInfo: [NSLocalizedDescriptionKey: "Supabase did not return a valid session."])
         }
 
-        for (cloud, deletedAt) in pendingCloudDeletions {
+        for (cloud, deletedAt) in Array(pendingCloudDeletions) {
             let body = try JSONSerialization.data(withJSONObject: ["p_cloud_id": cloud, "p_deleted_at": deletedAt])
             _ = try await request("rest/v1/rpc/scribe_delete_item", method: "POST", token: token, body: body)
             pendingCloudDeletions.removeValue(forKey: cloud)
