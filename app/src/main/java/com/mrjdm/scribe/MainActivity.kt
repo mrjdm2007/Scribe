@@ -68,7 +68,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mrjdm.scribe.data.*
 import com.mrjdm.scribe.ui.ScribeTheme
 import com.mrjdm.scribe.ui.scribeGlass
-import com.mrjdm.scribe.ui.scribeGlass
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -781,10 +780,10 @@ private fun TopicNotebook(
         ) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().scribeGlass(RoundedCornerShape(18.dp)),
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1E23)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 7.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.035f), Gold.copy(alpha = 0.18f))))
                 ) {
                     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.085f), Color.White.copy(alpha = 0.018f), Color.Transparent, Color.Black.copy(alpha = 0.09f)))).padding(14.dp)) {
