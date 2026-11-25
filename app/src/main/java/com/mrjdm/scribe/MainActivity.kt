@@ -629,6 +629,10 @@ private fun TopicNotebook(
             TextButton(onClick = { noteValue = noteValue.wrapSelection("- ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("List") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("`", "`"); vm.update(liveTopic, body = noteValue.text) }) { Text("Code") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("\\(", "\\)"); vm.update(liveTopic, body = noteValue.text) }) { Text("Math") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("> ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Quote") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("[", "](https://)") ; vm.update(liveTopic, body = noteValue.text) }) { Text("Link") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("1. ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("1. List") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("| ", " |  |"); vm.update(liveTopic, body = noteValue.text) }) { Text("Table") }
             TextButton(onClick = { showLatexPreview = !showLatexPreview }) { Text(if (showLatexPreview) "Edit" else "Preview") }
         }
         LazyColumn(
@@ -788,7 +792,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     editBlock?.let { block -> EditDialog(block, onDismiss = { editBlock = null }, onSave = { title, body, tags ->
         vm.update(block, title = title, body = body, tags = tags); editBlock = null
     }) }
-    previewPdf?.let { pdf -> PdfViewerDialog(pdf, onDismiss = { previewPdf = null }) }
+    previewPdf?.let { pdf -> PdfViewerDialog(pdf, vm, onDismiss = { previewPdf = null }) }
 }
 
 @Composable
@@ -1012,6 +1016,9 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~", "~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("S", textDecoration = TextDecoration.LineThrough) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("## ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("H2") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("- ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("List") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("> ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Quote") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("[", "](https://)") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Link") }
+                TextButton(onClick = { bodyValue = bodyValue.wrapSelection("~~~\\n", "\\n~~~") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Code block") }
             }
             OutlinedTextField(bodyValue, { bodyValue = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags") }, colors = fieldColors())
@@ -1061,7 +1068,7 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 private data class PdfHandle(val descriptor: ParcelFileDescriptor, val renderer: PdfRenderer)
 
 @Composable
-private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
+private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: () -> Unit) {
     val handle = remember(item.uri) {
         runCatching {
             val descriptor = ParcelFileDescriptor.open(File(item.uri), ParcelFileDescriptor.MODE_READ_ONLY)
@@ -1079,6 +1086,9 @@ private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
     var ocrBusy by remember(item.id) { mutableStateOf(false) }
     var ocrError by remember(item.id) { mutableStateOf("") }
     var ocrQuery by remember(item.id) { mutableStateOf("") }
+    var annotationKind by remember(item.id) { mutableStateOf("Highlight") }
+    var annotationText by remember(item.id) { mutableStateOf("") }
+    val annotations by vm.children(item.id).collectAsState(initial = emptyList())
     LaunchedEffect(pageIndex) {
         ocrText = ""
         ocrError = ""
@@ -1122,6 +1132,31 @@ private fun PdfViewerDialog(item: ScribeItem, onDismiss: () -> Unit) {
                         modifier = Modifier.weight(1f).fillMaxWidth(), contentScale = ContentScale.Fit)
                 } else {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Gold) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Annotate", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    listOf("Highlight", "Underline", "Note", "Markup").forEach { kind ->
+                        FilterChip(selected = annotationKind == kind, onClick = { annotationKind = kind },
+                            label = { Text(kind, fontSize = 10.sp) })
+                    }
+                }
+                OutlinedTextField(annotationText, { annotationText = it }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Annotation for page ${pageIndex + 1}") }, minLines = 1, maxLines = 3)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Button(enabled = annotationText.isNotBlank(), onClick = {
+                        vm.add(item.id, "block", "${annotationKind} · Page ${pageIndex + 1}",
+                            body = annotationText.trim(), tags = "type:pdf_annotation;annotation:${annotationKind.lowercase()};page:${pageIndex + 1}")
+                        annotationText = ""
+                    }) { Text("Save annotation") }
+                    Text("${annotations.count { it.tags.contains("type:pdf_annotation") }} saved", color = Muted, fontSize = 11.sp)
+                }
+                annotations.filter { it.tags.contains("type:pdf_annotation") && it.tags.contains("page:${pageIndex + 1}") }.forEach { note ->
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF24272D))) {
+                        Column(Modifier.fillMaxWidth().padding(9.dp)) {
+                            Text(note.title, color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(note.body, fontSize = 12.sp)
+                        }
+                    }
                 }
                 HorizontalDivider(color = Color(0xFF33363B))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

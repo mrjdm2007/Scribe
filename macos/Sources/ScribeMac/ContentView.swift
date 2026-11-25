@@ -37,6 +37,8 @@ struct ScribeMacRoot: View {
     @State private var topicSearchQuery = ""
     @State private var topicSearchIndex = 0
     @State private var showLatexPreview = false
+    @State private var pdfAnnotationDraft = ""
+    @State private var pdfAnnotationKind = "Highlight"
     @State private var editorSelection = NSRange(location: 0, length: 0)
     @FocusState private var searchFocused: Bool
 
@@ -413,6 +415,10 @@ struct ScribeMacRoot: View {
                             Button("List") { applyMarkup("- ", "") }
                             Button("Code") { applyMarkup("~~~", "~~~") }
                             Button("Math") { applyMarkup("\\(", "\\)") }
+                            Button("Quote") { applyMarkup("> ", "") }
+                            Button("Link") { applyMarkup("[", "](https://)") }
+                            Button("1. List") { applyMarkup("1. ", "") }
+                            Button("Table") { applyMarkup("| ", " |  |") }
                             Button(showLatexPreview ? "Edit" : "Preview") { showLatexPreview.toggle() }
                         }.buttonStyle(.bordered).controlSize(.small)
                     }
@@ -450,6 +456,30 @@ struct ScribeMacRoot: View {
                 }
                 if item.tags.contains("type:pdf"), !item.uri.isEmpty {
                     ScribePDFWorkspace(url: URL(fileURLWithPath: item.uri))
+                    HStack(spacing: 8) {
+                        Picker("Type", selection: $pdfAnnotationKind) {
+                            ForEach(["Highlight", "Underline", "Note", "Markup"], id: \\.self) { Text($0) }
+                        }.frame(width: 130)
+                        TextField("Annotation text", text: $pdfAnnotationDraft)
+                        Button("Save") {
+                            guard !pdfAnnotationDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                            store.create(kind: "block", title: "\\(pdfAnnotationKind) · PDF note",
+                                parentId: item.id, body: pdfAnnotationDraft,
+                                tags: "type:pdf_annotation;annotation:\\(pdfAnnotationKind.lowercased())")
+                            pdfAnnotationDraft = ""
+                        }.buttonStyle(.borderedProminent).tint(gold)
+                    }
+                    ForEach(store.children(of: item.id).filter { $0.tags.contains("type:pdf_annotation") }) { annotation in
+                        HStack(alignment: .top) {
+                            Image(systemName: "highlighter").foregroundStyle(gold)
+                            VStack(alignment: .leading) {
+                                Text(annotation.title).font(.caption.bold())
+                                Text(annotation.body).font(.callout)
+                            }
+                            Spacer()
+                            Button(role: .destructive) { store.remove(annotation) } label: { Image(systemName: "trash") }.buttonStyle(.plain)
+                        }.padding(9).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 9))
+                    }
                     HStack {
                         Button { Task { if let text = try? await ScribePDFOCR.extractText(from: URL(fileURLWithPath: item.uri)) { store.update(item, body: text) } } } label: { Label("Extract PDF text", systemImage: "text.viewfinder") }
                         Text("OCR text is saved in this attachment's note body.").font(.caption).foregroundStyle(.secondary)
