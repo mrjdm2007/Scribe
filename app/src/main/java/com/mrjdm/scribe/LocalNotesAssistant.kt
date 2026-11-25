@@ -75,7 +75,7 @@ fun LocalNotesAssistantScreen(vm: ScribeViewModel) {
                 selectedCourses = if (course.id in selectedCourses) selectedCourses - course.id else selectedCourses + course.id
             }, label = { Text(course.title) })
         }
-        HorizontalDivider()
+        Divider()
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("NOTE SOURCES", style = MaterialTheme.typography.labelLarge)
             Text("${results.size} matches", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
