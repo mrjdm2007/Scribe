@@ -159,16 +159,19 @@ struct DesktopWorkbenchView: View {
             TextField("Formula name", text: $formulaName).textFieldStyle(.roundedBorder)
             TextEditor(text: $formulaSource).font(.system(.body, design: .monospaced)).frame(minHeight: 100)
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary))
-            Text("SOURCE PREVIEW").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            Text(formulaSource.isEmpty ? "Your equation will appear here" : formulaSource).font(.title3).foregroundStyle(.tint)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(12).background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+            Text("RENDERED EQUATION").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            MathJaxPreview(source: formulaSource.isEmpty ? "\\text{Your equation will appear here}" : formulaSource)
+                .frame(minHeight: 84, maxHeight: 160)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
             let symbols = ["α","β","γ","θ","λ","μ","π","ω","Δ","Σ","∫","∂","∇","√","∞","±","×","÷","≤","≥","≠","→","↔","₀","₁","₂","³","⁴","⁵","²","⁻¹","/","^","_","{","}"]
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 6) {
                 ForEach(symbols, id: \.self) { symbol in Button(symbol) { formulaSource += symbol }.buttonStyle(.bordered) }
             }
             Button("Save formula") { _ = library.add(kind: "formula", title: formulaName, body: formulaSource, tags: "type:equation;source:latex") }
                 .disabled(formulaSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).buttonStyle(.borderedProminent)
-            Text("Scribe stores LaTeX source and symbols; it does not visually typeset equations yet.").font(.caption).foregroundStyle(.secondary)
+            Text("LaTeX is rendered with MathJax when online; if it cannot load, the original source remains visible.").font(.caption).foregroundStyle(.secondary)
         }
     }
 
