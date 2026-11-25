@@ -1,0 +1,31 @@
+name: Scribe macOS CI
+on:
+  push:
+    branches: ["main", "feature/**"]
+    paths: ["macos/**", ".github/workflows/macos.yml"]
+  pull_request:
+    branches: ["main"]
+    paths: ["macos/**", ".github/workflows/macos.yml"]
+  workflow_dispatch:
+concurrency:
+  group: macos-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report runner architecture
+        run: uname -m && swift --version
+      - name: Build macOS app
+        working-directory: macos
+        run: |
+          swift test
+          bash scripts/package-app.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scribe-macos-app
+          path: macos/build/Scribe-macOS.zip
+          if-no-files-found: error
+          retention-days: 30
