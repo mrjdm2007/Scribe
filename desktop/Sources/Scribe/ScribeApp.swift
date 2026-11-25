@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 @main
 struct ScribeApp: App {
@@ -103,6 +104,9 @@ struct ScribeRootView: View {
             do { if case .success(let urls) = result, let url = urls.first { let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }; try library.restoreBackup(Data(contentsOf: url)) } }
             catch { library.lastError = "Import failed: \(error.localizedDescription)" }
         }
+        .fileExporter(isPresented: $showBackupExporter, document: backupDocument, contentType: .json, defaultFilename: "Scribe-Backup", onCompletion: { result in
+            if case .failure(let error) = result { library.lastError = "Export failed: \(error.localizedDescription)" }
+        })
         .alert("Scribe", isPresented: Binding(get: { library.lastError != nil }, set: { if !$0 { library.lastError = nil } })) {
             Button("OK") { library.lastError = nil }
         } message: { Text(library.lastError ?? "") }
@@ -111,9 +115,8 @@ struct ScribeRootView: View {
     private func exportBackup() {
         do {
             let data = try library.backupData()
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("Scribe-Backup.json")
-            try data.write(to: url, options: .atomic)
-            NSWorkspace.shared.activateFileViewerSelecting([url])
+            backupDocument = ScribeBackupDocument(data: data)
+            showBackupExporter = true
         } catch { library.lastError = error.localizedDescription }
     }
 }
@@ -162,11 +165,11 @@ struct NodeEditorView: View {
                 } label: { Image(systemName: "ellipsis.circle") }
             }
             TextField("Title", text: $item.title).font(.largeTitle.weight(.semibold)).textFieldStyle(.plain)
-                .onChange(of: item.title) { _, _ in library.update(item) }
+                .onChange(of: item.title) { _ in library.update(item) }
             if item.kind == "block" || item.kind == "formula" || item.kind == "question" || item.kind == "flashcard" || item.kind == "diagram" {
                 TextEditor(text: $item.body).font(.body).scrollContentBackground(.hidden)
                     .padding(10).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
-                    .onChange(of: item.body) { _, _ in library.update(item) }
+                    .onChange(of: item.body) { _ in library.update(item) }
             } else {
                 Text("Notebook contents").font(.headline).foregroundStyle(.secondary)
                 List(library.children(of: item.id)) { child in
