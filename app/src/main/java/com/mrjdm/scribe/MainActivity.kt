@@ -780,7 +780,7 @@ private fun TopicNotebook(
                     elevation = CardDefaults.cardElevation(defaultElevation = 7.dp),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
-                    Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.045f), Color.Transparent, Color.Black.copy(alpha = 0.07f)))).padding(14.dp)) {
+                    Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.085f), Color.White.copy(alpha = 0.018f), Color.Transparent, Color.Black.copy(alpha = 0.09f)))).padding(14.dp)) {
                         Text("YOUR NOTES", color = Gold, fontSize = 10.sp, letterSpacing = 1.5.sp)
                         Spacer(Modifier.height(8.dp))
                         if (showLatexPreview) {
@@ -994,8 +994,8 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
     var menuExpanded by remember(item.id) { mutableStateOf(false) }
     val preview = remember(item.uri, type) { if (type == "image" && item.uri.isNotBlank()) runCatching { BitmapFactory.decodeFile(item.uri)?.asImageBitmap() }.getOrNull() else null }
     val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF202329)), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(defaultElevation = 6.dp, pressedElevation = 9.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(Modifier.background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.055f), Color.Transparent, Color.Black.copy(alpha = 0.06f))), RoundedCornerShape(16.dp)).padding(15.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF202329)), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(defaultElevation = 6.dp, pressedElevation = 9.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.13f)), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(Modifier.background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.09f), Color.White.copy(alpha = 0.02f), Color.Transparent, Color.Black.copy(alpha = 0.08f))), RoundedCornerShape(16.dp)).padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, tint = Gold, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(9.dp))
@@ -1085,7 +1085,7 @@ const e=document.getElementById("editor");let last="";
 function md(n){if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
 if(t==="br")return "\n";if(t==="b"||t==="strong")return "**"+c()+"**";if(t==="i"||t==="em")return "*"+c()+"*";if(t==="u")return "<u>"+c()+"</u>";if(t==="s"||t==="del")return "~~"+c()+"~~";
 if(/^h[1-6]$/.test(t))return "#".repeat(+t[1])+" "+c()+"\n\n";if(t==="blockquote")return c().split("\n").map(x=>"> "+x).join("\n")+"\n\n";
-if(t==="pre")return "    "+(n.innerText||"").replace(/\n/g,"\n    ")+"\n\n";if(t==="a")return "["+c()+"]("+n.getAttribute("href")+")";
+if(t==="pre"){const code=n.querySelector("code");const cls=code?(code.className||""):"";const match=cls.match(/language-([\\w+-]+)/);const lang=match?match[1]:"";const raw=(n.innerText||n.textContent||"").replace(/\n$/,"");const ticks=(raw.match(/`+/g)||[]).reduce((m,x)=>Math.max(m,x.length),0);const fence="`".repeat(Math.max(3,ticks+1));return fence+lang+"\n"+raw+"\n"+fence+"\n\n";}if(t==="a")return "["+c()+"]("+n.getAttribute("href")+")";
 if(t==="code"&&(!n.parentElement||n.parentElement.tagName!=="PRE"))return "`"+c()+"`";if(t==="img")return "!["+((n.getAttribute("alt")||"").replace(/\]/g,"\\]"))+"]("+((n.getAttribute("src")||"").replace(/\)/g,"%29"))+")";
 if(t==="li")return (n.parentElement.tagName==="OL"?(Array.from(n.parentElement.children).indexOf(n)+1)+". ":"- ")+c().trim()+"\n";if(t==="ul"||t==="ol")return Array.from(n.children).map(md).join("")+"\n";
 if(t==="table"){const rows=Array.from(n.querySelectorAll("tr"));if(!rows.length)return "";const cells=r=>Array.from(r.children).map(x=>(x.textContent||"").trim().replace(/\|/g,"\\|"));const head=cells(rows[0]);return "| "+head.join(" | ")+" |\n| "+head.map(()=>"---").join(" | ")+" |\n"+rows.slice(1).map(r=>"| "+cells(r).join(" | ")+" |").join("\n")+"\n\n";}
