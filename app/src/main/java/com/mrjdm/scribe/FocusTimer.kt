@@ -131,7 +131,7 @@ fun FocusTimer(vm: ScribeViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("TODAY'S STUDY GOAL", color = FocusMuted, fontSize = 9.sp, letterSpacing = 1.sp)
-                        Text("$todayMinutes / 60 min", color = FocusGold, fontWeight = FontWeight.SemiBold,
+                        Text("$todayMinutes / $dailyGoalMinutes min", color = FocusGold, fontWeight = FontWeight.SemiBold,
                             style = MaterialTheme.typography.titleLarge)
                     }
                     Column(horizontalAlignment = Alignment.End) {

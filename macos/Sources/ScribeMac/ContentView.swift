@@ -385,13 +385,13 @@ struct ScribeMacRoot: View {
                 }
                 HStack(spacing: 6) {
                     ForEach([30, 60, 90, 120], id: \.self) { minutes in
-                        Button("(minutes) min") { dailyGoalMinutes = minutes }
+                        Button("\(minutes) min") { dailyGoalMinutes = minutes }
                             .buttonStyle(.bordered)
                             .tint(dailyGoalMinutes == minutes ? gold : .secondary)
                     }
                 }
                 ProgressView(value: Double(min(todayMinutes, dailyGoalMinutes)), total: Double(dailyGoalMinutes)).tint(gold)
-                Text(todayMinutes >= dailyGoalMinutes ? "Daily goal completed" : "(dailyGoalMinutes - todayMinutes) min left to reach today's goal")
+                Text(todayMinutes >= dailyGoalMinutes ? "Daily goal completed" : "\(dailyGoalMinutes - todayMinutes) min left to reach today's goal")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(14).background(panel, in: RoundedRectangle(cornerRadius: 12))
             HStack(spacing: 12) {
