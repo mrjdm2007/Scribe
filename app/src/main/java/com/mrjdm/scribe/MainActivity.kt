@@ -905,14 +905,15 @@ private fun latexPreviewHtml(source: String): String {
 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root{color-scheme:dark}body{margin:0;padding:16px;background:transparent;color:#ded8ce;font:16px/1.65 -apple-system,BlinkMacSystemFont,sans-serif}
-#content{white-space:pre-wrap;overflow-wrap:anywhere}.MathJax{color:#f0d8ad!important}
+#content{overflow-wrap:anywhere}#content p{margin:.55em 0}#content h1,#content h2,#content h3{line-height:1.25;margin:1em 0 .45em}#content blockquote{border-left:3px solid #d5b98c;padding-left:12px;color:#bdb5a8;margin-left:0}#content pre{overflow:auto;background:#24272d;padding:12px;border-radius:9px}#content code{font-family:ui-monospace,monospace;background:#24272d;padding:2px 4px;border-radius:4px}#content pre code{padding:0;background:transparent}#content table{border-collapse:collapse;width:100%;display:block;overflow:auto}#content th,#content td{border:1px solid #555;padding:6px 9px}.MathJax{color:#f0d8ad!important}
 mjx-container[display="true"]{max-width:100%;overflow-x:auto;overflow-y:hidden;padding:8px 0}
 #status{font-size:11px;color:#aaa;margin-top:14px}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
 <script>window.MathJax={tex:{inlineMath:[['\\\\(','\\\\)'],['$','$']],displayMath:[['\\\\[','\\\\]'],['$$','$$']],processEscapes:true,packages:{'[+]':['ams']}},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" onerror="document.getElementById('status').textContent='Math rendering needs an internet connection. Your LaTeX source is safe and unchanged.'"></script>
 </head><body><div id="content">${safe}</div><div id="status">Rendering mathematics…</div>
-<script>window.addEventListener('load',()=>{if(window.MathJax&&MathJax.startup){MathJax.startup.promise.then(()=>{document.getElementById('status').textContent='LaTeX preview';}).catch(()=>{document.getElementById('status').textContent='Some expressions could not be rendered.';});}});</script>
+<script>window.addEventListener('load',async()=>{const node=document.getElementById('content');if(window.markdownit){const raw=node.textContent;node.innerHTML=window.markdownit({html:false,linkify:false,typographer:true}).render(raw);}else{document.getElementById('status').textContent='Markdown renderer unavailable; showing source text.';}try{if(window.MathJax&&MathJax.startup){await MathJax.startup.promise;await MathJax.typesetPromise([node]);document.getElementById('status').textContent='Markdown and LaTeX preview';}}catch(e){document.getElementById('status').textContent='Some equations could not be rendered.';}});</script>
 </body></html>""".trimIndent()
 }
 
