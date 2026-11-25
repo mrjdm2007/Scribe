@@ -95,8 +95,6 @@ internal class ScribeSupabaseSync(
                         JSONArray().put(row).toString(), token, "resolution=merge-duplicates,return=minimal")
                 }
             }
-            upload(local)
-
             val remote = JSONArray(request("rest/v1/scribe_cloud_items?select=cloud_id,payload,updated_at", "GET", token = token))
             val localByCloud = dao.allItems().mapNotNull { item -> cloudId(item.tags)?.let { it to item } }.toMap().toMutableMap()
             val pending = (0 until remote.length()).mapNotNull { remote.optJSONObject(it) }.toMutableList()

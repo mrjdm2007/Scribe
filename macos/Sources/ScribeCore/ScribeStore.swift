@@ -375,7 +375,6 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             }
         }
         var cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
-        try await upload(items, cloudIDs: cloudIDs)
         let remoteData = try await request("rest/v1/scribe_cloud_items?select=cloud_id,payload,updated_at",
             method: "GET", token: token)
         let remote = try JSONSerialization.jsonObject(with: remoteData) as? [[String: Any]] ?? []
