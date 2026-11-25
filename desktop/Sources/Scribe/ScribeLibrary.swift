@@ -135,6 +135,42 @@ final class ScribeLibrary: ObservableObject {
         let newID = clone(source, parent: source.parentID, rootCopy: true); save(); return newID
     }
 
+    func splitPage(_ id: UUID) {
+        guard let page = node(id), page.kind == "page" else { return }
+        let blocks = children(of: id)
+        guard blocks.count >= 2 else { return }
+        let secondPageID = UUID()
+        let secondPage = ScribeNode(id: secondPageID, parentID: page.parentID, kind: "page",
+                                    title: page.title + " · Part 2", position: children(of: page.parentID).count)
+        nodes.append(secondPage)
+        for (offset, block) in blocks.dropFirst((blocks.count + 1) / 2).enumerated() {
+            if let index = nodes.firstIndex(where: { $0.id == block.id }) {
+                nodes[index].parentID = secondPageID
+                nodes[index].position = offset
+                nodes[index].updatedAt = .now
+            }
+        }
+        save()
+    }
+
+    func mergePageWithNext(_ id: UUID) {
+        guard let page = node(id), page.kind == "page" else { return }
+        let siblings = children(of: page.parentID).filter { $0.kind == "page" }
+        guard let index = siblings.firstIndex(where: { $0.id == id }), siblings.indices.contains(index + 1) else { return }
+        let next = siblings[index + 1]
+        var position = children(of: id).count
+        for block in children(of: next.id) {
+            if let blockIndex = nodes.firstIndex(where: { $0.id == block.id }) {
+                nodes[blockIndex].parentID = id
+                nodes[blockIndex].position = position
+                nodes[blockIndex].updatedAt = .now
+                position += 1
+            }
+        }
+        if let nextIndex = nodes.firstIndex(where: { $0.id == next.id }) { nodes[nextIndex].deletedAt = .now }
+        save()
+    }
+
     func moveToTrash(_ id: UUID) {
         let now = Date()
         func mark(_ target: UUID) {
