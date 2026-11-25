@@ -33,6 +33,8 @@ private struct ScribeGlassPanel: ViewModifier {
                     .padding(.horizontal, cornerRadius * 0.7)
                     .padding(.top, 1)
             }
+            // Clip decorative overlays to the same continuous rounded shape.
+            .clipShape(shape)
             .shadow(color: .black.opacity(0.24), radius: 14, x: 0, y: 7)
             .shadow(color: Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.055), radius: 20, x: 0, y: 4)
     }
