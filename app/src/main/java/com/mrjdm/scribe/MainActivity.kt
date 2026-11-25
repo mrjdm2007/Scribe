@@ -126,28 +126,39 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch(Dispatchers.IO) {
-            val all = vm.all()
-            val array = JSONArray()
-            all.forEach { item -> array.put(JSONObject().apply {
-                put("id", item.id); put("parentId", item.parentId ?: JSONObject.NULL); put("kind", item.kind)
-                put("title", item.title); put("body", item.body); put("uri", item.uri); put("tags", item.tags)
-                put("bookmarked", item.bookmarked); put("position", item.position); put("createdAt", item.createdAt); put("updatedAt", item.updatedAt)
-                put("deletedAt", item.deletedAt ?: JSONObject.NULL)
-                if (item.uri.isNotBlank()) {
-                    val attachment = File(item.uri)
-                    if (attachment.isFile) put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
+            try {
+                val all = vm.all()
+                val array = JSONArray()
+                all.forEach { item ->
+                    val row = JSONObject().apply {
+                        put("id", item.id); put("parentId", item.parentId ?: JSONObject.NULL); put("kind", item.kind)
+                        put("title", item.title); put("body", item.body); put("uri", item.uri); put("tags", item.tags)
+                        put("bookmarked", item.bookmarked); put("position", item.position); put("createdAt", item.createdAt); put("updatedAt", item.updatedAt)
+                        put("deletedAt", item.deletedAt ?: JSONObject.NULL)
+                    }
+                    if (item.uri.isNotBlank()) {
+                        val attachment = File(item.uri)
+                        check(attachment.isFile) { "Cannot export backup: missing attachment ${attachment.name}. Reattach it before exporting." }
+                        val declaredType = item.tags.substringAfter("type:", "").substringBefore(';').substringBefore(',')
+                        check(declaredType == "image" || declaredType == "pdf") { "Unsupported attachment type in ${attachment.name}." }
+                        row.put("attachmentBase64", Base64.encodeToString(attachment.readBytes(), Base64.NO_WRAP))
+                    }
+                    val history = JSONArray()
+                    vm.snapshots(item.id).first().forEach { snapshot ->
+                        history.put(JSONObject().apply {
+                            put("title", snapshot.title)
+                            put("body", snapshot.body)
+                            put("savedAt", snapshot.savedAt)
+                        })
+                    }
+                    row.put("history", history)
+                    array.put(row)
                 }
-                val history = JSONArray()
-                vm.snapshots(item.id).first().forEach { snapshot ->
-                    history.put(JSONObject().apply {
-                        put("title", snapshot.title)
-                        put("body", snapshot.body)
-                        put("savedAt", snapshot.savedAt)
-                    })
-                }
-                put("history", history)
-            }) }
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(array.toString(2)) }
+                val output = context.contentResolver.openOutputStream(uri) ?: error("Could not open the backup destination.")
+                output.bufferedWriter().use { it.write(array.toString(2)) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { integrityReport = "Backup export failed. No backup was written.\n\n${error.localizedMessage ?: "Unknown error"}" }
+            }
         }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
