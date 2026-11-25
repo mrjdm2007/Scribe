@@ -9,6 +9,20 @@ final class ReviewScheduleTests: XCTestCase {
     func testMaximumIntervalIsCapped() { XCTAssertEqual(nextReviewIntervalDays(200, rating: 3), 365) }
     func testInvalidRatingPreservesInterval() { XCTAssertEqual(nextReviewIntervalDays(7, rating: 9), 7) }
 
+    func testGraphExpressionArithmeticAndPrecedence() {
+        XCTAssertEqual(ScribeMathExpression.evaluate("2 + 3 * x", x: 4), 14, accuracy: 0.000001)
+        XCTAssertEqual(ScribeMathExpression.evaluate("(2 + 3)^2", x: 0), 25, accuracy: 0.000001)
+    }
+    func testGraphExpressionFunctionsAndConstants() {
+        XCTAssertEqual(ScribeMathExpression.evaluate("sin(pi / 2)", x: 0), 1, accuracy: 0.000001)
+        XCTAssertEqual(ScribeMathExpression.evaluate("sqrt(9) + abs(-2)", x: 0), 5, accuracy: 0.000001)
+    }
+    func testGraphExpressionRejectsDivisionByZeroAndUnknownTokens() {
+        XCTAssertNil(ScribeMathExpression.evaluate("1 / (x - 2)", x: 2))
+        XCTAssertNil(ScribeMathExpression.evaluate("system(1)", x: 0))
+        XCTAssertNil(ScribeMathExpression.evaluate("x + @", x: 1))
+    }
+
     func testAndroidBackupRecordShapeRoundTrips() throws {
         let json = """
         [{"id":1,"parentId":null,"kind":"topic","title":"ECE","body":"## Notes\\n**Voltage** = IR","uri":"","tags":"","bookmarked":false,"position":0,"createdAt":1,"updatedAt":1,"deletedAt":null,"history":[{"title":"Old","body":"Earlier version","savedAt":123}]}]

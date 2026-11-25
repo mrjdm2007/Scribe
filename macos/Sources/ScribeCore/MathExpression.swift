@@ -10,7 +10,7 @@ public enum ScribeMathExpression {
     }
 
     private struct Parser {
-        let tokens: [String]
+        var tokens: [String]
         let x: Double
         var index = 0
         var isAtEnd: Bool { index >= tokens.count }
@@ -73,7 +73,7 @@ public enum ScribeMathExpression {
             if let number = Double(token) { return number }
             if token == "x" { return x }
             if token == "pi" { return Double.pi }
-            if token == "e" { return M_E }
+            if token == "e" { return Foundation.exp(1) }
             if token.first?.isLetter == true {
                 guard peek == "(" else { return nil }
                 index += 1

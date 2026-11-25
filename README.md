@@ -8,7 +8,7 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Local-first storage with Room; no account or network connection required for core notes.
 - Courses, chapters and topics; opening a topic opens a continuous notebook editor with no mandatory page-creation step. Existing legacy pages remain accessible.
 - Content blocks for text, headings, LaTeX source, code, tables, lists, checklists, quotes, questions, flashcards, diagrams, links, images, PDFs and documents.
-- Image, PDF and document imports copied into app-private storage. Audio and video features are intentionally excluded.
+- Image, PDF and document imports copied into app-private storage. Android automatically builds an offline searchable text index for imported PDFs using on-device OCR. Audio and video features are intentionally excluded.
 - Global search across titles, note text and tags, plus word search scoped to the open topic.
 - Continuous topic notes with portable Markdown-style formatting markers, live local persistence, and orientation-safe navigation restoration.
 - Vertical notebook scrolling, horizontal formatting-toolbar scrolling, and horizontal code-block scrolling.
@@ -19,7 +19,7 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Quick capture notes routed into a visible Quick Notes course and Inbox chapter.
 - Formula source pad with symbol keyboard and saved formula collection.
 - Engineering unit conversions for length, electrical quantities, frequency, power, energy, time, speed, charge and inductance.
-- Local graph plotting for linear and built-in trigonometric, polynomial, reciprocal and exponential functions; graph expressions are saved into the library.
+- Local graph plotting with a bounded expression evaluator supporting arithmetic, powers, parentheses, x, constants, and common trigonometric/logarithmic functions; graph expressions are saved into the library.
 - Engineering formula shelf with common electronics equations and a personal saved collection.
 - Circuit component sketch starter with reference/value notes and a simple schematic preview.
 - Editable scientific tables with adjustable rows and columns on Android and macOS, saved as structured tab-separated blocks.
@@ -52,4 +52,4 @@ gradle :app:assembleDebug
 GitHub Actions publishes a smaller `scribe-release-apk` artifact. It is signed with the temporary debug signing key for testing; create a private release keystore before publishing a Play Store build.
 
 ## Known limitations
-The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF annotations and full-document text extraction are currently available in the macOS app; equivalent annotation controls are not yet available on Android. OCR text becomes searchable after extraction, but OCR indexing is not automatic. Graph plotting supports a defined set of functions rather than arbitrary expressions. The circuit tool remains a schematic starter, not a full drag-and-drop CAD editor or SPICE simulator. Full rich-text rendering parity, live Android–Mac sync, actionable notification parity, background focus countdown notifications, automatic scheduled/cloud backups, advanced stylus pressure/eraser support, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
+The app is still evolving. Equation content is stored as LaTeX source but is not yet visually typeset. PDF annotations and full-document text extraction are currently available in the macOS app; equivalent annotation controls are not yet available on Android. Android now indexes PDF text automatically at import; macOS PDF extraction remains available from the PDF workspace. Graph plotting supports a bounded expression grammar rather than arbitrary programming-language expressions. The circuit tool remains a schematic starter, not a full drag-and-drop CAD editor or SPICE simulator. Full rich-text rendering parity, live Android–Mac sync, actionable notification parity, background focus countdown notifications, automatic scheduled/cloud backups, advanced stylus pressure/eraser support, and full-fidelity formatted PDF export remain future work. Audio and video remain out of scope.
