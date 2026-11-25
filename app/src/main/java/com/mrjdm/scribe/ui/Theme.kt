@@ -7,6 +7,12 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -58,3 +64,26 @@ private val ScribeShapes = Shapes(
 fun ScribeTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = ScribeColors, typography = ScribeType, shapes = ScribeShapes, content = content)
 }
+
+
+/** Restrained glass treatment for notebook surfaces: readable fill, soft lift and a fine reflective edge. */
+fun Modifier.scribeGlass(shape: Shape = RoundedCornerShape(18.dp)): Modifier =
+    this
+        .shadow(12.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.22f), spotColor = Color.Black.copy(alpha = 0.30f))
+        .background(
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFF343840).copy(alpha = 0.94f),
+                    Color(0xFF22262D).copy(alpha = 0.97f),
+                    Color(0xFF191C22).copy(alpha = 0.99f)
+                )
+            ),
+            shape
+        )
+        .border(
+            1.dp,
+            Brush.linearGradient(
+                listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.055f), Color(0xFFD9BD91).copy(alpha = 0.16f))
+            ),
+            shape
+        )
