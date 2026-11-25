@@ -528,7 +528,11 @@ private fun TopicNotebook(
                 Text("TOPIC NOTEBOOK", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Text(topic.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
-            Text("${blocks.size} blocks", color = Muted, fontSize = 11.sp)
+            val noteWords = noteValue.text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("$noteWords words", color = Muted, fontSize = 10.sp)
+                Text("${maxOf(1, (noteWords + 199) / 200)} min read · ${blocks.size} blocks", color = Muted, fontSize = 10.sp)
+            }
         }
         OutlinedTextField(
             value = searchQuery,
