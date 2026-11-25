@@ -103,7 +103,7 @@ final class ReviewScheduleTests: XCTestCase {
 
     func testBulkTaggingSanitizesSeparatorsAndIgnoresBlankTags() {
         XCTAssertEqual(appendingTag("subject:ECE", tag: " revision; notes "),
-                       "subject:ECE;revision  notes")
+                       "subject:ECE;revision notes")
         XCTAssertEqual(appendingTag("subject:ECE", tag: "  "), "subject:ECE")
     }
 
