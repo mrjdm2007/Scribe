@@ -55,6 +55,7 @@ a{color:#b18a52}#editor mark{background:#f2d36b;color:#242424}
 </style></head><body><div id="editor" contenteditable="true" spellcheck="true"></div>
 <script>
 const editor=document.getElementById("editor");let lastMarkdown="";
+function inlineCode(value){const runs=value.match(/\x60+/g)||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence="\x60".repeat(longest+1);const pad=value.startsWith(" ")||value.endsWith(" ")?" ":"";return fence+pad+value+pad+fence;}
 function md(n){
  if(n.nodeType===3)return n.nodeValue||"";if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
  const t=n.tagName.toLowerCase(),c=()=>Array.from(n.childNodes).map(md).join("");
