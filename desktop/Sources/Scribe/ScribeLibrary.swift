@@ -34,11 +34,19 @@ struct ScribeSnapshot: Codable, Identifiable {
     var savedAt: Date = .now
 }
 
+struct ScribeAttachmentBackup: Codable {
+    var nodeID: UUID
+    var filename: String
+    var mimeType: String
+    var dataBase64: String
+}
+
 struct ScribeBackup: Codable {
     var schemaVersion = 1
     var exportedAt = Date.now
     var items: [ScribeNode]
     var snapshots: [ScribeSnapshot]
+    var attachments: [ScribeAttachmentBackup] = []
 }
 
 @MainActor
@@ -171,17 +179,34 @@ final class ScribeLibrary: ObservableObject {
     }
 
     func backupData() throws -> Data {
-        try JSONEncoder.scribe.encode(ScribeBackup(items: nodes, snapshots: snapshots))
+        let attachments: [ScribeAttachmentBackup] = nodes.compactMap { item in
+            guard !item.uri.isEmpty, let bytes = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) else { return nil }
+            return ScribeAttachmentBackup(nodeID: item.id, filename: URL(fileURLWithPath: item.uri).lastPathComponent,
+                                          mimeType: "application/octet-stream", dataBase64: bytes.base64EncodedString())
+        }
+        return try JSONEncoder.scribe.encode(ScribeBackup(items: nodes, snapshots: snapshots, attachments: attachments))
     }
     func restoreBackup(_ data: Data) throws {
         let backup = try JSONDecoder.scribe.decode(ScribeBackup.self, from: data)
         guard backup.schemaVersion == 1 else { throw CocoaError(.fileReadCorruptFile) }
-        // Validate references before mutating the live library.
+        // Validate references and attachment payloads before mutating the live library.
         let ids = Set(backup.items.map(\.id))
-        guard backup.items.allSatisfy({ $0.parentID == nil || ids.contains($0.parentID!) }) else {
+        guard backup.items.allSatisfy({ $0.parentID == nil || ids.contains($0.parentID!) }),
+              backup.attachments.allSatisfy({ ids.contains($0.nodeID) && Data(base64Encoded: $0.dataBase64) != nil }) else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        nodes = backup.items; snapshots = backup.snapshots; save()
+        let attachmentFolder = root.appendingPathComponent("attachments", isDirectory: true)
+        try FileManager.default.createDirectory(at: attachmentFolder, withIntermediateDirectories: true)
+        var restoredItems = backup.items
+        for attachment in backup.attachments {
+            guard let bytes = Data(base64Encoded: attachment.dataBase64),
+                  let index = restoredItems.firstIndex(where: { $0.id == attachment.nodeID }) else { continue }
+            let safeName = URL(fileURLWithPath: attachment.filename).lastPathComponent
+            let target = attachmentFolder.appendingPathComponent("\(attachment.nodeID.uuidString)-\(safeName)")
+            try bytes.write(to: target, options: .atomic)
+            restoredItems[index].uri = target.path
+        }
+        nodes = restoredItems; snapshots = backup.snapshots; save()
     }
 
     func history(for id: UUID) -> [ScribeSnapshot] { snapshots.filter { $0.itemID == id }.sorted { $0.savedAt > $1.savedAt } }
