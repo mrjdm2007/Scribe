@@ -91,6 +91,7 @@ struct ScribeMacRoot: View {
     @State private var cloudStatus = ""
     @State private var cloudBusy = false
     @State private var editorSelection = NSRange(location: 0, length: 0)
+    @State private var showingReadingMode = false
     @FocusState private var searchFocused: Bool
 
     private let gold = Color(red: 0.84, green: 0.72, blue: 0.55)
@@ -276,6 +277,13 @@ struct ScribeMacRoot: View {
             Button("Done", role: .cancel) { }
         } message: { Text(integrityReport) }
         .preferredColorScheme(.dark)
+        .overlay(alignment: .bottomTrailing) { ScribeFloatingStudyTimer() }
+        .sheet(isPresented: $showingReadingMode) {
+            if let item = store.selected {
+                ScribeReadingMode(title: item.title, bodyText: item.body,
+                    attachments: store.children(of: item.id).filter { !$0.tags.contains("type:pdf") && !$0.tags.contains("type:image") })
+            }
+        }
     }
     private func icon(for tool: ScribeTool) -> String {
         switch tool {
@@ -476,7 +484,11 @@ struct ScribeMacRoot: View {
         VStack(alignment: .leading, spacing: 12) {
             if let item = store.selected {
                 Text(item.kind == "topic" ? "TOPIC NOTEBOOK" : item.kind.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
-                TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
+                HStack(spacing: 12) {
+                    TextField("Title", text: Binding(get: { store.selected?.title ?? "" }, set: { store.update(item,title:$0) })).font(.title2.bold()).textFieldStyle(.plain)
+                    Button { showingReadingMode = true } label: { Label("Read", systemImage: "book.pages") }
+                        .buttonStyle(.bordered).help("Open distraction-free reading mode")
+                }
                 if item.kind == "topic" {
                     let backlinkBlocks = store.items.filter { block in
                         block.tags.contains("type:crosslink") &&
