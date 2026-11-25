@@ -222,20 +222,24 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun bulkMove(items: List<ScribeItem>, targetParentId: Long?) {
         viewModelScope.launch {
-            val all = dao.allItems()
-            val movingIds = items.map { it.id }.toSet()
-            if (targetParentId != null) {
-                var cursor: Long? = targetParentId
-                val visited = mutableSetOf<Long>()
-                while (cursor != null && visited.add(cursor)) {
-                    if (cursor in movingIds) return@launch
-                    cursor = all.firstOrNull { it.id == cursor }?.parentId
-                }
-            }
             database.withTransaction {
+                val all = dao.allItems()
+                val movingIds = items.map { it.id }.toSet()
+                if (targetParentId != null) {
+                    var cursor: Long? = targetParentId
+                    val visited = mutableSetOf<Long>()
+                    while (cursor != null && visited.add(cursor)) {
+                        if (cursor in movingIds) return@withTransaction
+                        cursor = all.firstOrNull { it.id == cursor }?.parentId
+                    }
+                }
                 var position = dao.children(targetParentId).first().size
-                items.distinctBy { it.id }.forEach { item ->
-                    if (item.deletedAt == null) dao.update(item.copy(parentId = targetParentId, position = position++, updatedAt = System.currentTimeMillis()))
+                items.distinctBy { it.id }.forEach { selected ->
+                    val current = dao.byId(selected.id) ?: return@forEach
+                    if (current.deletedAt == null) {
+                        dao.update(current.copy(parentId = targetParentId, position = position++,
+                            updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1)))
+                    }
                 }
             }
         }
