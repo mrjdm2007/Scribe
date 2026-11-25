@@ -268,11 +268,17 @@ final class ScribeLibrary: ObservableObject {
             } else { row["deletedAt"] = NSNull() }
             if !item.uri.isEmpty {
                 let fileURL = URL(fileURLWithPath: item.uri)
-                let type = UTType(filenameExtension: fileURL.pathExtension)
-                if type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true,
-                   let bytes = try? Data(contentsOf: fileURL) {
-                    row["attachmentBase64"] = bytes.base64EncodedString()
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    throw NSError(domain: "ScribeBackup", code: 404,
+                                  userInfo: [NSLocalizedDescriptionKey: "Cannot export backup: missing attachment \(fileURL.lastPathComponent). Restore or reattach it first."])
                 }
+                let type = UTType(filenameExtension: fileURL.pathExtension)
+                guard type?.conforms(to: .image) == true || type?.conforms(to: .pdf) == true else {
+                    throw NSError(domain: "ScribeBackup", code: 415,
+                                  userInfo: [NSLocalizedDescriptionKey: "Cannot export unsupported attachment type: \(fileURL.lastPathComponent)."])
+                }
+                let bytes = try Data(contentsOf: fileURL)
+                row["attachmentBase64"] = bytes.base64EncodedString()
             }
             row["history"] = snapshots.filter { $0.itemID == item.id }.map {
                 ["title": $0.title, "body": $0.body, "savedAt": Int64($0.savedAt.timeIntervalSince1970 * 1000)] as [String: Any]
@@ -323,7 +329,15 @@ final class ScribeLibrary: ObservableObject {
             return true
         }) else { throw CocoaError(.fileReadCorruptFile) }
         for row in rows {
-            guard let encoded = row["attachmentBase64"] as? String else { continue }
+            let originalURI = row["uri"] as? String ?? ""
+            let tags = row["tags"] as? String ?? ""
+            let declaredType = tags.split(separator: ";").first(where: { $0.hasPrefix("type:") })
+                .map { String($0.dropFirst(5)).components(separatedBy: ",").first ?? "" } ?? ""
+            let hasAttachmentMarker = !originalURI.isEmpty || declaredType == "image" || declaredType == "pdf"
+            guard let encoded = row["attachmentBase64"] as? String else {
+                if hasAttachmentMarker { throw NSError(domain: "ScribeBackup", code: 422, userInfo: [NSLocalizedDescriptionKey: "Backup is missing attachment data. Export a fresh full backup from the source device."]) }
+                continue
+            }
             guard let bytes = Data(base64Encoded: encoded), !bytes.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
             let originalURI = row["uri"] as? String ?? ""
             let ext = URL(fileURLWithPath: originalURI).pathExtension
