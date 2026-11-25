@@ -202,7 +202,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                                     json.optString("answer").ifBlank { "The assistant returned an empty response." }
                                 }.getOrElse { throw it }
                             }
-                            result.onSuccess { aiAnswer = it }.onFailure { aiError = it.message ?: "Unable to reach Scribe Intelligence." }
+                            aiAnswer = result
                             aiBusy = false
                         }
                     }) { if (aiBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Ask Scribe") }
