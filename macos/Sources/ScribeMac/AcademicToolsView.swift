@@ -179,7 +179,7 @@ struct AcademicToolsView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Practice").font(.title2.bold())
             if questions.isEmpty {
-                ContentUnavailableView("No questions yet", systemImage: "questionmark.circle", description: Text("Add questions in the Question bank first."))
+                VStack(spacing: 8) { Image(systemName: "questionmark.circle").font(.largeTitle); Text("No questions yet").font(.headline); Text("Add questions in the Question bank first.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 160)
             } else {
                 let card = questions[practiceIndex % questions.count]
                 Text("Question \((practiceIndex % questions.count) + 1) of \(questions.count)").font(.caption).foregroundStyle(.secondary)

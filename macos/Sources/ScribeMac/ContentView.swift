@@ -301,7 +301,7 @@ struct ScribeMacRoot: View {
             Text("Recently deleted").font(.title2.bold())
             let deleted = store.items.filter { $0.deletedAt != nil }.sorted { ($0.deletedAt ?? 0) > ($1.deletedAt ?? 0) }
             if deleted.isEmpty {
-                ContentUnavailableView("Trash is empty", systemImage: "trash", description: Text("Deleted notes will appear here."))
+                VStack(spacing: 8) { Image(systemName: "trash").font(.largeTitle); Text("Trash is empty").font(.headline); Text("Deleted notes will appear here.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 160)
             } else {
                 List(deleted) { item in
                     HStack {
@@ -323,9 +323,10 @@ struct ScribeMacRoot: View {
             Text("Version history").font(.title2.bold())
             let entries = store.snapshots[item.id] ?? []
             if entries.isEmpty {
-                ContentUnavailableView("No previous versions", systemImage: "clock.arrow.circlepath", description: Text("Previous note versions will appear here after edits."))
+                VStack(spacing: 8) { Image(systemName: "clock.arrow.circlepath").font(.largeTitle); Text("No previous versions").font(.headline); Text("Previous note versions will appear here after edits.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, minHeight: 160)
             } else {
-                List(Array(entries.enumerated()), id: \.offset) { _, entry in
+                List(Array(entries.enumerated()), id: \.offset) { pair in
+                    let entry = pair.element
                     VStack(alignment: .leading, spacing: 6) {
                         Text(Date(timeIntervalSince1970: Double(entry.savedAt) / 1000), style: .date)
                             .font(.caption).foregroundStyle(.secondary)
