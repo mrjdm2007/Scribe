@@ -348,7 +348,7 @@ struct ScribeMacRoot: View {
             let cards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }
             func deckName(_ card: ScribeItem) -> String {
                 let tag = card.tags.split(separator: ";").first(where: { $0.hasPrefix("deck:") }) ?? card.tags.split(separator: ";").first(where: { $0.hasPrefix("subject:") })
-                return tag.map { String($0.dropFirst(5)) }.flatMap { $0.isEmpty ? nil : $0 } ?? "General"
+                return tag.map { String($0.drop(while: { $0 != ":" }).dropFirst()) }.flatMap { $0.isEmpty ? nil : $0 } ?? "General"
             }
             let decks = ["All decks"] + Array(Set(cards.map(deckName))).sorted()
             let visibleCards = cards.filter { flashcardDeckFilter == "All decks" || deckName($0) == flashcardDeckFilter }
