@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ScribeCore
 
 /// Persistent compact focus timer shared by every macOS screen.
@@ -88,11 +89,12 @@ struct ScribeReadingMode: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Text(title).font(.system(size: 34, weight: .semibold, design: .serif))
-                    Text(bodyText).font(.system(size: 18, weight: .regular, design: .serif)).lineSpacing(9).textSelection(.enabled)
+                    LatexPreviewView(source: bodyText).frame(minHeight: 300)
                     ForEach(attachments) { item in
                         VStack(alignment: .leading, spacing: 9) {
                             Text(item.title).font(.title3.bold())
-                            if !item.body.isEmpty { Text(item.body).font(.system(size: 17, design: .serif)).lineSpacing(7).textSelection(.enabled) }
+                            if item.tags.contains("type:image"), let image = NSImage(contentsOfFile: item.uri) { Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 420) }
+                            else if !item.body.isEmpty { LatexPreviewView(source: item.body).frame(minHeight: 100) }
                         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
