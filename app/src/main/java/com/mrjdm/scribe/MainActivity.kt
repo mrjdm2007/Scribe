@@ -702,7 +702,7 @@ private fun TopicNotebook(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("CHECKLIST", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
                         Spacer(Modifier.weight(1f))
-                        Text("$checklistDone / \${checklistLines.size} completed", color = Muted, fontSize = 11.sp)
+                        Text("$checklistDone / ${checklistLines.size} completed", color = Muted, fontSize = 11.sp)
                     }
                     LinearProgressIndicator(progress = { checklistDone.toFloat() / checklistLines.size }, modifier = Modifier.fillMaxWidth().height(5.dp), color = Gold, trackColor = Color.White.copy(alpha = 0.10f))
                 }
