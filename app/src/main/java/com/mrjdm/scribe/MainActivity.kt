@@ -696,7 +696,7 @@ private fun TopicNotebook(
             TextButton(onClick = { noteValue = noteValue.wrapSelection("~~", "~~"); vm.update(liveTopic, body = noteValue.text) }) { Text("S", textDecoration = TextDecoration.LineThrough) }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("## ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Heading") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("- ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("List") }
-            TextButton(onClick = { noteValue = noteValue.wrapSelection("```\\n", "\\n```"); vm.update(liveTopic, body = noteValue.text) }) { Text("Code") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("```\n", "\n```"); vm.update(liveTopic, body = noteValue.text) }) { Text("Code") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("\\(", "\\)"); vm.update(liveTopic, body = noteValue.text) }) { Text("Math") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("> ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Quote") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("[", "](https://)") ; vm.update(liveTopic, body = noteValue.text) }) { Text("Link") }
