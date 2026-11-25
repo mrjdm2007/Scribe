@@ -2,7 +2,7 @@ import SwiftUI
 import UserNotifications
 import ScribeCore
 
-struct AcademicToolsView: View {
+// macOS academic tools use the same portable question encoding as Android.\nstruct AcademicToolsView: View {
     @EnvironmentObject private var store: ScribeStore
     @State private var section = "Graph"
     @State private var graphExpression = "sin(x)"
@@ -210,7 +210,7 @@ struct AcademicToolsView: View {
             TextField("Question", text: $question, axis: .vertical).lineLimit(2...4).textFieldStyle(.roundedBorder)
             TextField("Topic / subject", text: $topic).textFieldStyle(.roundedBorder)
             ForEach(options.indices, id: \.self) { index in
-                TextField("Option \(["A", "B", "C", "D"][index])", text: Binding(
+                TextField("Option \(index + 1)", text: Binding(
                     get: { options[index] },
                     set: { options[index] = $0 }
                 )).textFieldStyle(.roundedBorder)
