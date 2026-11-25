@@ -6,7 +6,6 @@ struct LocalNotesAssistantView: View {
     @EnvironmentObject private var library: ScribeLibrary
     @State private var question = ""
     @State private var selectedCourseIDs: Set<UUID> = []
-    @State private var scopeInitialized = false
 
     private var words: [String] {
         question.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 1 }
@@ -104,9 +103,9 @@ struct LocalNotesAssistantView: View {
                     Text("\(results.count) matches").font(.caption).foregroundStyle(.secondary)
                 }
                 if words.isEmpty {
-                    ContentUnavailableView("Search your notes", systemImage: "text.magnifyingglass", description: Text("Enter a topic or question to find relevant saved text."))
+                    VStack(alignment: .leading, spacing: 6) { Label("Search your notes", systemImage: "text.magnifyingglass").font(.headline); Text("Enter a topic or question to find relevant saved text.").foregroundStyle(.secondary) }
                 } else if results.isEmpty {
-                    ContentUnavailableView("No matching notes", systemImage: "doc.text.magnifyingglass", description: Text("Try different keywords or expand the selected notebook context."))
+                    VStack(alignment: .leading, spacing: 6) { Label("No matching notes", systemImage: "doc.text.magnifyingglass").font(.headline); Text("Try different keywords or expand the selected notebook context.").foregroundStyle(.secondary) }
                 } else {
                     ForEach(results, id: \.node.id) { result in
                         VStack(alignment: .leading, spacing: 8) {
