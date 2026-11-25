@@ -75,6 +75,10 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             val all = dao.allItems()
             suspend fun remove(id: Long) {
                 all.filter { it.parentId == id }.forEach { remove(it.id) }
+                all.firstOrNull { it.id == id }?.tags?.split(";")
+                    ?.firstOrNull { it.startsWith("cloud_id:") }
+                    ?.substringAfter("cloud_id:")?.takeIf { it.isNotBlank() }
+                    ?.let { dao.enqueueCloudDeletion(CloudDeletion(it)) }
                 dao.deleteSnapshotsForItem(id)
                 dao.deleteId(id)
             }

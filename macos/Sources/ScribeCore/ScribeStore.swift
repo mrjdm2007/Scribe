@@ -89,14 +89,14 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     private var timer: Timer?
     private var nextID: Int64 = 1
     private let fileURL: URL
-    private let historyURL: URL
+    private let historyURL: URL\n    private let deletionQueueURL: URL\n    private var pendingCloudDeletions: [String: Int64] = [:]
 
     public init() {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let folder = root.appendingPathComponent("Scribe", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         fileURL = folder.appendingPathComponent("library.json")
-        historyURL = folder.appendingPathComponent("history.json")
+        historyURL = folder.appendingPathComponent("history.json")\n        deletionQueueURL = folder.appendingPathComponent("cloud-deletions.json")\n        if let data = try? Data(contentsOf: deletionQueueURL), let queued = try? JSONDecoder().decode([String: Int64].self, from: data) { pendingCloudDeletions = queued }
         if let data = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode([ScribeItem].self, from: data) {
             items = decoded; nextID = (decoded.map(\.id).max() ?? 0) + 1
         }
@@ -241,6 +241,10 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         func remove(_ id: Int64) {
             let childIDs = items.filter { $0.parentId == id }.map(\.id)
             childIDs.forEach(remove)
+            if let item = items.first(where: { $0.id == id }),
+               let cloud = item.tags.split(separator: ";").first(where: { $0.hasPrefix("cloud_id:") }).map({ String($0.dropFirst(9)) }) {
+                pendingCloudDeletions[cloud] = Int64(Date().timeIntervalSince1970 * 1000)
+            }
             items.removeAll { $0.id == id }
             snapshots.removeValue(forKey: id)
         }
@@ -333,6 +337,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             throw NSError(domain: "ScribeCloud", code: 3, userInfo: [NSLocalizedDescriptionKey: "Supabase did not return a valid session."])
         }
 
+        for (cloud, deletedAt) in pendingCloudDeletions {
+            let body = try JSONSerialization.data(withJSONObject: ["p_cloud_id": cloud, "p_deleted_at": deletedAt])
+            _ = try await request("rest/v1/rpc/scribe_delete_item", method: "POST", token: token, body: body)
+            pendingCloudDeletions.removeValue(forKey: cloud)
+        }
+        persist()
         func cloudID(_ tags: String) -> String? {
             tags.split(separator: ";").first(where: { $0.hasPrefix("cloud_id:") }).map { String($0.dropFirst(9)) }
         }
@@ -384,6 +394,20 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         let remoteData = try await request("rest/v1/scribe_cloud_items?select=cloud_id,payload,updated_at",
             method: "GET", token: token)
         let remote = try JSONSerialization.jsonObject(with: remoteData) as? [[String: Any]] ?? []
+        let tombstoneData = try await request("rest/v1/scribe_cloud_tombstones?select=cloud_id", method: "GET", token: token)
+        let tombstones = try JSONSerialization.jsonObject(with: tombstoneData) as? [[String: Any]] ?? []
+        let allBeforeTombstones = items
+        for row in tombstones {
+            guard let cloud = row["cloud_id"] as? String,
+                  let match = allBeforeTombstones.first(where: { cloudID($0.tags) == cloud }) else { continue }
+            func removeCloudTree(_ id: Int64) {
+                let children = items.filter { $0.parentId == id }.map(\.id)
+                children.forEach(removeCloudTree)
+                items.removeAll { $0.id == id }
+                snapshots.removeValue(forKey: id)
+            }
+            removeCloudTree(match.id)
+        }
         var localByCloud = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { ($0, item.id) } })
         var pending = remote
         func mergeHistory(_ data: [String: Any], itemID: Int64) {
@@ -468,11 +492,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         cloudIDs = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { (item.id, $0) } })
         try await upload(items, cloudIDs: cloudIDs)
         let attachmentNote = skippedAttachments > 0 ? " \(skippedAttachments) attachment(s) over 8 MB were not uploaded." : ""
-        return "Synced \\(inserted) new and \\(changed) updated records." + attachmentNote
+        return "Synced \(inserted) new and \(changed) updated records." + attachmentNote
     }
 
     public func persist() {
         if let data = try? JSONEncoder().encode(items) { try? data.write(to: fileURL, options: .atomic) }
+        if let data = try? JSONEncoder().encode(pendingCloudDeletions) { try? data.write(to: deletionQueueURL, options: .atomic) }
         let archives = snapshots.map { ScribeHistoryArchive(itemId: $0.key, entries: $0.value) }
         if let data = try? JSONEncoder().encode(archives) { try? data.write(to: historyURL, options: .atomic) }
     }

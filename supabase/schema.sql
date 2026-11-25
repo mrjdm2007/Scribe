@@ -56,3 +56,36 @@ end;
 $$;
 
 grant execute on function public.scribe_upsert_item(uuid, jsonb, bigint) to authenticated;
+
+
+-- Permanent deletion tombstones prevent another offline device from resurrecting
+-- records that were explicitly deleted on a different device.
+create table if not exists public.scribe_cloud_tombstones (
+    user_id uuid not null references auth.users(id) on delete cascade,
+    cloud_id uuid not null,
+    deleted_at bigint not null,
+    primary key (user_id, cloud_id)
+);
+alter table public.scribe_cloud_tombstones enable row level security;
+drop policy if exists "Users can read their own Scribe tombstones" on public.scribe_cloud_tombstones;
+create policy "Users can read their own Scribe tombstones"
+    on public.scribe_cloud_tombstones for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own Scribe tombstones" on public.scribe_cloud_tombstones;
+create policy "Users can insert their own Scribe tombstones"
+    on public.scribe_cloud_tombstones for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own Scribe tombstones" on public.scribe_cloud_tombstones;
+create policy "Users can delete their own Scribe tombstones"
+    on public.scribe_cloud_tombstones for delete using (auth.uid() = user_id);
+
+create or replace function public.scribe_delete_item(p_cloud_id uuid, p_deleted_at bigint)
+returns void language plpgsql security invoker set search_path = public as $$
+begin
+    insert into public.scribe_cloud_tombstones(user_id, cloud_id, deleted_at)
+    values (auth.uid(), p_cloud_id, p_deleted_at)
+    on conflict (user_id, cloud_id) do update
+      set deleted_at = greatest(public.scribe_cloud_tombstones.deleted_at, excluded.deleted_at);
+    delete from public.scribe_cloud_items
+      where user_id = auth.uid() and cloud_id = p_cloud_id;
+end;
+$$;
+grant execute on function public.scribe_delete_item(uuid, bigint) to authenticated;

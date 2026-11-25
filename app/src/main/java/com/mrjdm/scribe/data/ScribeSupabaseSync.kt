@@ -52,13 +52,18 @@ internal class ScribeSupabaseSync(
             val auth = JSONObject(request("auth/v1/token?grant_type=password", "POST",
                 JSONObject().put("email", email).put("password", password).toString()))
             val token = auth.getString("access_token")
-            val userId = auth.getJSONObject("user").getString("id")
+            auth.getJSONObject("user").getString("id")
 
             fun cloudId(tags: String): String? = tags.split(";")
                 .firstOrNull { it.startsWith("cloud_id:") }?.substringAfter("cloud_id:")?.takeIf { it.isNotBlank() }
             fun withCloudId(tags: String, id: String): String =
                 (tags.split(";").filter { it.isNotBlank() && !it.startsWith("cloud_id:") } + "cloud_id:$id").joinToString(";")
 
+            dao.pendingCloudDeletions().forEach { deletion ->
+                request("rest/v1/rpc/scribe_delete_item", "POST",
+                    JSONObject().put("p_cloud_id", deletion.cloudId).put("p_deleted_at", deletion.deletedAt).toString(), token)
+                dao.clearCloudDeletion(deletion.cloudId)
+            }
             var local = dao.allItems()
             val ids = mutableMapOf<Long, String>()
             local.forEach { item ->
@@ -107,6 +112,20 @@ internal class ScribeSupabaseSync(
             }
             val remote = JSONArray(request("rest/v1/scribe_cloud_items?select=cloud_id,payload,updated_at", "GET", token = token))
             val localByCloud = dao.allItems().mapNotNull { item -> cloudId(item.tags)?.let { it to item } }.toMap().toMutableMap()
+            val tombstones = JSONArray(request("rest/v1/scribe_cloud_tombstones?select=cloud_id", "GET", token = token))
+            val allLocal = dao.allItems()
+            val byCloud = allLocal.mapNotNull { item -> cloudId(item.tags)?.let { it to item } }.toMap()
+            for (index in 0 until tombstones.length()) {
+                val cloud = tombstones.optJSONObject(index)?.optString("cloud_id").orEmpty()
+                val target = byCloud[cloud] ?: continue
+                val tree = allLocal.associateBy { it.id }
+                suspend fun removeRemoteTree(id: Long) {
+                    tree.values.filter { it.parentId == id }.forEach { removeRemoteTree(it.id) }
+                    dao.deleteSnapshotsForItem(id)
+                    dao.deleteId(id)
+                }
+                removeRemoteTree(target.id)
+            }
             val pending = (0 until remote.length()).mapNotNull { remote.optJSONObject(it) }.toMutableList()
             suspend fun mergeHistory(itemId: Long, data: JSONObject) {
                 val remoteHistory = data.optJSONArray("history") ?: return
