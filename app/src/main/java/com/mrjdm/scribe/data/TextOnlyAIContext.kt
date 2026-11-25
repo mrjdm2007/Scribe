@@ -16,10 +16,11 @@ object TextOnlyAIContext {
         }.sortedWith(compareBy<ScribeItem> { it.position }.thenBy { it.createdAt })
         val byId = visible.associateBy { it.id }
         val depthCache = mutableMapOf<Long, Int>()
-        fun depth(item: ScribeItem): Int {
+        fun depth(item: ScribeItem, visited: Set<Long> = emptySet()): Int {
             depthCache[item.id]?.let { return it }
+            if (item.id in visited) return 0
             val parent = item.parentId?.let(byId::get)
-            val value = if (parent == null) 0 else (depth(parent) + 1).coerceAtMost(8)
+            val value = if (parent == null) 0 else (depth(parent, visited + item.id) + 1).coerceAtMost(8)
             depthCache[item.id] = value
             return value
         }
