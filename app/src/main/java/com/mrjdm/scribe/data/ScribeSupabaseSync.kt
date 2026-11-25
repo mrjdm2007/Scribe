@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -67,7 +68,7 @@ internal class ScribeSupabaseSync(
             }
             local = dao.allItems()
 
-            fun payload(item: ScribeItem): JSONObject {
+            suspend fun payload(item: ScribeItem): JSONObject {
                 val cloud = ids[item.id] ?: cloudId(item.tags) ?: UUID.randomUUID().toString()
                 val parentCloud = item.parentId?.let { ids[it] }
                 val json = JSONObject()
@@ -77,6 +78,11 @@ internal class ScribeSupabaseSync(
                     .put("tags", withCloudId(item.tags, cloud)).put("bookmarked", item.bookmarked)
                     .put("position", item.position).put("createdAt", item.createdAt)
                     .put("updatedAt", item.updatedAt).put("deletedAt", item.deletedAt ?: JSONObject.NULL)
+                val history = JSONArray()
+                dao.snapshots(item.id).first().forEach { snapshot ->
+                    history.put(JSONObject().put("title", snapshot.title).put("body", snapshot.body).put("savedAt", snapshot.savedAt))
+                }
+                json.put("history", history)
                 if (item.uri.isNotBlank()) {
                     val file = File(item.uri)
                     if (file.isFile && file.length() <= 8L * 1024L * 1024L) {
@@ -86,7 +92,7 @@ internal class ScribeSupabaseSync(
                 }
                 return json
             }
-            fun upload(items: List<ScribeItem>) {
+            suspend fun upload(items: List<ScribeItem>) {
                 items.forEach { item ->
                     val cloud = ids[item.id] ?: cloudId(item.tags) ?: return@forEach
                     val row = JSONObject().put("user_id", userId).put("cloud_id", cloud)
@@ -98,6 +104,16 @@ internal class ScribeSupabaseSync(
             val remote = JSONArray(request("rest/v1/scribe_cloud_items?select=cloud_id,payload,updated_at", "GET", token = token))
             val localByCloud = dao.allItems().mapNotNull { item -> cloudId(item.tags)?.let { it to item } }.toMap().toMutableMap()
             val pending = (0 until remote.length()).mapNotNull { remote.optJSONObject(it) }.toMutableList()
+            suspend fun mergeHistory(itemId: Long, data: JSONObject) {
+                val remoteHistory = data.optJSONArray("history") ?: return
+                val combined = (dao.snapshots(itemId).first() + (0 until remoteHistory.length()).mapNotNull { index ->
+                    val entry = remoteHistory.optJSONObject(index) ?: return@mapNotNull null
+                    NoteSnapshot(itemId = itemId, title = entry.optString("title"),
+                        body = entry.optString("body"), savedAt = entry.optLong("savedAt"))
+                }).distinctBy { it.savedAt }.sortedByDescending { it.savedAt }.take(30)
+                dao.deleteSnapshotsForItem(itemId)
+                if (combined.isNotEmpty()) dao.insertSnapshots(combined.map { it.copy(id = 0) })
+            }
             var inserted = 0
             var changed = 0
             var progress = true
@@ -133,6 +149,7 @@ internal class ScribeSupabaseSync(
                                 updatedAt = remoteUpdated,
                                 deletedAt = if (data.isNull("deletedAt")) null else data.optLong("deletedAt"))
                             dao.update(updated)
+                            mergeHistory(updated.id, data)
                             localByCloud[cloud] = updated
                             changed++
                         }
@@ -154,6 +171,7 @@ internal class ScribeSupabaseSync(
                             deletedAt = if (data.isNull("deletedAt")) null else data.optLong("deletedAt"))
                         val id = dao.insert(newItem)
                         localByCloud[cloud] = newItem.copy(id = id)
+                        mergeHistory(id, data)
                         inserted++
                     }
                     iterator.remove()

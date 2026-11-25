@@ -353,6 +353,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                 "tags": tagged(item.tags, id), "bookmarked": item.bookmarked,
                 "position": item.position, "createdAt": item.createdAt, "updatedAt": item.updatedAt
             ]
+            payload["history"] = (snapshots[item.id] ?? []).map { ["title": $0.title, "body": $0.body, "savedAt": $0.savedAt] as [String: Any] }
             if let parent = item.parentId, let parentCloud = cloudIDs[parent] { payload["parentCloudId"] = parentCloud }
             else { payload["parentCloudId"] = NSNull() }
             payload["deletedAt"] = item.deletedAt.map { $0 as Any } ?? NSNull()
@@ -380,6 +381,17 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         let remote = try JSONSerialization.jsonObject(with: remoteData) as? [[String: Any]] ?? []
         var localByCloud = Dictionary(uniqueKeysWithValues: items.compactMap { item in cloudID(item.tags).map { ($0, item.id) } })
         var pending = remote
+        func mergeHistory(_ data: [String: Any], itemID: Int64) {
+            let remoteEntries = (data["history"] as? [[String: Any]] ?? []).compactMap { entry -> ScribeHistoryEntry? in
+                guard let title = entry["title"] as? String,
+                      let body = entry["body"] as? String,
+                      let savedAt = (entry["savedAt"] as? NSNumber)?.int64Value else { return nil }
+                return ScribeHistoryEntry(title: title, body: body, savedAt: savedAt)
+            }
+            var byDate = Dictionary(uniqueKeysWithValues: (snapshots[itemID] ?? []).map { ($0.savedAt, $0) })
+            remoteEntries.forEach { byDate[$0.savedAt] = $0 }
+            snapshots[itemID] = byDate.values.sorted { $0.savedAt > $1.savedAt }.prefix(30).map { $0 }
+        }
         var inserted = 0
         var changed = 0
         var madeProgress = true
@@ -413,6 +425,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                             createdAt: (data["createdAt"] as? NSNumber)?.int64Value ?? items[index].createdAt,
                             updatedAt: remoteUpdated,
                             deletedAt: (data["deletedAt"] as? NSNumber)?.int64Value)
+                        mergeHistory(data, itemID: localID)
                         changed += 1
                     }
                 } else {
@@ -436,6 +449,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                         deletedAt: (data["deletedAt"] as? NSNumber)?.int64Value)
                     items.append(item)
                     localByCloud[cloud] = id
+                    mergeHistory(data, itemID: id)
                     inserted += 1
                 }
                 madeProgress = true
