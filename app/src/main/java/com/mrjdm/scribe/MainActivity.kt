@@ -733,7 +733,7 @@ private fun TopicNotebook(
             TextButton(onClick = { noteValue = noteValue.wrapSelection("- ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("List") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("- [ ] ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Task") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("1. ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("1. List") }
-            TextButton(onClick = { noteValue = noteValue.wrapSelection("$\n", "\n$"); vm.update(liveTopic, body = noteValue.text) }) { Text("Display math") }
+            TextButton(onClick = { noteValue = noteValue.wrapSelection("\$\$\n", "\n\$\$"); vm.update(liveTopic, body = noteValue.text) }) { Text("Display math") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("```\n", "\n```"); vm.update(liveTopic, body = noteValue.text) }) { Text("Code") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("\\(", "\\)"); vm.update(liveTopic, body = noteValue.text) }) { Text("Math") }
             TextButton(onClick = { noteValue = noteValue.wrapSelection("> ", ""); vm.update(liveTopic, body = noteValue.text) }) { Text("Quote") }
