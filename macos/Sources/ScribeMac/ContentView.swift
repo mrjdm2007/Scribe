@@ -247,7 +247,13 @@ struct ScribeMacRoot: View {
                         List(filteredSearchItems, selection: $store.selectedID) { item in
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.title)
-                                Text("\(item.kind.capitalized) · \(item.body.prefix(80))").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text("\(item.kind.capitalized) · \(item.body.prefix(80).isEmpty ? "No content yet" : String(item.body.prefix(80)))")
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                let wordCount = item.body.split(whereSeparator: \\.isWhitespace).count
+                                let editedDate = Date(timeIntervalSince1970: Double(item.updatedAt) / 1000)
+                                    .formatted(date: .abbreviated, time: .omitted)
+                                Text("\(wordCount) words · Edited \(editedDate)")
+                                    .font(.system(size: 10)).foregroundStyle(.tertiary)
                             }
                             .tag(item.id)
                             .contextMenu {

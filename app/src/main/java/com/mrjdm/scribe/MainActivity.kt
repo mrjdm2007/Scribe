@@ -822,7 +822,14 @@ private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onB
 @Composable
 private fun SearchRow(item: ScribeItem, onClick: () -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-    ListItem(headlineContent = { Text(item.title) }, supportingContent = { Text(item.body.take(75), maxLines = 1) },
+    val wordCount = item.body.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+    val editedDate = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(item.updatedAt))
+    ListItem(headlineContent = { Text(item.title) }, supportingContent = {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(item.body.take(75).ifBlank { "No content yet" }, maxLines = 1)
+            Text("$wordCount words · Edited $editedDate", color = Muted, fontSize = 10.sp)
+        }
+    },
         leadingContent = { Icon(Icons.Rounded.Search, null, tint = Gold) },
         trailingContent = {
             IconButton(onClick = {
