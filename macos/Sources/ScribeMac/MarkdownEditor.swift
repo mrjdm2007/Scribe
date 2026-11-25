@@ -60,7 +60,7 @@ a{color:#b18a52;text-decoration-thickness:.08em;text-underline-offset:3px}
 </style></head><body><div id="editor" contenteditable="true" spellcheck="true"></div>
 <script>
 const editor=document.getElementById("editor");let lastMarkdown="";
-function escapeText(value){return value.replace(/[\\\x60*_{}\[\]()#+.!|>-]/g,"\\\\function inlineCode(value){");}
+function escapeText(value){const special=String.fromCharCode(92)+"`*_{}[]()#+.!|>~-";const slash=String.fromCharCode(92);return Array.from(value).map(ch=>special.includes(ch)?slash+ch:ch).join("");}
 function inlineCode(value){const runs=value.match(/\x60+/g)||[];const longest=runs.reduce((m,x)=>Math.max(m,x.length),0);const fence="\x60".repeat(longest+1);const pad=value.startsWith(" ")||value.endsWith(" ")?" ":"";return fence+pad+value+pad+fence;}
 function md(n){
  if(n.nodeType===3)return escapeText(n.nodeValue||"");if(n.nodeType===11)return Array.from(n.childNodes).map(md).join("");if(n.nodeType!==1)return "";
