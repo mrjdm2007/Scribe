@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mrjdm.scribe.data.*
 import com.mrjdm.scribe.ui.ScribeTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -440,10 +440,9 @@ private fun TopicNotebook(
     var showAdd by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
 
-    LaunchedEffect(liveTopic.body) {
-        if (liveTopic.body != noteValue.text) {
-            noteValue = TextFieldValue(liveTopic.body, TextRange(liveTopic.body.length))
-        }
+    LaunchedEffect(noteValue.text, topic.id) {
+        delay(250)
+        vm.update(liveTopic, body = noteValue.text)
     }
 
     val matchingLines = remember(searchQuery, noteValue.text) {
@@ -535,7 +534,6 @@ private fun TopicNotebook(
                             value = noteValue,
                             onValueChange = {
                                 noteValue = it
-                                vm.update(liveTopic, body = it.text)
                             },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 18,

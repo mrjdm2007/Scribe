@@ -56,20 +56,20 @@ enum CodableValue: Codable { case string(String), integer(Int64), bool(Bool), nu
     func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); switch self { case .string(let v): try c.encode(v); case .integer(let v): try c.encode(v); case .bool(let v): try c.encode(v); case .null: try c.encodeNil() } }
 }
 
-public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings"; public var id: String { rawValue } }
+public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings", academic = "Academic tools"; public var id: String { rawValue } }
 
 @MainActor public final class ScribeStore: ObservableObject {
     @Published public var items: [ScribeItem] = []
     @Published public var snapshots: [Int64: [ScribeHistoryEntry]] = [:]
     @Published public var selectedID: Int64?
     @Published public var activeTool: ScribeTool = .library
-    @Published var focusSearch = false
-    @Published var searchText = ""
-    @Published var focusMinutes = 25
-    @Published var remaining = 25 * 60
-    @Published var isRunning = false
-    @Published var sessionLabel = "Focused study"
-    @Published var completedSessions = 0
+    @Published public var focusSearch = false
+    @Published public var searchText = ""
+    @Published public var focusMinutes = 25
+    @Published public var remaining = 25 * 60
+    @Published public var isRunning = false
+    @Published public var sessionLabel = "Focused study"
+    @Published public var completedSessions = 0
     private var timer: Timer?
     private var nextID: Int64 = 1
     private let fileURL: URL
