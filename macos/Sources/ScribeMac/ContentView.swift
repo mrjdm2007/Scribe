@@ -16,6 +16,8 @@ struct ScribeMacRoot: View {
     @State private var showingFlashcardComposer = false
     @State private var flashcardQuestion = ""
     @State private var flashcardAnswer = ""
+    @State private var flashcardDeck = "General"
+    @State private var flashcardDeckFilter = "All decks"
     @State private var draftTitle = ""
     @State private var draftBody = ""
     @State private var converterValue = "1"
@@ -97,11 +99,13 @@ struct ScribeMacRoot: View {
                 Text("New flashcard").font(.title2.bold())
                 TextField("Question", text: $flashcardQuestion).textFieldStyle(.roundedBorder)
                 TextEditor(text: $flashcardAnswer).frame(minHeight: 120).overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.3)))
+                TextField("Deck / subject", text: $flashcardDeck).textFieldStyle(.roundedBorder)
                 HStack { Spacer(); Button("Cancel") { showingFlashcardComposer = false }; Button("Save card") {
                     guard !flashcardQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    store.create(kind: "flashcard", title: flashcardQuestion, body: flashcardAnswer, tags: "interval:1")
+                    let deck = flashcardDeck.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ";", with: " ")
+                    store.create(kind: "flashcard", title: flashcardQuestion, body: flashcardAnswer, tags: "interval:1;deck:" + (deck.isEmpty ? "General" : deck))
                     store.activeTool = .flashcards
-                    flashcardQuestion = ""; flashcardAnswer = ""; showingFlashcardComposer = false
+                    flashcardQuestion = ""; flashcardAnswer = ""; flashcardDeck = "General"; showingFlashcardComposer = false
                 }.buttonStyle(.borderedProminent).tint(gold) }
             }.padding(22).frame(width: 420, height: 300)
         }
@@ -342,19 +346,31 @@ struct ScribeMacRoot: View {
         VStack(alignment:.leading,spacing:16) {
             HStack { Text("Flashcards").font(.largeTitle.bold()); Spacer(); Button { showingFlashcardComposer = true } label: { Label("Add flashcard", systemImage: "plus") }.buttonStyle(.borderedProminent).tint(gold) }
             let cards = store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }
+            func deckName(_ card: ScribeItem) -> String {
+                let tag = card.tags.split(separator: ";").first(where: { $0.hasPrefix("deck:") }) ?? card.tags.split(separator: ";").first(where: { $0.hasPrefix("subject:") })
+                return tag.map { String($0.dropFirst(5)) }.flatMap { $0.isEmpty ? nil : $0 } ?? "General"
+            }
+            let decks = ["All decks"] + Array(Set(cards.map(deckName))).sorted()
+            let visibleCards = cards.filter { flashcardDeckFilter == "All decks" || deckName($0) == flashcardDeckFilter }
             let now = Int64(Date().timeIntervalSince1970 * 1000)
-            let dueCards = cards.filter { card in
+            let dueCards = visibleCards.filter { card in
                 let dueAt = card.tags.split(separator: ";").first(where: { $0.hasPrefix("dueAt:") }).flatMap { Int64($0.dropFirst("dueAt:".count)) } ?? 0
                 return dueAt <= now
             }
-            let upcomingCount = cards.count - dueCards.count
+            let upcomingCount = visibleCards.count - dueCards.count
             let todayStart = Int64(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000)
-            let reviewedToday = cards.filter { card in
+            let reviewedToday = visibleCards.filter { card in
                 let reviewedAt = card.tags.split(separator: ";").first(where: { $0.hasPrefix("lastReviewedAt:") })
                     .flatMap { Int64($0.dropFirst("lastReviewedAt:".count)) } ?? 0
                 return reviewedAt >= todayStart
             }.count
-            Text("\(dueCards.count) due now · \(upcomingCount) upcoming · \(reviewedToday) reviewed today").foregroundStyle(.secondary)
+            HStack {
+                Text("\(dueCards.count) due now · \(upcomingCount) upcoming · \(reviewedToday) reviewed today").foregroundStyle(.secondary)
+                Spacer()
+                Picker("Deck", selection: $flashcardDeckFilter) {
+                    ForEach(decks, id: \.self) { Text($0).tag($0) }
+                }.frame(maxWidth: 180)
+            }
             if let card = dueCards.first {
                 VStack(spacing:18) { Text(revealed ? card.body : card.title).font(.title2).multilineTextAlignment(.center).frame(maxWidth:.infinity,minHeight:180); Button(revealed ? "Hide answer" : "Reveal answer") { revealed.toggle() }
                     if revealed { HStack { reviewButton("Again",0,card); reviewButton("Hard",1,card); reviewButton("Good",2,card); reviewButton("Easy",3,card) } }
