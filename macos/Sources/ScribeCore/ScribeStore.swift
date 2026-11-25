@@ -3,6 +3,12 @@ import SwiftUI
 import Combine
 import UserNotifications
 
+public func belongsToTrashBatch(_ candidateDeletedAt: Int64?, rootDeletedAt: Int64?) -> Bool {
+    guard let candidateDeletedAt, let rootDeletedAt else { return false }
+    let delta = candidateDeletedAt - rootDeletedAt
+    return (-5_000...5_000).contains(delta)
+}
+
 public func nextReviewIntervalDays(_ currentDays: Int64, rating: Int) -> Int64 {
     let current = min(365, max(1, currentDays))
     let next: Int64
@@ -219,11 +225,14 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         mark(item.id); persist()
     }
     public func restoreFromTrash(_ item: ScribeItem) {
+        guard let rootDeletedAt = items.first(where: { $0.id == item.id })?.deletedAt ?? item.deletedAt else { return }
         func restore(_ id: Int64) {
-            if let index = items.firstIndex(where: { $0.id == id }) {
-                items[index].deletedAt = nil
-            }
-            let childIDs = items.filter { $0.parentId == id }.map(\.id)
+            guard let index = items.firstIndex(where: { $0.id == id }),
+                  belongsToTrashBatch(items[index].deletedAt, rootDeletedAt: rootDeletedAt) else { return }
+            items[index].deletedAt = nil
+            let childIDs = items.filter {
+                $0.parentId == id && belongsToTrashBatch($0.deletedAt, rootDeletedAt: rootDeletedAt)
+            }.map(\.id)
             childIDs.forEach(restore)
         }
         restore(item.id)

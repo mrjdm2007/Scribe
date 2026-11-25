@@ -7,6 +7,12 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+internal fun belongsToTrashBatch(candidateDeletedAt: Long?, rootDeletedAt: Long?): Boolean {
+    if (candidateDeletedAt == null || rootDeletedAt == null) return false
+    val delta = candidateDeletedAt - rootDeletedAt
+    return delta in -5_000L..5_000L
+}
+
 class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     private val database = ScribeDatabase.get(app)
     private val dao = database.dao()
@@ -36,9 +42,10 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun removeTree(item: ScribeItem) {
         viewModelScope.launch {
             val all = dao.allItems()
+            val deletedAt = System.currentTimeMillis()
             suspend fun mark(id: Long) {
                 all.filter { it.parentId == id && it.deletedAt == null }.forEach { mark(it.id) }
-                dao.byId(id)?.let { dao.update(it.copy(deletedAt = System.currentTimeMillis())) }
+                dao.byId(id)?.let { dao.update(it.copy(deletedAt = deletedAt, updatedAt = deletedAt)) }
             }
             mark(item.id)
         }
@@ -46,9 +53,13 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun restoreTree(item: ScribeItem) {
         viewModelScope.launch {
             val all = dao.allItems()
+            val rootDeletedAt = dao.byId(item.id)?.deletedAt ?: item.deletedAt ?: return@launch
             suspend fun restore(id: Long) {
-                dao.byId(id)?.let { dao.update(it.copy(deletedAt = null)) }
-                all.filter { it.parentId == id && it.deletedAt != null }.forEach { restore(it.id) }
+                val current = dao.byId(id) ?: return
+                if (!belongsToTrashBatch(current.deletedAt, rootDeletedAt)) return
+                dao.update(current.copy(deletedAt = null, updatedAt = System.currentTimeMillis()))
+                all.filter { it.parentId == id && belongsToTrashBatch(it.deletedAt, rootDeletedAt) }
+                    .forEach { restore(it.id) }
             }
             restore(item.id)
         }
