@@ -312,8 +312,8 @@ export const studyConversations = onRequest(
       response.status(204).send("");
       return;
     }
-    if (!["GET", "POST", "DELETE"].includes(request.method)) {
-      response.status(405).json({ error: "Use GET, POST or DELETE." });
+    if (!["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
+      response.status(405).json({ error: "Use GET, POST, PATCH or DELETE." });
       return;
     }
 
@@ -350,6 +350,42 @@ export const studyConversations = onRequest(
         return;
       }
 
+      if (request.method === "PATCH") {
+        if (!conversationId) {
+          response.status(400).json({ error: "conversationId is required." });
+          return;
+        }
+        const updates: Record<string, unknown> = {};
+        const body = request.body ?? {};
+        if (Object.prototype.hasOwnProperty.call(body, "title")) {
+          const title = asText(body.title, 120);
+          if (!title) {
+            response.status(400).json({ error: "Conversation titles must contain 1–120 characters." });
+            return;
+          }
+          updates.title = title;
+        }
+        if (typeof body.pinned === "boolean") updates.pinned = body.pinned;
+        if (typeof body.archived === "boolean") updates.archived = body.archived;
+        if (Object.prototype.hasOwnProperty.call(body, "activeDocumentId")) {
+          updates.activeDocumentId = asText(body.activeDocumentId, 160) || null;
+        }
+        if (Object.keys(updates).length === 0) {
+          response.status(400).json({ error: "Provide title, pinned, archived or activeDocumentId to update." });
+          return;
+        }
+        updates.updatedAt = new Date();
+        const ref = collection.doc(conversationId);
+        const snapshot = await ref.get();
+        if (!snapshot.exists) {
+          response.status(404).json({ error: "Conversation not found." });
+          return;
+        }
+        await ref.set(updates, { merge: true });
+        response.status(200).json({ updated: true, conversation_id: conversationId, ...updates });
+        return;
+      }
+
       if (request.method === "GET") {
         if (conversationId) {
           const snapshot = await collection.doc(conversationId).get();
@@ -363,21 +399,33 @@ export const studyConversations = onRequest(
           return;
         }
 
-        const snapshot = await collection.orderBy("updatedAt", "desc").limit(30).get();
-        response.status(200).json({
-          conversations: snapshot.docs.map(document => {
+        const requestedLimit = Number(request.query.limit ?? 30);
+        const pageSize = Number.isFinite(requestedLimit)
+          ? Math.max(1, Math.min(50, Math.floor(requestedLimit)))
+          : 30;
+        const includeArchived = request.query.archived === "true";
+        const searchText = asText(request.query.search, 100).toLocaleLowerCase();
+        const snapshot = await collection.orderBy("updatedAt", "desc").limit(100).get();
+        const conversations = snapshot.docs
+          .map(document => {
             const data = document.data();
             return {
               id: document.id,
               title: data.title ?? "New conversation",
               mode: data.mode ?? "notes",
               activeDocumentId: data.activeDocumentId ?? null,
+              pinned: data.pinned === true,
+              archived: data.archived === true,
               messageCount: Array.isArray(data.messages) ? data.messages.length : 0,
               createdAt: data.createdAt,
               updatedAt: data.updatedAt
             };
           })
-        });
+          .filter(item => includeArchived ? item.archived : !item.archived)
+          .filter(item => !searchText || item.title.toLocaleLowerCase().includes(searchText))
+          .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+          .slice(0, pageSize);
+        response.status(200).json({ conversations });
         return;
       }
 
