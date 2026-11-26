@@ -121,7 +121,10 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
                     target.isFile && target.length() > 0L
                 }.getOrDefault(false)
-                if (!copied) return@launch
+                if (!copied) {
+                    runCatching { target.delete() }
+                    return@launch
+                }
                 val kind = when {
                     mime.startsWith("image/") || extension in setOf("jpg", "jpeg", "png", "webp", "gif", "heic") -> "image"
                     mime == "application/pdf" || extension == "pdf" -> "pdf"
