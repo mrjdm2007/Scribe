@@ -267,11 +267,32 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
             if (matchingRows.isEmpty()) {
                 EmptyDocumentMessage("No matching cells were found in this worksheet.")
             } else {
+                val maxColumns = matchingRows.maxOfOrNull { it.second.size } ?: 0
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth().background(Color(0xFFF1F0EC)),
                     contentPadding = PaddingValues(10.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
+                    item(key = "column-labels") {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            Surface(Modifier.width(48.dp).heightIn(min = 30.dp), color = Color(0xFFD5D2CA)) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("#", color = ReaderMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            repeat(maxColumns) { column ->
+                                Surface(Modifier.width(132.dp).heightIn(min = 30.dp), color = Color(0xFFD5D2CA)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(excelColumnName(column), color = ReaderMuted, fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     items(matchingRows, key = { it.first }) { (rowIndex, row) ->
                         Row(
                             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -631,6 +652,17 @@ private fun columnIndex(reference: String): Int {
     var result = 0
     letters.forEach { result = result * 26 + (it - 'A' + 1) }
     return (result - 1).coerceAtLeast(0)
+}
+
+private fun excelColumnName(index: Int): String {
+    var value = index + 1
+    val result = StringBuilder()
+    while (value > 0) {
+        val remainder = (value - 1) % 26
+        result.append(('A'.code + remainder).toChar())
+        value = (value - 1) / 26
+    }
+    return result.reverse().toString()
 }
 
 private fun readPptx(zip: ZipFile): List<OfficeSlide> {
