@@ -128,7 +128,9 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     private let fileURL: URL
     private let historyURL: URL
     private let deletionQueueURL: URL
+    private let firebaseDeletionQueueURL: URL
     private var pendingCloudDeletions: [String: Int64] = [:]
+    private var pendingFirebaseDeletions: Set<String> = []
     private var cloudSyncTimer: Timer?
     private var firebaseSyncTimer: Timer?
 
@@ -139,7 +141,9 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         fileURL = folder.appendingPathComponent("library.json")
         historyURL = folder.appendingPathComponent("history.json")
         deletionQueueURL = folder.appendingPathComponent("cloud-deletions.json")
+        firebaseDeletionQueueURL = folder.appendingPathComponent("firebase-deletions.json")
         if let data = try? Data(contentsOf: deletionQueueURL), let queued = try? JSONDecoder().decode([String: Int64].self, from: data) { pendingCloudDeletions = queued }
+        if let data = try? Data(contentsOf: firebaseDeletionQueueURL), let queued = try? JSONDecoder().decode(Set<String>.self, from: data) { pendingFirebaseDeletions = queued }
         if let data = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode([ScribeItem].self, from: data) {
             items = decoded; nextID = (decoded.map(\.id).max() ?? 0) + 1
         }
@@ -296,9 +300,15 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         func remove(_ id: Int64) {
             let childIDs = items.filter { $0.parentId == id }.map(\.id)
             childIDs.forEach(remove)
-            if let item = items.first(where: { $0.id == id }),
-               let cloud = item.tags.split(separator: ";").first(where: { $0.hasPrefix("cloud_id:") }).map({ String($0.dropFirst(9)) }) {
-                pendingCloudDeletions[cloud] = Int64(Date().timeIntervalSince1970 * 1000)
+            if let item = items.first(where: { $0.id == id }) {
+                if let cloud = item.tags.split(separator: ";").first(where: { $0.hasPrefix("cloud_id:") }).map({ String($0.dropFirst(9)) }) {
+                    pendingCloudDeletions[cloud] = Int64(Date().timeIntervalSince1970 * 1000)
+                }
+                if let firebase = item.tags.split(separator: ";").first(where: { $0.hasPrefix("firebase_id:") })
+                    .map({ String($0.dropFirst("firebase_id:".count)) }) {
+                    pendingFirebaseDeletions.insert(firebase)
+                    persistFirebaseDeletionQueue()
+                }
             }
             items.removeAll { $0.id == id }
             snapshots.removeValue(forKey: id)
@@ -615,6 +625,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         }
     }
 
+    private func persistFirebaseDeletionQueue() {
+        if let data = try? JSONEncoder().encode(pendingFirebaseDeletions) {
+            try? data.write(to: firebaseDeletionQueueURL, options: .atomic)
+        }
+    }
+
     private func syncFirebaseLibrary(projectId: String, idToken: String) async throws -> String {
         func firebaseID(_ tags: String) -> String? {
             tags.split(separator: ";").first(where: { $0.hasPrefix("firebase_id:") }).map { String($0.dropFirst("firebase_id:".count)) }
@@ -658,6 +674,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             }
         }
         persist()
+        for deletedID in Array(pendingFirebaseDeletions) {
+            _ = try await ScribeFirebaseClient.requestLibrary(
+                projectId: projectId, idToken: idToken, method: "DELETE", id: deletedID)
+            pendingFirebaseDeletions.remove(deletedID)
+            persistFirebaseDeletionQueue()
+        }
         var pending: [[String: Any]] = []
         var cursor: String?
         repeat {
