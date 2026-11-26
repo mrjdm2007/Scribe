@@ -1382,6 +1382,37 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
 )
 
+private fun openOfficeDocument(context: Context, item: ScribeItem) {
+    val extension = item.tags.substringAfter("format:", "").substringBefore(";").lowercase(Locale.ROOT)
+    val mimeType = when (extension) {
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        "doc" -> "application/msword"
+        "xls" -> "application/vnd.ms-excel"
+        "ppt" -> "application/vnd.ms-powerpoint"
+        "odt" -> "application/vnd.oasis.opendocument.text"
+        "ods" -> "application/vnd.oasis.opendocument.spreadsheet"
+        "odp" -> "application/vnd.oasis.opendocument.presentation"
+        "rtf" -> "application/rtf"
+        "csv" -> "text/csv"
+        else -> "*/*"
+    }
+    val file = File(item.uri)
+    if (!file.isFile) {
+        android.widget.Toast.makeText(context, "The original document is no longer available.", android.widget.Toast.LENGTH_LONG).show()
+        return
+    }
+    runCatching {
+        val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(contentUri, mimeType)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(viewIntent, "Open document"))
+    }.onFailure {
+        android.widget.Toast.makeText(context, "No compatible document viewer was found. Install an Office-compatible viewer to open this file.", android.widget.Toast.LENGTH_LONG).show()
+    }
+}
+
 private data class PdfHandle(val descriptor: ParcelFileDescriptor, val renderer: PdfRenderer)
 
 @Composable
