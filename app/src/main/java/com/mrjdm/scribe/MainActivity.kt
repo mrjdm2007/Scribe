@@ -469,7 +469,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                     }
                                 }
                             }
-                            LazyColumn { items(filteredSearchResults, key = { it.id }) { item ->
+                            LazyColumn(contentPadding = PaddingValues(bottom = 176.dp)) { items(filteredSearchResults, key = { it.id }) { item ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(checked = item.id in bulkSelectedIds, onCheckedChange = { checked ->
                                         bulkSelectedIds = if (checked) bulkSelectedIds + item.id else bulkSelectedIds - item.id
@@ -874,7 +874,7 @@ private fun TopicNotebook(
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
+            contentPadding = PaddingValues(top = 6.dp, bottom = 160.dp)
         ) {
             item {
                 Card(
@@ -1054,7 +1054,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                 TextButton(onClick = { showAdd = true }) { Icon(Icons.Rounded.Add, null); Text("Add content") }
             }
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 160.dp)) {
             items(blocks, key = { it.id }) { block ->
                 BlockCard(block, onClick = {
                     val blockType = block.tags.substringAfter("type:", "").substringBefore(";").substringBefore(",")
@@ -1144,7 +1144,7 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
 
 @Composable
 private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }, onMergePage: (ScribeItem) -> Unit = {}, onSplitPage: (ScribeItem) -> Unit = {}) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 176.dp)) {
         items(items, key = { it.id }) { item ->
             var menuExpanded by remember(item.id) { mutableStateOf(false) }
             Card(colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp), border = BorderStroke(0.dp, Color.Transparent), modifier = Modifier.fillMaxWidth().scribeGlass(RoundedCornerShape(16.dp)).clickable { onClick(item) }) {
