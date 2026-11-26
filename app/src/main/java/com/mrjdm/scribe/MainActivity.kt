@@ -2,6 +2,8 @@ package com.mrjdm.scribe
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.FileProvider
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
@@ -174,7 +176,17 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         if (uri != null && current != null && current.kind in listOf("page", "topic")) {
             scope.launch(Dispatchers.IO) {
                 val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment"
-                val ext = context.contentResolver.getType(uri).orEmpty()
+                val mimeType = context.contentResolver.getType(uri).orEmpty()
+                val fileExtension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                val officeExtensions = setOf("docx", "xlsx", "pptx", "doc", "xls", "ppt", "odt", "ods", "odp", "rtf", "csv")
+                val officeMimeTypes = setOf(
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
+                    "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet",
+                    "application/vnd.oasis.opendocument.presentation", "application/rtf", "text/rtf", "text/csv"
+                )
                 val file = File(context.filesDir, "attachments").apply { mkdirs() }
                 val target = File(file, "${System.currentTimeMillis()}_${name.substringAfterLast(':').replace('/', '_')}")
                 val copied = runCatching {
@@ -184,19 +196,22 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 }.getOrDefault(false)
                 if (!copied) return@launch
                 val kind = when {
-                    ext.startsWith("image/") -> "image"
-                    ext == "application/pdf" -> "pdf"
+                    mimeType.startsWith("image/") -> "image"
+                    mimeType == "application/pdf" || fileExtension == "pdf" -> "pdf"
+                    fileExtension in officeExtensions || mimeType in officeMimeTypes -> "office"
                     else -> "file"
                 }
                 val indexedText = if (kind == "pdf") runCatching { indexPdfText(target) }.getOrDefault("") else ""
-                val attachmentBody = if (kind == "pdf") {
-                    if (indexedText.isBlank()) "PDF attachment · no searchable text could be extracted"
-                    else "PDF text index (on-device OCR)\n\n$indexedText"
-                } else "Attached file"
-                val attachmentTags = when {
-                    kind != "pdf" -> "type:$kind"
-                    indexedText.isBlank() -> "type:pdf;ocr:failed"
-                    else -> "type:pdf;ocr:indexed"
+                val attachmentBody = when (kind) {
+                    "pdf" -> if (indexedText.isBlank()) "PDF attachment · no searchable text could be extracted"
+                        else "PDF text index (on-device OCR)\n\n$indexedText"
+                    "office" -> "Office document · ${fileExtension.uppercase(Locale.ROOT)}"
+                    else -> "Attached file"
+                }
+                val attachmentTags = when (kind) {
+                    "pdf" -> if (indexedText.isBlank()) "type:pdf;ocr:failed" else "type:pdf;ocr:indexed"
+                    "office" -> "type:office;format:$fileExtension"
+                    else -> "type:$kind"
                 }
                 vm.add(current.id, "block", name, body = attachmentBody, uri = target.absolutePath,
                     tags = attachmentTags)
@@ -349,12 +364,28 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 "Library" -> {
                     if (current?.kind == "page") {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> recordRecent(linked); stack = listOf(linked) }, onAttach = {
-                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
+                            attachmentPicker.launch(arrayOf(
+                                "image/*", "application/pdf", "text/*",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
+                                "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet",
+                                "application/vnd.oasis.opendocument.presentation", "application/rtf", "text/csv"
+                            ))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current?.kind == "topic") {
                         TopicNotebook(current, vm, onBack = { stack = stack.dropLast(1) },
                             onOpenPage = { page -> recordRecent(page); stack = stack + page },
-                            onAttach = { attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*")) })
+                            onAttach = { attachmentPicker.launch(arrayOf(
+                                "image/*", "application/pdf", "text/*",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
+                                "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet",
+                                "application/vnd.oasis.opendocument.presentation", "application/rtf", "text/csv"
+                            )) })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { stack = stack.dropLast(1) }) { Icon(Icons.Rounded.ArrowBack, null) }
@@ -899,6 +930,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     val topics by vm.kind("topic").collectAsState(initial = emptyList())
     val allItems by vm.observeAllItems().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var showAdd by remember { mutableStateOf(false) }
     var showLinkPicker by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
@@ -973,6 +1005,8 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                     val blockType = block.tags.substringAfter("type:", "").substringBefore(",")
                     if (blockType == "pdf") {
                         previewPdf = block
+                    } else if (blockType == "office") {
+                        openOfficeDocument(context, block)
                     } else if (block.tags.contains("type:crosslink")) {
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
