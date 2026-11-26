@@ -138,8 +138,8 @@ internal class ScribeFirebaseClient(
         syncWithToken(tokens.idToken, tokens.refreshToken, saved.projectId)
     }
 
-    private suspend fun syncWithToken(idToken: String, refreshToken: String): String {
-        val root = "https://asia-south1-$projectId.cloudfunctions.net/studyLibrary"
+    private suspend fun syncWithToken(idToken: String, refreshToken: String, targetProjectId: String): String {
+        val root = "https://asia-south1-$targetProjectId.cloudfunctions.net/studyLibrary"
         val remoteJson = request("$root?limit=500", "GET", token = idToken)
         val remote = remoteJson.optJSONArray("records") ?: JSONArray()
         var local = dao.allItems()
@@ -254,4 +254,11 @@ internal class ScribeFirebaseClient(
         return "Firebase sync complete: $inserted added, $changed updated, $uploaded uploaded."
     }
 }
-\ninternal class ScribeFirebaseSyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {\n    override suspend fun doWork(): Result = try {\n        val saved = ScribeFirebaseSession.read(applicationContext) ?: return Result.success()\n        ScribeFirebaseClient(applicationContext, ScribeDatabase.get(applicationContext).dao(), saved.apiKey, saved.projectId).syncSaved()\n        Result.success()\n    } catch (_: Throwable) { Result.retry() }\n}\n
+
+internal class ScribeFirebaseSyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result = try {
+        val saved = ScribeFirebaseSession.read(applicationContext) ?: return Result.success()
+        ScribeFirebaseClient(applicationContext, ScribeDatabase.get(applicationContext).dao(), saved.apiKey, saved.projectId).syncSaved()
+        Result.success()
+    } catch (_: Throwable) { Result.retry() }
+}
