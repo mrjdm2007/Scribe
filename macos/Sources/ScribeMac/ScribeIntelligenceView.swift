@@ -18,7 +18,7 @@ struct ScribeIntelligenceView: View {
     @State private var mode = "notes"
     @State private var busy = false
     @State private var conversation: [String] = []
-    private let modes = ["notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup"]
+    private let modes = ["notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup", "compare", "glossary", "formula_sheet", "study_plan", "lesson", "misconception", "mnemonics", "case_study"]
 
     private func notebookPath(for item: ScribeItem) -> String {
         var names = [item.title]
@@ -66,7 +66,7 @@ struct ScribeIntelligenceView: View {
             TextEditor(text: $question).frame(minHeight: 76, maxHeight: 110)
                 .padding(7).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(alignment: .topLeading) {
-                    if question.isEmpty { Text("Ask across your notebooks, request exam questions, start a quiz or research a topic…").foregroundStyle(.tertiary).padding(15).allowsHitTesting(false) }
+                    if question.isEmpty { Text("Ask your notes, compare concepts, build formula sheets, plan revision, practise or research…").foregroundStyle(.tertiary).padding(15).allowsHitTesting(false) }
                 }
             HStack {
                 Text("\(relevantNotes.count) matching note sources").font(.caption).foregroundStyle(.secondary)
