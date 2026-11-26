@@ -177,9 +177,12 @@ internal class ScribeFirebaseClient(
         fun firebaseId(tags: String) = tags.split(";").firstOrNull { it.startsWith("firebase_id:") }?.substringAfter("firebase_id:")?.takeIf { it.isNotBlank() }
         fun tagged(tags: String, id: String): String =
             (tags.split(";").filter { it.isNotBlank() && !it.startsWith("firebase_id:") } + "firebase_id:$id").joinToString(";")
-        fun restoreAttachment(payload: JSONObject, id: String, currentUri: String): String {
+        fun restoreAttachment(payload: JSONObject, id: String, currentUri: String, currentTags: String): String {
             val attachmentId = payload.optString("attachmentId")
             if (attachmentId.isBlank()) return currentUri
+            val remoteFingerprint = payload.optString("attachmentFingerprint")
+            val localFingerprint = currentTags.split(";").firstOrNull { it.startsWith("firebase_attachment_fingerprint:") }?.substringAfter(":")
+            if (currentUri.isNotBlank() && File(currentUri).isFile && remoteFingerprint.isNotBlank() && localFingerprint == remoteFingerprint) return currentUri
             return runCatching {
                 val response = attachmentRequest(targetProjectId, idToken, "GET", attachmentId)
                 val encoded = response.optString("base64")
@@ -223,8 +226,8 @@ internal class ScribeFirebaseClient(
                             kind = payload.optString("kind", current.kind),
                             title = payload.optString("title", current.title),
                             body = payload.optString("body", current.body),
-                            uri = restoreAttachment(payload, id, current.uri),
-                            tags = tagged(payload.optString("tags", current.tags), id),
+                            uri = restoreAttachment(payload, id, current.uri, current.tags),
+                            tags = tagged(payload.optString("tags", current.tags), id) + payload.optString("attachmentFingerprint").takeIf { it.isNotBlank() }?.let { ";firebase_attachment_fingerprint:$it" }.orEmpty(),
                             bookmarked = payload.optBoolean("bookmarked", current.bookmarked),
                             position = payload.optInt("position", current.position),
                             createdAt = payload.optLong("createdAt", current.createdAt),
@@ -238,7 +241,7 @@ internal class ScribeFirebaseClient(
                 } else {
                     val created = ScribeItem(parentId = parentLocal, kind = payload.optString("kind", "block"),
                         title = payload.optString("title", "Synced note"), body = payload.optString("body"),
-                        uri = restoreAttachment(payload, id, ""), tags = tagged(payload.optString("tags"), id), bookmarked = payload.optBoolean("bookmarked"),
+                        uri = restoreAttachment(payload, id, "", ""), tags = tagged(payload.optString("tags"), id) + payload.optString("attachmentFingerprint").takeIf { it.isNotBlank() }?.let { ";firebase_attachment_fingerprint:$it" }.orEmpty(), bookmarked = payload.optBoolean("bookmarked"),
                         position = payload.optInt("position"), createdAt = payload.optLong("createdAt", System.currentTimeMillis()),
                         updatedAt = remoteUpdated, deletedAt = if (payload.isNull("deletedAt")) null else payload.optLong("deletedAt"))
                     val localId = dao.insert(created)
