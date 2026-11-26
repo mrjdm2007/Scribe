@@ -621,6 +621,20 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         func tagged(_ tags: String, _ id: String) -> String {
             (tags.split(separator: ";").map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("firebase_id:") } + ["firebase_id:" + id]).joined(separator: ";")
         }
+        func restoreFirebaseAttachment(_ payload: [String: Any], id: String, currentURI: String) -> String {
+            if !currentURI.isEmpty && FileManager.default.fileExists(atPath: currentURI) { return currentURI }
+            guard let encoded = payload["attachmentBase64"] as? String,
+                  let data = Data(base64Encoded: encoded) else { return currentURI }
+            let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let rawName = payload["attachmentName"] as? String ?? "attachment"
+                let safeName = URL(fileURLWithPath: rawName).lastPathComponent.replacingOccurrences(of: "/", with: "_")
+                let destination = folder.appendingPathComponent("firebase_\\(id)_\\(safeName)")
+                try data.write(to: destination, options: .atomic)
+                return destination.path
+            } catch { return currentURI }
+        }
 
         for index in items.indices {
             if firebaseID(items[index].tags) == nil {
@@ -653,7 +667,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                             kind: payload["kind"] as? String ?? items[index].kind,
                             title: payload["title"] as? String ?? items[index].title,
                             body: payload["body"] as? String ?? items[index].body,
-                            uri: items[index].uri,
+                            uri: restoreFirebaseAttachment(payload, id: id, currentURI: items[index].uri),
                             tags: tagged(payload["tags"] as? String ?? items[index].tags, id),
                             bookmarked: payload["bookmarked"] as? Bool ?? items[index].bookmarked,
                             position: payload["position"] as? Int ?? items[index].position,
@@ -668,6 +682,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                         kind: payload["kind"] as? String ?? "block",
                         title: payload["title"] as? String ?? "Synced note",
                         body: payload["body"] as? String ?? "",
+                        uri: restoreFirebaseAttachment(payload, id: id, currentURI: ""),
                         tags: tagged(payload["tags"] as? String ?? "", id),
                         bookmarked: payload["bookmarked"] as? Bool ?? false,
                         position: payload["position"] as? Int ?? 0,
