@@ -58,7 +58,9 @@ A Firebase / Google Cloud backend foundation is now available in [firebase/](fir
 
 **Important:** the Android and macOS clients still use the existing Supabase authentication and sync implementation at this stage. The new Firebase backend is not yet deployed or connected to the clients. Keep the Supabase project and its data until Firebase sign-in, sync, attachments, AI requests and two-device round trips have all been verified. No existing user data or Supabase resources have been removed.
 
-## Supabase cloud sync setup
+## Legacy Supabase cloud sync (temporary during migration)
+
+**This section describes the currently connected legacy backend only.** Do not create a new Supabase project for a fresh Scribe setup if you are starting the Google Cloud migration. Existing installs continue to use Supabase until Firebase authentication and sync are integrated into both clients and verified. See [the Google Cloud migration guide](docs/google-cloud-migration.md).
 
 1. Create a Supabase project and enable email/password authentication.
 2. Run [supabase/schema.sql](supabase/schema.sql) in the Supabase SQL editor.
