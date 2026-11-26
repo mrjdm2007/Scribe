@@ -288,14 +288,6 @@ private fun UnitConverter() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("ENGINEERING & SCIENTIFIC CONVERTER", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
         Text("Convert real physical quantities — not just metric prefixes.", color = ToolMuted, fontSize = 12.sp)
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 172.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(groups.keys.toList().chunked(3).flatten().distinct()) { category ->
-                // Categories are rendered in the grid below; this branch is intentionally empty.
-            }
-        }
         groups.keys.toList().chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { category ->
