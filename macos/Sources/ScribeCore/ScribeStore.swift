@@ -645,14 +645,10 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         var pending: [[String: Any]] = []
         var cursor: String?
         repeat {
-            var query = "https://asia-south1-\\(projectId).cloudfunctions.net/studyLibrary?limit=500"
-            if let cursor, let escaped = cursor.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-                query += "&cursor=" + escaped
-            }
-            let pageURL = URL(string: query)!
-            let page = try await ScribeFirebaseClient.fetchLibraryPage(url: pageURL, idToken: idToken)
-            pending.append(contentsOf: page.records)
-            cursor = page.nextCursor
+            let page = try await ScribeFirebaseClient.requestLibrary(
+                projectId: projectId, idToken: idToken, method: "GET", cursor: cursor)
+            pending.append(contentsOf: page["records"] as? [[String: Any]] ?? [])
+            cursor = page["nextCursor"] as? String
         } while cursor != nil
         var localByFirebase = Dictionary(uniqueKeysWithValues: items.compactMap { item in
             firebaseID(item.tags).map { ($0, item.id) }
