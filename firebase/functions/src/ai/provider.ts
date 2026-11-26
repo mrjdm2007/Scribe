@@ -2,6 +2,7 @@ export interface GenerateInput {
   systemInstruction: string;
   prompt: string;
   maxOutputTokens: number;
+  responseMimeType?: string;
 }
 
 export interface AIProvider {
