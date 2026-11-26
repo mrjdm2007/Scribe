@@ -2,10 +2,24 @@ import SwiftUI
 import UserNotifications
 import ScribeCore
 
+private struct AcademicUnitDefinition: Hashable {
+    let symbol: String
+    let description: String
+    let factor: Double
+    var offset: Double = 0
+}
+private func academicUnit(_ symbol: String, _ description: String, _ factor: Double, _ offset: Double = 0) -> AcademicUnitDefinition {
+    AcademicUnitDefinition(symbol: symbol, description: description, factor: factor, offset: offset)
+}
+
 // macOS academic tools use the same portable question encoding as Android.
 struct AcademicToolsView: View {
     @EnvironmentObject private var store: ScribeStore
-    @State private var section = "Graph"
+    @State private var section = "Converter"
+    @State private var converterCategory = "Voltage"
+    @State private var converterValue = "1"
+    @State private var converterFrom = "V"
+    @State private var converterTo = "mV"
     @State private var graphExpression = "sin(x)"
     @State private var graphRange = "6.28"
     @State private var equationTitle = ""
@@ -31,7 +45,7 @@ struct AcademicToolsView: View {
     @State private var reminderDate = Date().addingTimeInterval(3600)
     @State private var reminderStatus = ""
 
-    private let sections = ["Graph", "Equations", "Circuit", "Tables", "Questions", "Practice", "Reminders", "Diagrams"]
+    private let sections = ["Converter", "Graph", "Equations", "Circuit", "Tables", "Questions", "Practice", "Reminders", "Diagrams"]
     private var questions: [ScribeItem] { store.items.filter { $0.kind == "study_question" && $0.deletedAt == nil && $0.body.contains("---OPTIONS---") }.sorted { $0.updatedAt > $1.updatedAt } }
 
     private func parsedQuestion(_ item: ScribeItem) -> (prompt: String, options: [String], correct: String, explanation: String) {
@@ -61,6 +75,7 @@ struct AcademicToolsView: View {
             }
             Group {
                 switch section {
+                case "Converter": converter
                 case "Graph": graph
                 case "Equations": equations
                 case "Circuit": circuit
@@ -76,6 +91,84 @@ struct AcademicToolsView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(24)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private let unitGroups: [String: [AcademicUnitDefinition]] = [
+        "Voltage":[academicUnit("V","volt",1),academicUnit("mV","millivolt",1e-3),academicUnit("µV","microvolt",1e-6),academicUnit("kV","kilovolt",1e3)],
+        "Current":[academicUnit("A","ampere",1),academicUnit("mA","milliampere",1e-3),academicUnit("µA","microampere",1e-6),academicUnit("nA","nanoampere",1e-9)],
+        "Resistance":[academicUnit("Ω","ohm",1),academicUnit("kΩ","kiloohm",1e3),academicUnit("MΩ","megaohm",1e6),academicUnit("GΩ","gigaohm",1e9)],
+        "Capacitance":[academicUnit("F","farad",1),academicUnit("mF","millifarad",1e-3),academicUnit("µF","microfarad",1e-6),academicUnit("nF","nanofarad",1e-9),academicUnit("pF","picofarad",1e-12)],
+        "Inductance":[academicUnit("H","henry",1),academicUnit("mH","millihenry",1e-3),academicUnit("µH","microhenry",1e-6),academicUnit("nH","nanohenry",1e-9)],
+        "Conductance":[academicUnit("S","siemens",1),academicUnit("mS","millisiemens",1e-3),academicUnit("µS","microsiemens",1e-6)],
+        "Frequency":[academicUnit("Hz","hertz",1),academicUnit("kHz","kilohertz",1e3),academicUnit("MHz","megahertz",1e6),academicUnit("GHz","gigahertz",1e9),academicUnit("rpm","revolutions/min",1.0/60.0)],
+        "Power":[academicUnit("W","watt",1),academicUnit("mW","milliwatt",1e-3),academicUnit("kW","kilowatt",1e3),academicUnit("MW","megawatt",1e6),academicUnit("hp","mechanical horsepower",745.6998716)],
+        "Energy":[academicUnit("J","joule",1),academicUnit("kJ","kilojoule",1e3),academicUnit("Wh","watt-hour",3600),academicUnit("kWh","kilowatt-hour",3.6e6),academicUnit("eV","electronvolt",1.602176634e-19)],
+        "Charge":[academicUnit("C","coulomb",1),academicUnit("mC","millicoulomb",1e-3),academicUnit("µC","microcoulomb",1e-6),academicUnit("Ah","ampere-hour",3600),academicUnit("mAh","milliampere-hour",3.6)],
+        "Length":[academicUnit("m","metre",1),academicUnit("mm","millimetre",1e-3),academicUnit("cm","centimetre",1e-2),academicUnit("km","kilometre",1e3),academicUnit("µm","micrometre",1e-6),academicUnit("nm","nanometre",1e-9),academicUnit("in","inch",0.0254),academicUnit("ft","foot",0.3048),academicUnit("mi","mile",1609.344)],
+        "Area":[academicUnit("m²","square metre",1),academicUnit("cm²","square centimetre",1e-4),academicUnit("mm²","square millimetre",1e-6),academicUnit("km²","square kilometre",1e6),academicUnit("ha","hectare",1e4),academicUnit("ft²","square foot",0.09290304)],
+        "Volume":[academicUnit("m³","cubic metre",1),academicUnit("L","litre",1e-3),academicUnit("mL","millilitre",1e-6),academicUnit("cm³","cubic centimetre",1e-6),academicUnit("ft³","cubic foot",0.028316846592),academicUnit("gal","US gallon",0.003785411784)],
+        "Mass":[academicUnit("kg","kilogram",1),academicUnit("g","gram",1e-3),academicUnit("mg","milligram",1e-6),academicUnit("t","metric tonne",1e3),academicUnit("lb","pound",0.45359237),academicUnit("oz","ounce",0.028349523125)],
+        "Temperature":[academicUnit("K","kelvin",1),academicUnit("°C","degree Celsius",1,273.15),academicUnit("°F","degree Fahrenheit",5.0/9.0,255.3722222222222)],
+        "Time":[academicUnit("s","second",1),academicUnit("ms","millisecond",1e-3),academicUnit("µs","microsecond",1e-6),academicUnit("ns","nanosecond",1e-9),academicUnit("min","minute",60),academicUnit("h","hour",3600),academicUnit("day","day",86400)],
+        "Speed":[academicUnit("m/s","metre/second",1),academicUnit("km/h","kilometre/hour",1.0/3.6),academicUnit("mph","mile/hour",0.44704),academicUnit("ft/s","foot/second",0.3048)],
+        "Acceleration":[academicUnit("m/s²","metre/second²",1),academicUnit("ft/s²","foot/second²",0.3048),academicUnit("g₀","standard gravity",9.80665)],
+        "Force":[academicUnit("N","newton",1),academicUnit("kN","kilonewton",1e3),academicUnit("MN","meganewton",1e6),academicUnit("lbf","pound-force",4.4482216152605)],
+        "Pressure":[academicUnit("Pa","pascal",1),academicUnit("kPa","kilopascal",1e3),academicUnit("MPa","megapascal",1e6),academicUnit("bar","bar",1e5),academicUnit("atm","atmosphere",101325),academicUnit("psi","pound/in²",6894.757293168),academicUnit("mmHg","millimetre mercury",133.322387415)],
+        "Density":[academicUnit("kg/m³","kilogram/cubic metre",1),academicUnit("g/cm³","gram/cubic centimetre",1000),academicUnit("g/L","gram/litre",1),academicUnit("lb/ft³","pound/cubic foot",16.01846337)],
+        "Torque":[academicUnit("N·m","newton-metre",1),academicUnit("kN·m","kilonewton-metre",1e3),academicUnit("lb·ft","pound-foot",1.3558179483)],
+        "Magnetic field":[academicUnit("T","tesla",1),academicUnit("mT","millitesla",1e-3),academicUnit("µT","microtesla",1e-6),academicUnit("G","gauss",1e-4)],
+        "Angle":[academicUnit("rad","radian",1),academicUnit("°","degree",Double.pi/180),academicUnit("rev","revolution",2*Double.pi)]
+    ]
+    private var converterUnits: [AcademicUnitDefinition] { unitGroups[converterCategory] ?? unitGroups["Voltage"]! }
+    private var converterResult: Double? {
+        guard let value = Double(converterValue), value.isFinite,
+              let source = converterUnits.first(where: { $0.symbol == converterFrom }),
+              let target = converterUnits.first(where: { $0.symbol == converterTo }) else { return nil }
+        return ((value * source.factor + source.offset) - target.offset) / target.factor
+    }
+
+    private var converter: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Engineering & scientific converter").font(.title2.bold())
+            Text("Electrical, mechanical and scientific quantities with SI-based factors and proper temperature offsets.")
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 112))], alignment: .leading, spacing: 8) {
+                ForEach(unitGroups.keys.sorted(), id: \.self) { key in
+                    Button(key) {
+                        converterCategory = key
+                        converterFrom = unitGroups[key]!.first!.symbol
+                        converterTo = unitGroups[key]!.dropFirst().first?.symbol ?? unitGroups[key]!.first!.symbol
+                    }.buttonStyle(.borderedProminent)
+                        .tint(converterCategory == key ? Color.accentColor : Color.secondary.opacity(0.2))
+                }
+            }
+            TextField("Value to convert", text: $converterValue)
+                .textFieldStyle(.roundedBorder).frame(maxWidth: 360)
+            HStack(spacing: 12) {
+                Picker("From", selection: $converterFrom) {
+                    ForEach(converterUnits, id: \.symbol) { Text($0.symbol).tag($0.symbol) }
+                }.frame(maxWidth: 220)
+                Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                Picker("To", selection: $converterTo) {
+                    ForEach(converterUnits, id: \.symbol) { Text($0.symbol).tag($0.symbol) }
+                }.frame(maxWidth: 220)
+            }
+            if let converterResult {
+                Text(converterResult, format: .number.precision(.significantDigits(1...9)))
+                    .font(.system(size: 34, weight: .medium, design: .rounded))
+                Text("\(converterValue) \(converterFrom) = \(converterResult.formatted(.number.precision(.significantDigits(1...9)))) \(converterTo)")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Enter a valid finite number.").foregroundStyle(.secondary)
+            }
+            Divider()
+            Text("UNIT REFERENCE").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            ForEach(converterUnits, id: \.symbol) { unit in
+                HStack { Text(unit.symbol).fontWeight(.medium); Spacer(); Text(unit.description).foregroundStyle(.secondary) }
+            }
+        }
+        .padding(20)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var graph: some View {
