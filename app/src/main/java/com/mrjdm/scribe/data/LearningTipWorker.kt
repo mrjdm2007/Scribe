@@ -92,7 +92,10 @@ internal class LearningTipWorker(
                 accessToken,
                 requestBody
             )
-            val tip = response.optString("answer").ifBlank { response.optString("tip") }
+            val structuredTip = response.optJSONObject("artifact")?.optString("tip").orEmpty()
+            val rawAnswer = response.optString("answer")
+            val parsedAnswer = runCatching { JSONObject(rawAnswer).optString("tip") }.getOrDefault("")
+            val tip = (structuredTip.ifBlank { parsedAnswer }.ifBlank { rawAnswer })
                 .trim().take(360)
             if (tip.isBlank()) return Result.retry()
 
