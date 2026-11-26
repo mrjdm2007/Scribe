@@ -72,7 +72,6 @@ struct StudyWorkspaceView: View {
         .onChange(of: reflectionWins) { _ in saveReflection() }
         .onChange(of: reflectionChallenges) { _ in saveReflection() }
         .onChange(of: reflectionNext) { _ in saveReflection() }
-        .onChange(of: dailyGoalMinutes) { _ in saveDailyGoal() }
         .sheet(isPresented: $showingExamForm) { examForm }
         .sheet(isPresented: $showingFolderForm) { folderForm }
     }
@@ -99,7 +98,7 @@ struct StudyWorkspaceView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack { Text("DAILY STUDY GOAL").font(.caption.bold()).foregroundStyle(.secondary); Spacer(); Text("\(todayMinutes) / \(dailyGoalMinutes) min").font(.headline) }
                     ProgressView(value: min(1, Double(todayMinutes) / Double(max(1, dailyGoalMinutes))))
-                    Slider(value: Binding(get: { Double(dailyGoalMinutes) }, set: { dailyGoalMinutes = Int($0) }), in: 30...600, step: 15)
+                    Slider(value: Binding(get: { Double(dailyGoalMinutes) }, set: { dailyGoalMinutes = Int($0) }), in: 30...600, step: 15, onEditingChanged: { editing in if !editing { saveDailyGoal() } })
                     Text("Your target is saved to the shared study workspace.").font(.caption).foregroundStyle(.secondary)
                 }.padding(14).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
                 Text("Upcoming exams").font(.title2.bold())
