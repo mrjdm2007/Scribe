@@ -166,37 +166,34 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
             EmptyDocumentMessage("No matching text was found.")
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.weight(1f).fillMaxWidth().widthIn(max = 760.dp)
+                    .align(Alignment.CenterHorizontally).background(Paper),
+                contentPadding = PaddingValues(horizontal = 30.dp, vertical = 26.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 items(visibleParagraphs) { paragraph ->
                     val style = paragraph.style.lowercase()
                     val headingLevel = Regex("""heading([1-6])""").find(style)?.groupValues?.getOrNull(1)?.toIntOrNull()
                     val isTitle = style.contains("title")
                     val isSubtitle = style.contains("subtitle")
-                    Column(
-                        Modifier.fillMaxWidth().background(Paper).padding(
-                            horizontal = if (headingLevel != null || isTitle) 18.dp else 24.dp,
-                            vertical = if (headingLevel != null || isTitle) 12.dp else 7.dp
-                        )
-                    ) {
-                        Text(
-                            text = paragraph.text,
-                            color = Ink,
-                            fontFamily = FontFamily.Serif,
-                            fontSize = when {
-                                isTitle -> (fontSize + 10).sp
-                                headingLevel == 1 -> (fontSize + 7).sp
-                                headingLevel == 2 -> (fontSize + 5).sp
-                                headingLevel != null -> (fontSize + 2).sp
-                                isSubtitle -> (fontSize + 2).sp
-                                else -> fontSize.sp
-                            },
-                            fontWeight = if (headingLevel != null || isTitle || isSubtitle) FontWeight.SemiBold else FontWeight.Normal,
-                            lineHeight = (fontSize + 11).sp
-                        )
-                    }
+                    Text(
+                        text = paragraph.text,
+                        modifier = Modifier.fillMaxWidth().padding(
+                            top = if (headingLevel != null || isTitle) 12.dp else 2.dp,
+                            bottom = if (headingLevel != null || isTitle) 5.dp else 2.dp
+                        ),
+                        color = Ink,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = when {
+                            isTitle -> (fontSize + 10).sp
+                            headingLevel == 1 -> (fontSize + 7).sp
+                            headingLevel == 2 -> (fontSize + 5).sp
+                            headingLevel != null || isSubtitle -> (fontSize + 2).sp
+                            else -> fontSize.sp
+                        },
+                        fontWeight = if (headingLevel != null || isTitle || isSubtitle) FontWeight.SemiBold else FontWeight.Normal,
+                        lineHeight = (fontSize + 11).sp
+                    )
                 }
             }
         }
