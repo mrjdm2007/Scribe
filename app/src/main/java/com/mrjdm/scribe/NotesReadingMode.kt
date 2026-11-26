@@ -43,8 +43,8 @@ fun NotesReadingMode(
     onDismiss: () -> Unit
 ) {
     var paper by remember { mutableStateOf(ReaderPaper.DARK) }
-    var fontSize by remember { mutableFloatStateOf(18f) }
-    var readingWidth by remember { mutableFloatStateOf(760f) }
+    var fontSize by remember { mutableStateOf(18f) }
+    var readingWidth by remember { mutableStateOf(760f) }
     var progress by remember { mutableFloatStateOf(0f) }
     var bookmarked by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -147,10 +147,7 @@ fun NotesReadingMode(
                             loadDataWithBaseURL("https://scribe.local/", readerHtml(safeTitle, safeMarkdown, paper, fontSize, readingWidth), "text/html", "UTF-8", null)
                         }
                     },
-                    update = { view ->
-                        readerWebView = view
-                        view.loadDataWithBaseURL("https://scribe.local/", readerHtml(safeTitle, safeMarkdown, paper, fontSize, readingWidth), "text/html", "UTF-8", null)
-                    }
+                    update = { view -> readerWebView = view }
                 )
             }
             Row(
