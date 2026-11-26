@@ -301,7 +301,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         }
         Spacer(Modifier.height(12.dp))
         when (section) {
-            "Overview" -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            "Overview" -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 150.dp)) {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         MetricTile("STREAK", "$streak days", Modifier.weight(1f))
@@ -338,7 +338,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                 if (focus.isEmpty()) item { WorkspaceEmpty("No focus sessions yet", "Log a session or use the timer in the Focus tab.") }
                 items(focus.takeLast(5).reversed(), key = { it.id }) { FocusRow(it) }
             }
-            "Exams" -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            "Exams" -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 150.dp)) {
                 item { Button(onClick = { showExamDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = WorkspaceGold, contentColor = androidx.compose.ui.graphics.Color.Black)) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Add exam") } }
                 if (exams.isEmpty()) item { WorkspaceEmpty("Plan your next exam", "Add a date, then build a checklist from the syllabus.") }
                 items(exams, key = { it.id }) { exam ->
@@ -386,7 +386,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                 if (focus.isEmpty()) item { WorkspaceEmpty("Your focus history will appear here", "Track time spent on each subject and topic.") }
                 items(focus.reversed(), key = { it.id }) { FocusRow(it) }
             }
-            "Bookmarks" -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            "Bookmarks" -> LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 150.dp)) {
                 item { Row(verticalAlignment = Alignment.CenterVertically) { Text("Folders", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)); TextButton(onClick = { showFolderDialog = true }) { Icon(Icons.Rounded.CreateNewFolder, null); Text("New folder") } } }
                 items(folders, key = { it.id }) { folder ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
