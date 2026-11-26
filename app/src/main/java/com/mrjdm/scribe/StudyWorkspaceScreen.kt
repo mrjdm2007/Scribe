@@ -49,6 +49,7 @@ private class WorkspaceStore(context: Context) {
     fun bool(key: String, fallback: Boolean) = prefs.getBoolean(key, fallback)
     fun setBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply() }
     fun int(key: String, fallback: Int) = prefs.getInt(key, fallback)
+    fun contains(key: String) = prefs.contains(key)
     fun setInt(key: String, value: Int) { prefs.edit().putInt(key, value).apply() }
 }
 
@@ -146,7 +147,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
     LaunchedEffect(allItems, loaded) {
         if (!loaded) return@LaunchedEffect
         val goalRecord = allItems.firstOrNull { it.kind == "study_workspace_daily_goal" && it.deletedAt == null }
-        if (store.read("daily_goal_minutes").isBlank() && goalRecord != null) {
+        if (!store.contains("daily_goal_minutes") && goalRecord != null) {
             runCatching {
                 val minutes = JSONObject(goalRecord.body).optInt("minutes", 120).coerceIn(30, 600)
                 dailyGoalMinutes = minutes
