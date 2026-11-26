@@ -586,13 +586,18 @@ export const studyProgress = onRequest(
         const sessionRef = sessions.doc();
         const day = now.toISOString().slice(0, 10);
         const dailyRef = userRef.collection("study_daily").doc(day);
+        const startedAt = body.startedAt ? new Date(body.startedAt) : null;
+        if (startedAt && !Number.isFinite(startedAt.getTime())) {
+          response.status(400).json({ error: "startedAt must be a valid date-time." });
+          return;
+        }
         await db.runTransaction(async transaction => {
+          const daily = await transaction.get(dailyRef);
           transaction.create(sessionRef, {
             subject, topic: topic || null, durationMinutes,
-            startedAt: body.startedAt ? new Date(body.startedAt) : null,
+            startedAt,
             createdAt: now
           });
-          const daily = await transaction.get(dailyRef);
           transaction.set(dailyRef, {
             date: day,
             studyMinutes: Number(daily.get("studyMinutes") ?? 0) + durationMinutes,
