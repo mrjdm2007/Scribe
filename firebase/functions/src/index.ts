@@ -1306,7 +1306,7 @@ export const studyAttachments = onRequest(
       return;
     }
     const authorization = request.header("authorization") ?? "";
-    const match = authorization.match(/^Bearer\\s+(.+)$/i);
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
     if (!match) {
       response.status(401).json({ error: "Sign in to Scribe first." });
       return;
