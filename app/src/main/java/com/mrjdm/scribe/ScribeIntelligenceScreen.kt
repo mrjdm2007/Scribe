@@ -27,6 +27,7 @@ import java.util.Locale
 internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val chatPreferences = remember(context) { chatPreferences }
     var notes by remember { mutableStateOf<List<ScribeItem>>(emptyList()) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
