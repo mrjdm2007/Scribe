@@ -855,9 +855,18 @@ export const studyWorkspace = onRequest(
             response.status(400).json({ error: "A bookmark requires a title and documentId." });
             return;
           }
+          const folderId = asText(body.folderId, 80);
+          if (folderId) {
+            const folder = await bookmarkFolders.doc(folderId).get();
+            if (!folder.exists) {
+              response.status(400).json({ error: "The selected bookmark folder does not exist." });
+              return;
+            }
+          }
           const ref = bookmarks.doc();
           await ref.set({
             title, documentId, location: location || null,
+            folderId: folderId || null,
             excerpt: asText(body.excerpt, 1000),
             note: asText(body.note, 1000),
             tags: Array.isArray(body.tags) ? body.tags.slice(0, 12).map((tag: unknown) => asText(tag, 40)).filter(Boolean) : [],
@@ -904,12 +913,16 @@ export const studyWorkspace = onRequest(
             return;
           }
           const ref = notificationHistory.doc(day + "_" + topicKey.replace(/[^a-z0-9_-]/g, "-").slice(0, 100));
-          const existing = await ref.get();
-          if (existing.exists) {
+          const alreadyRecorded = await db.runTransaction(async transaction => {
+            const existing = await transaction.get(ref);
+            if (existing.exists) return true;
+            transaction.create(ref, { topicKey, topic, day, sourceDocumentId: asText(body.sourceDocumentId, 160) || null, createdAt: new Date() });
+            return false;
+          });
+          if (alreadyRecorded) {
             response.status(409).json({ duplicate: true, message: "This topic was already used for a learning notification today." });
             return;
           }
-          await ref.create({ topicKey, topic, day, sourceDocumentId: asText(body.sourceDocumentId, 160) || null, createdAt: new Date() });
           response.status(201).json({ recorded: true, day });
           return;
         }
@@ -1029,6 +1042,14 @@ export const studyWorkspace = onRequest(
       } else {
         for (const field of ["title", "location", "excerpt", "note"] as const) {
           if (Object.prototype.hasOwnProperty.call(body, field)) updates[field] = asText(body[field], field === "excerpt" || field === "note" ? 1000 : 300);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "folderId")) {
+          const folderId = asText(body.folderId, 80);
+          if (folderId && !(await bookmarkFolders.doc(folderId).get()).exists) {
+            response.status(400).json({ error: "The selected bookmark folder does not exist." });
+            return;
+          }
+          updates.folderId = folderId || null;
         }
         if (Object.prototype.hasOwnProperty.call(body, "tags")) {
           if (!Array.isArray(body.tags)) {
