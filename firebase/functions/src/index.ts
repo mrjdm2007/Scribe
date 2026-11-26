@@ -234,11 +234,33 @@ export const studyAssistant = onRequest(
             .map(card => ({ title: card.sourceTitle, quote: card.sourceQuote ?? "" }))
         : [];
 
+      const responseId = crypto.randomUUID();
+      let artifactId: string | null = null;
+      if (artifact) {
+        // Persist generated study material to the signed-in user's private
+        // Firestore namespace so a future client can sync it across devices.
+        artifactId = responseId;
+        await db.collection("users").doc(uid)
+          .collection("study_artifacts").doc(artifactId)
+          .set({
+            type: artifact.type,
+            mode,
+            artifact,
+            answer,
+            createdAt: new Date(),
+            sourceTitles: citations
+              .map(citation => citation.title)
+              .filter((title): title is string => typeof title === "string")
+              .slice(0, 50)
+          });
+      }
+
       response.status(200).json({
         answer,
         artifact,
+        artifact_id: artifactId,
         citations,
-        response_id: crypto.randomUUID()
+        response_id: responseId
       });
     } catch (error) {
       console.error("Scribe study assistant failed", {
