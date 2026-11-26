@@ -143,7 +143,8 @@ private struct ReaderWebView: NSViewRepresentable {
 
     private var html: String {
         let encoded = (try? JSONSerialization.data(withJSONObject: [title, markdown])).flatMap { String(data: $0, encoding: .utf8) } ?? "[\"\",\"\"]"
-        let parts = encoded.dropFirst().dropLast()
+        let safeEncoded = encoded.replacingOccurrences(of: "</", with: "<\\/")
+        let parts = safeEncoded.dropFirst().dropLast()
         let background = paper == "Light" ? "#F7F7F4" : paper == "Warm" ? "#F1E6D0" : "#111316"
         let foreground = paper == "Light" ? "#252522" : paper == "Warm" ? "#342B20" : "#E9E5DD"
         return """
