@@ -154,7 +154,7 @@ struct StudyWorkspaceView: View {
                 Button("Save session") {
                     let subject = focusSubject.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !subject.isEmpty else { return }
-                    store.create(kind: "study_session", title: subject, tags: "minutes:\(focusMinutes);topic:\(focusTopic)")
+                    store.create(kind: "study_session", title: subject, tags: "minutes:\(focusMinutes);topic:\(focusTopic)", switchToLibrary: false)
                     focusSubject = ""; focusTopic = ""
                 }.buttonStyle(.borderedProminent)
             }
