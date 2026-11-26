@@ -91,7 +91,12 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         if (!granted) {
             notificationEnabled = false
             store.setBool("notifications_enabled", false)
+            mirrorWorkspaceRecord("study_workspace_notifications", "Android learning notifications",
+                JSONObject().put("enabled", false).put("intervalHours", interval)
+                    .put("quietHoursStart", quietStart).put("quietHoursEnd", quietEnd).toString())
             LearningTipScheduler.cancel(context)
+        } else {
+            LearningTipScheduler.update(context)
         }
     }
 
