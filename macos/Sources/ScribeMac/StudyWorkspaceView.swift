@@ -172,7 +172,7 @@ struct StudyWorkspaceView: View {
             Text("Focus session log").font(.title2.bold())
             HStack(spacing: 6) {
                 ForEach([15, 25, 50, 90], id: \.self) { minutes in
-                    Button("\(minutes)m") { focusMinutes = minutes }.buttonStyle(focusMinutes == minutes ? .borderedProminent : .bordered)
+                    Button("\(minutes)m") { focusMinutes = minutes }.buttonStyle(.bordered)
                 }
             }
             HStack {
