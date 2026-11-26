@@ -109,6 +109,19 @@ The authenticated `studyProgress` endpoint adds five connected learning features
 
 `GET /studyProgress` returns topic progress, active goals, recent sessions, due reviews and the weakest topics. All records are stored under the authenticated user's Firestore namespace. The endpoint is backend groundwork: Android/macOS dashboard screens and automatic event wiring still need client integration. The mastery score and review intervals are lightweight scheduling heuristics, not a validated educational assessment.
 
+
+### Study workspace API
+
+The authenticated `studyWorkspace` endpoint adds five further capabilities:
+
+1. **Exam planner:** create, edit and delete exams with subject, date, notes and a bounded syllabus checklist.
+2. **Bookmarks:** save document-linked reading positions with excerpts, personal notes and tags; list, edit and delete them.
+3. **Study streaks:** dashboard derives consecutive study days from daily session aggregates.
+4. **Achievements:** milestone badges are calculated from session count, study minutes, streak length and mastered-topic count.
+5. **Android learning-notification preferences:** stores enable/disable, 1–4 hour interval and quiet-hour settings. This is preference storage only; the Android app must still schedule local notifications, and macOS notifications remain out of scope.
+
+`GET /studyWorkspace` returns exams, bookmarks, notification preferences, streak/weekly analytics and achievement unlock states. `POST` accepts `action: "exam"`, `"bookmark"` or `"notification_preferences"`. `PATCH` and `DELETE` accept `type=exam|bookmark` and an item `id`. All data is scoped to the authenticated Firebase user. The native clients have not yet been wired to these endpoints.
+
 ### Saved study artifact API
 
 The `studyArtifacts` endpoint accepts the same Firebase ID-token bearer authentication:
