@@ -101,6 +101,11 @@ struct ScribeMacRoot: View {
     @State private var cloudPassword = ""
     @State private var cloudStatus = ""
     @State private var cloudBusy = false
+    @AppStorage("scribe.firebase.apiKey") private var firebaseAPIKey = ""
+    @AppStorage("scribe.firebase.projectId") private var firebaseProjectID = ""
+    @State private var firebaseCreateAccount = false
+    @State private var firebaseStatus = ""
+    @State private var firebaseBusy = false
     @State private var editorSelection = NSRange(location: 0, length: 0)
     @State private var showingReadingMode = false
     @State private var showingIntelligence = false
@@ -950,11 +955,54 @@ struct ScribeMacRoot: View {
     private var backup: some View {
         VStack(alignment:.leading,spacing:16) {
             Text("Backup & settings").font(.largeTitle.bold())
-            Text("Scribe stores notes locally and can optionally sync your library through your own Supabase project.")
+            Text("Scribe keeps a local-first library and can sync across Android and macOS through Firebase. Supabase remains available as a legacy fallback during migration.")
             Button { showingExport=true } label: { Label("Export Scribe JSON backup",systemImage:"square.and.arrow.up") }.buttonStyle(.borderedProminent).tint(gold)
             Button { showingImport=true } label: { Label("Restore Scribe JSON backup",systemImage:"square.and.arrow.down") }
             Button { showingTrash = true } label: { Label("Recently deleted", systemImage: "trash") }
-            GroupBox("Supabase cloud sync") {
+            GroupBox("Firebase cloud sync") {
+                VStack(alignment: .leading, spacing: 9) {
+                    TextField("Firebase Web API key", text: $firebaseAPIKey)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Firebase project ID", text: $firebaseProjectID)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Account email", text: $cloudEmail)
+                        .textFieldStyle(.roundedBorder)
+                    SecureField("Account password", text: $cloudPassword)
+                        .textFieldStyle(.roundedBorder)
+                    Button(firebaseCreateAccount ? "I already have an account · Sign in" : "New here? Create a Firebase account") {
+                        firebaseCreateAccount.toggle()
+                    }.buttonStyle(.link)
+                    HStack {
+                        Button("Disable Firebase sync") {
+                            store.disableFirebaseSync()
+                            firebaseStatus = "Firebase sync disabled. Your local library is unchanged."
+                        }.buttonStyle(.bordered).disabled(firebaseBusy)
+                        Button {
+                            firebaseBusy = true
+                            firebaseStatus = "Signing in and syncing your library…"
+                            Task {
+                                do {
+                                    firebaseStatus = try await store.syncFirebase(
+                                        apiKey: firebaseAPIKey, projectId: firebaseProjectID,
+                                        email: cloudEmail, password: cloudPassword,
+                                        createAccount: firebaseCreateAccount)
+                                } catch {
+                                    firebaseStatus = "Firebase sync failed: " + error.localizedDescription
+                                }
+                                cloudPassword = ""
+                                firebaseBusy = false
+                            }
+                        } label: {
+                            if firebaseBusy { ProgressView().controlSize(.small) }
+                            else { Label(firebaseCreateAccount ? "Create account & sync" : "Sign in & sync", systemImage: "arrow.triangle.2.circlepath") }
+                        }.buttonStyle(.borderedProminent).tint(gold).disabled(firebaseBusy)
+                    }
+                    if !firebaseStatus.isEmpty { Text(firebaseStatus).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+                    Text("Enable Email/Password under Firebase Authentication, create a Firestore database, deploy the studyLibrary Cloud Function, then enter the Web API key and project ID from Firebase project settings. Refresh tokens are stored in macOS Keychain. Small attachments (up to 400 KB) sync with notebook records; larger files remain local until Firebase Storage upload is configured.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.padding(4)
+            }
+            GroupBox("Legacy Supabase cloud sync (fallback)") {
                 VStack(alignment: .leading, spacing: 9) {
                     TextField("Supabase project URL", text: $cloudURL)
                         .textFieldStyle(.roundedBorder)
@@ -988,7 +1036,7 @@ struct ScribeMacRoot: View {
                         .buttonStyle(.borderedProminent).tint(gold).disabled(cloudBusy)
                         Text(cloudStatus).font(.caption).foregroundStyle(.secondary)
                     }
-                    Text("Run supabase/schema.sql in your project first. After sign-in, Scribe syncs every 6 hours while the app is open. The refresh session is stored in macOS Keychain; your password is not saved.")
+                    Text("Legacy provider retained so existing Supabase libraries are not stranded. New Firebase sign-ins use the Firebase sync section above.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(4)
             }
@@ -1001,7 +1049,7 @@ struct ScribeMacRoot: View {
                 integrityReport = "Checked " + String(store.items.count) + " records.\n\nMissing attachments: " + String(missing) + "\nPossible duplicates: " + String(duplicates) + "\n\nNo data was changed."
                 showingIntegrityReport = true
             } label: { Label("Check library integrity", systemImage: "checkmark.shield") }
-            Text("The macOS app includes the topic-first notebook, Markdown editing, in-topic search, flashcards, focus mode, academic tools, PDF annotations/OCR, attachments, trash and version history. Cloud sync uses your own Supabase project.").foregroundStyle(.secondary)
+            Text("The macOS app includes the topic-first notebook, Markdown editing, in-topic search, flashcards, focus mode, academic tools, PDF annotations/OCR, attachments, trash and version history. Firebase is the new cross-device sync path; Supabase remains a migration fallback.").foregroundStyle(.secondary)
             Spacer()
         }.padding(24)
     }
