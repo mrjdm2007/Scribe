@@ -856,6 +856,10 @@ export const studyWorkspace = onRequest(
             return;
           }
           const folderId = asText(body.folderId, 80);
+          if (folderId && !validId(folderId)) {
+            response.status(400).json({ error: "The bookmark folder ID is invalid." });
+            return;
+          }
           if (folderId) {
             const folder = await bookmarkFolders.doc(folderId).get();
             if (!folder.exists) {
@@ -942,7 +946,11 @@ export const studyWorkspace = onRequest(
           const wins = asText(body.wins, 2000);
           const challenges = asText(body.challenges, 2000);
           const nextWeek = asText(body.nextWeek, 2000);
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart) || !wins && !challenges && !nextWeek) {
+          const parsedWeekStart = new Date(`${weekStart}T00:00:00.000Z`);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)
+            || !Number.isFinite(parsedWeekStart.getTime())
+            || parsedWeekStart.toISOString().slice(0, 10) !== weekStart
+            || !wins && !challenges && !nextWeek) {
             response.status(400).json({ error: "Provide a valid weekStart date and at least one reflection field." });
             return;
           }
@@ -1045,6 +1053,10 @@ export const studyWorkspace = onRequest(
         }
         if (Object.prototype.hasOwnProperty.call(body, "folderId")) {
           const folderId = asText(body.folderId, 80);
+          if (folderId && !validId(folderId)) {
+            response.status(400).json({ error: "The bookmark folder ID is invalid." });
+            return;
+          }
           if (folderId && !(await bookmarkFolders.doc(folderId).get()).exists) {
             response.status(400).json({ error: "The selected bookmark folder does not exist." });
             return;
