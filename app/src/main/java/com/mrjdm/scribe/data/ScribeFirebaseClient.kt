@@ -293,9 +293,10 @@ internal class ScribeFirebaseClient(
             dao.snapshots(item.id).first().forEach { snapshot ->
                 history.put(JSONObject().put("title", snapshot.title).put("body", snapshot.body).put("savedAt", snapshot.savedAt))
             }
+            var recordUpdatedAt = item.updatedAt
             val payload = JSONObject().put("kind", item.kind).put("title", item.title).put("body", item.body)
                 .put("tags", tagged(item.tags, id)).put("bookmarked", item.bookmarked).put("position", item.position)
-                .put("createdAt", item.createdAt).put("updatedAt", item.updatedAt)
+                .put("createdAt", item.createdAt).put("updatedAt", recordUpdatedAt)
                 .put("deletedAt", item.deletedAt ?: JSONObject.NULL)
                 .put("parentFirebaseId", parentFirebase ?: JSONObject.NULL).put("history", history)
             if (item.uri.isNotBlank()) {
@@ -309,12 +310,13 @@ internal class ScribeFirebaseClient(
                         val updatedTags = item.tags.split(";").filter {
                             it.isNotBlank() && !it.startsWith("firebase_attachment_fingerprint:")
                         } + "firebase_attachment_fingerprint:$fingerprint"
-                        dao.update(item.copy(tags = updatedTags.joinToString(";")))
+                        recordUpdatedAt = maxOf(System.currentTimeMillis(), item.updatedAt + 1)
+                        dao.update(item.copy(tags = updatedTags.joinToString(";"), updatedAt = recordUpdatedAt))
                     }
                     payload.put("attachmentId", id).put("attachmentName", file.name).put("attachmentFingerprint", fingerprint)
                 } else if (file.isFile) payload.put("attachmentOmitted", true)
             }
-            records.put(JSONObject().put("id", id).put("updatedAt", item.updatedAt).put("payload", payload))
+            records.put(JSONObject().put("id", id).put("updatedAt", recordUpdatedAt).put("payload", payload))
         }
         var uploaded = 0
         var start = 0
