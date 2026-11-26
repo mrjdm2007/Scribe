@@ -34,6 +34,8 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
     var error by remember { mutableStateOf("") }
     var artifact by remember { mutableStateOf<JSONObject?>(null) }
     var savedCards by remember { mutableIntStateOf(0) }
+    var conversationId by rememberSaveable { mutableStateOf("") }
+    var conversationTurns by remember { mutableStateOf(emptyList<String>()) }
     val modes = listOf("notes", "explain", "exam", "quiz", "research", "summary", "flashcards",
         "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup",
         "compare", "glossary", "formula_sheet", "study_plan", "lesson", "misconception", "mnemonics", "case_study")
@@ -61,7 +63,7 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                 Text("SCRIBE INTELLIGENCE", fontSize = 11.sp, letterSpacing = 1.6.sp, color = MaterialTheme.colorScheme.secondary)
                 Text("Your study assistant", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             }
-            TextButton(onClick = { question = ""; answer = ""; error = ""; artifact = null; savedCards = 0 }) { Text("New chat") }
+            TextButton(onClick = { question = ""; answer = ""; error = ""; artifact = null; savedCards = 0; conversationId = ""; conversationTurns = emptyList() }) { Text("New chat") }
         }
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
             OutlinedTextField(value = mode.replace('_', ' ').replaceFirstChar { it.uppercase() },
@@ -93,11 +95,19 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                     context.put(JSONObject().put("title", item.title).put("path", pathFor(item)).put("content", item.body.take(12000)))
                 }
                 busy = true; error = ""; answer = ""; artifact = null
+                val priorTurns = conversationTurns.takeLast(8).joinToString("\n\n")
+                val contextualQuestion = if (priorTurns.isBlank()) studentQuestion
+                    else priorTurns + "\n\nSTUDENT: " + studentQuestion
                 scope.launch {
                     try {
-                        val result = vm.askFirebaseAI(studentQuestion, mode, context)
+                        val result = vm.askFirebaseAI(contextualQuestion, mode, context)
                         answer = result.optString("answer").ifBlank { "The assistant returned an empty response." }
                         artifact = result.optJSONObject("artifact")
+                        runCatching {
+                            vm.saveFirebaseConversationTurn(conversationId.ifBlank { null }, mode, studentQuestion, answer)
+                        }.onSuccess { conversationId = it }
+                            .onFailure { error = "Answer generated, but conversation history could not sync: ${it.localizedMessage}" }
+                        conversationTurns = (conversationTurns + listOf("STUDENT: " + studentQuestion, "SCRIBE: " + answer)).takeLast(16)
                         question = ""
                     } catch (failure: Throwable) {
                         error = failure.localizedMessage ?: "The Firebase AI request failed."
