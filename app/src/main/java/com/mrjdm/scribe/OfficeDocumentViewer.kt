@@ -128,7 +128,7 @@ private fun WordReadingSurface(paragraphs: List<String>) {
             Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("\${paragraphs.size} paragraphs", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text("${paragraphs.size} paragraphs", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
             IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchText = "" }) {
                 Icon(if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
                     contentDescription = if (searchVisible) "Close search" else "Find in document",
@@ -157,7 +157,7 @@ private fun WordReadingSurface(paragraphs: List<String>) {
             )
         }
         if (searchText.isNotBlank()) {
-            Text("\${visibleParagraphs.size} matching paragraphs", color = ReaderMuted, fontSize = 10.sp,
+            Text("${visibleParagraphs.size} matching paragraphs", color = ReaderMuted, fontSize = 10.sp,
                 modifier = Modifier.padding(start = 18.dp, bottom = 5.dp))
         }
         if (visibleParagraphs.isEmpty()) {
@@ -275,7 +275,7 @@ private fun PresentationReadingSurface(
             TextButton(onClick = onPrevious, enabled = selectedSlide > 0) {
                 Icon(Icons.Rounded.ChevronLeft, null); Text("Previous")
             }
-            Text("\${selectedSlide + 1} / \${slides.size}", color = ReaderMuted, fontSize = 12.sp)
+            Text("${selectedSlide + 1} / ${slides.size}", color = ReaderMuted, fontSize = 12.sp)
             TextButton(onClick = onNext, enabled = selectedSlide < slides.lastIndex) {
                 Text("Next"); Icon(Icons.Rounded.ChevronRight, null)
             }
