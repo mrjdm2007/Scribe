@@ -150,8 +150,15 @@ internal class ScribeFirebaseClient(
 
     private suspend fun syncWithToken(idToken: String, refreshToken: String, targetProjectId: String): String {
         val root = "https://asia-south1-$targetProjectId.cloudfunctions.net/studyLibrary"
-        val remoteJson = request("$root?limit=500", "GET", token = idToken)
-        val remote = remoteJson.optJSONArray("records") ?: JSONArray()
+        val remote = JSONArray()
+        var cursor = ""
+        do {
+            val suffix = if (cursor.isBlank()) "" else "&cursor=" + java.net.URLEncoder.encode(cursor, "UTF-8")
+            val page = request("$root?limit=500$suffix", "GET", token = idToken)
+            val rows = page.optJSONArray("records") ?: JSONArray()
+            for (index in 0 until rows.length()) rows.optJSONObject(index)?.let(remote::put)
+            cursor = page.optString("nextCursor").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
+        } while (cursor.isNotBlank())
         var local = dao.allItems()
         fun firebaseId(tags: String) = tags.split(";").firstOrNull { it.startsWith("firebase_id:") }?.substringAfter("firebase_id:")?.takeIf { it.isNotBlank() }
         fun tagged(tags: String, id: String): String =
