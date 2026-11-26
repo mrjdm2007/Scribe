@@ -310,6 +310,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             if (tab != "Library" || current != null) {
                 TopAppBar(
@@ -360,7 +361,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        Row(Modifier.fillMaxSize().padding(padding).animateContentSize().background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.075f), Color.Transparent), radius = 1050f))) {
+        Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.075f), Color.Transparent), radius = 1050f))) {
             if (isWide) {
                 NavigationRail(
                     modifier = Modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp).scribeGlass(RoundedCornerShape(20.dp)),
@@ -374,9 +375,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 }
             }
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp).animateContentSize()) {
+            Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp)) {
             Spacer(Modifier.height(18.dp))
-            Column(Modifier.weight(1f).fillMaxWidth().then(if (tab == "Library" && current == null && searchQuery.isBlank()) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
+            Column(Modifier.weight(1f).fillMaxWidth().then(if ((tab == "Library" && current == null && searchQuery.isBlank()) || tab == "Settings") Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
             when (tab) {
                 "Library" -> {
                     if (current?.kind == "page") {
