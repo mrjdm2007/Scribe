@@ -198,6 +198,33 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                 store.write("bookmark_folder_links", links.toString())
             }
         }
+        // Import focus sessions created on macOS or another Android device from the shared notebook.
+        var importedSession = false
+        allItems.asSequence()
+            .filter { it.kind == "study_session" && it.deletedAt == null }
+            .forEach { item ->
+                val minutes = Regex("(?:^|;)minutes:(\\d+)(?:;|$)").find(item.tags)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+                if (minutes <= 0) return@forEach
+                val topic = item.tags.split(";").firstOrNull { it.startsWith("topic:") }?.substringAfter("topic:").orEmpty()
+                val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(item.createdAt))
+                val alreadyShown = focus.any {
+                    it.date == date && it.subject == item.title && it.minutes == minutes && it.topic == topic
+                }
+                if (!alreadyShown) {
+                    focus.add(WorkspaceFocus("cloud:${item.id}", item.title, topic, minutes, minutes, 0, date))
+                    importedSession = true
+                }
+            }
+        if (importedSession) {
+            val merged = JSONArray()
+            focus.forEach { session ->
+                merged.put(JSONObject().put("id", session.id).put("subject", session.subject)
+                    .put("topic", session.topic).put("minutes", session.minutes)
+                    .put("planned", session.planned).put("interruptions", session.interruptions)
+                    .put("date", session.date))
+            }
+            store.write("focus", merged.toString())
+        }
         val reflectionRecord = allItems.firstOrNull { it.kind == "study_workspace_reflection" && it.deletedAt == null }
         if (reflectionRecord != null && store.read("reflection_wins").isBlank()) {
             runCatching {
