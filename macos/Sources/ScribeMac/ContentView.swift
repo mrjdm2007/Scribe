@@ -998,7 +998,7 @@ struct ScribeMacRoot: View {
                         }.buttonStyle(.borderedProminent).tint(gold).disabled(firebaseBusy)
                     }
                     if !firebaseStatus.isEmpty { Text(firebaseStatus).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
-                    Text("Enable Email/Password under Firebase Authentication, create a Firestore database, deploy the studyLibrary Cloud Function, then enter the Web API key and project ID from Firebase project settings. Refresh tokens are stored in macOS Keychain. Small attachments (up to 400 KB) sync with notebook records; larger files remain local until Firebase Storage upload is configured.")
+                    Text("Enable Email/Password under Firebase Authentication, create a Firestore database, deploy the studyLibrary Cloud Function, then enter the Web API key and project ID from Firebase project settings. Refresh tokens are stored in macOS Keychain. Attachments up to 20 MB sync through the authenticated Firebase Storage endpoint; larger files remain local and can be included in a Scribe backup.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(4)
             }
