@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 internal fun independentCopyTags(tags: String): String =
-    tags.split(";").filter { it.isNotBlank() && !it.startsWith("cloud_id:") }.joinToString(";")
+    tags.split(";").filter { it.isNotBlank() && !it.startsWith("cloud_id:") && !it.startsWith("firebase_id:") && !it.startsWith("firebase_attachment_fingerprint:") }.joinToString(";")
 
 internal fun belongsToTrashBatch(candidateDeletedAt: Long?, rootDeletedAt: Long?): Boolean {
     if (candidateDeletedAt == null || rootDeletedAt == null) return false
