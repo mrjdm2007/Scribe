@@ -60,12 +60,23 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         if (existing != null) vm.update(existing, body = body)
         else vm.add(null, kind, title, body = body, tags = "workspace")
     }
+    fun bookmarkKey(item: ScribeItem): String =
+        item.tags.split(";").firstOrNull { it.startsWith("bookmark_key:") }?.substringAfter("bookmark_key:")?.takeIf { it.isNotBlank() }
+            ?: "local_${item.id}"
+    fun ensureBookmarkKey(item: ScribeItem): String {
+        val existing = item.tags.split(";").firstOrNull { it.startsWith("bookmark_key:") }?.substringAfter("bookmark_key:")?.takeIf { it.isNotBlank() }
+        if (existing != null) return existing
+        val key = UUID.randomUUID().toString()
+        val nextTags = (item.tags.split(";").filter { it.isNotBlank() } + "bookmark_key:$key").joinToString(";")
+        vm.update(item, tags = nextTags)
+        return key
+    }
     var section by remember { mutableStateOf("Overview") }
     val sections = listOf("Overview", "Exams", "Focus", "Bookmarks", "Reflect", "Reminders")
     val exams = remember { mutableStateListOf<WorkspaceExam>() }
     val focus = remember { mutableStateListOf<WorkspaceFocus>() }
     val folders = remember { mutableStateListOf<WorkspaceFolder>() }
-    var folderLinks by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
+    var folderLinks by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var loaded by remember { mutableStateOf(false) }
     var showExamDialog by remember { mutableStateOf(false) }
     var showFocusDialog by remember { mutableStateOf(false) }
@@ -113,7 +124,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             val foldersJson = JSONArray(store.read("folders").ifBlank { "[]" })
             for (i in 0 until foldersJson.length()) { val o = foldersJson.getJSONObject(i); folders.add(WorkspaceFolder(o.optString("id"), o.optString("name"))) }
             val links = JSONObject(store.read("bookmark_folder_links").ifBlank { "{}" })
-            folderLinks = links.keys().asSequence().associate { (it.toLongOrNull() ?: 0L) to links.optString(it) }.filterKeys { it > 0L }
+            folderLinks = links.keys().asSequence().associate { it to links.optString(it) }
         }
         notificationEnabled = store.bool("notifications_enabled", false)
         interval = store.int("notification_interval", 1).coerceIn(1, 4)
@@ -334,10 +345,10 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                             var expanded by remember(item.id) { mutableStateOf(false) }
                             TextButton(onClick = { expanded = true }) { Text("Organise in folder") }
                             if (expanded) Row(Modifier.horizontalScroll(rememberScrollState())) {
-                                TextButton(onClick = { folderLinks = folderLinks - item.id; persistFolders(); expanded = false }) { Text("Unfiled") }
-                                folders.forEach { folder -> TextButton(onClick = { folderLinks = folderLinks + (item.id to folder.id); persistFolders(); expanded = false }) { Text(folder.name) } }
+                                TextButton(onClick = { folderLinks = folderLinks - bookmarkKey(item); persistFolders(); expanded = false }) { Text("Unfiled") }
+                                folders.forEach { folder -> TextButton(onClick = { folderLinks = folderLinks + (ensureBookmarkKey(item) to folder.id); persistFolders(); expanded = false }) { Text(folder.name) } }
                             }
-                            folderLinks[item.id]?.let { id -> Text(folders.firstOrNull { it.id == id }?.name ?: "Folder", color = WorkspaceGold, fontSize = 11.sp) }
+                            folderLinks[bookmarkKey(item)]?.let { id -> Text(folders.firstOrNull { it.id == id }?.name ?: "Folder", color = WorkspaceGold, fontSize = 11.sp) }
                         }
                     }
                 }
