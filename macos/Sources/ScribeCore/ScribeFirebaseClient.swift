@@ -108,6 +108,16 @@ public enum ScribeFirebaseClient {
         return try await jsonRequest(url, method: "POST", body: body, token: idToken)
     }
 
+    public static func requestAttachment(projectId: String, idToken: String, method: String,
+                                          id: String, body: [String: Any]? = nil) async throws -> [String: Any] {
+        var components = URLComponents(string: "https://asia-south1-\\(projectId).cloudfunctions.net/studyAttachments")!
+        if method == "GET" || method == "DELETE" {
+            components.queryItems = [URLQueryItem(name: "id", value: id)]
+        }
+        let data = try body.map { try JSONSerialization.data(withJSONObject: $0) }
+        return try await jsonRequest(components.url!, method: method, body: data, token: idToken)
+    }
+
     public static func requestLibrary(projectId: String, idToken: String, method: String,
                                        body: [String: Any]? = nil, cursor: String? = nil) async throws -> [String: Any] {
         var components = URLComponents(string: "https://asia-south1-\(projectId).cloudfunctions.net/studyLibrary")!
