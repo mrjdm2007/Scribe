@@ -175,7 +175,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                 items(visibleParagraphs) { paragraph ->
                     val style = paragraph.style.lowercase()
                     val headingLevel = Regex("""heading([1-6])""").find(style)?.groupValues?.getOrNull(1)?.toIntOrNull()
-                    val isTitle = style.contains("title")
+                    val isTitle = style.contains("title") && !style.contains("subtitle")
                     val isSubtitle = style.contains("subtitle")
                     Text(
                         text = paragraph.text,
