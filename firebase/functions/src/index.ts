@@ -762,7 +762,7 @@ export const studyWorkspace = onRequest(
             bookmarks.orderBy("createdAt", "desc").limit(100).get(),
             userRef.collection("study_daily").orderBy("date", "desc").limit(365).get(),
             preferences.get(),
-            userRef.collection("study_sessions").limit(500).get(),
+            userRef.collection("study_sessions").count().get(),
             userRef.collection("topic_progress").limit(300).get()
           ]);
 
@@ -785,14 +785,14 @@ export const studyWorkspace = onRequest(
         const weeklyMinutes = daily
           .filter(day => String(day.date ?? "") >= weekStart.toISOString().slice(0, 10))
           .reduce((sum, day) => sum + Number(day.studyMinutes ?? 0), 0);
-        const totalMinutes = daily.reduce((sum, day) => sum + Number(day.studyMinutes ?? 0), 0);
-        const totalSessions = sessionSnapshot.size;
+        const last365DaysMinutes = daily.reduce((sum, day) => sum + Number(day.studyMinutes ?? 0), 0);
+        const totalSessions = sessionSnapshot.data().count;
         const masteredTopics = topicSnapshot.docs.filter(doc => Number(doc.get("mastery") ?? 0) >= 80).length;
 
         const achievements = [
           { id: "first_session", title: "First steps", description: "Complete your first study session.", unlocked: totalSessions >= 1 },
           { id: "five_sessions", title: "Building momentum", description: "Complete five study sessions.", unlocked: totalSessions >= 5 },
-          { id: "ten_hours", title: "Ten-hour milestone", description: "Study for 600 minutes in total.", unlocked: totalMinutes >= 600 },
+          { id: "ten_hours", title: "Ten-hour milestone", description: "Study for 600 minutes in total.", unlocked: last365DaysMinutes >= 600 },
           { id: "three_day_streak", title: "Three-day streak", description: "Study on three consecutive days.", unlocked: streakDays >= 3 },
           { id: "seven_day_streak", title: "One-week streak", description: "Study on seven consecutive days.", unlocked: streakDays >= 7 },
           { id: "first_mastery", title: "Topic mastered", description: "Reach 80% mastery in a topic.", unlocked: masteredTopics >= 1 },
@@ -805,7 +805,7 @@ export const studyWorkspace = onRequest(
           notificationPreferences: preferenceSnapshot.exists ? preferenceSnapshot.data() : {
             enabled: false, intervalHours: 1, quietHoursStart: "22:00", quietHoursEnd: "07:00", platform: "android"
           },
-          analytics: { streakDays, weeklyMinutes, totalMinutes, totalSessions, masteredTopics },
+          analytics: { streakDays, weeklyMinutes, last365DaysMinutes, totalSessions, masteredTopics },
           achievements
         });
         return;
@@ -855,7 +855,7 @@ export const studyWorkspace = onRequest(
           const intervalHours = Number(body.intervalHours ?? 1);
           const start = asText(body.quietHoursStart, 5) || "22:00";
           const end = asText(body.quietHoursEnd, 5) || "07:00";
-          const timePattern = /^(?:[01]\\d|2[0-3]):[0-5]\\d$/;
+          const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
           if (![1, 2, 3, 4].includes(intervalHours) || !timePattern.test(start) || !timePattern.test(end)) {
             response.status(400).json({ error: "Choose a 1–4 hour interval and valid 24-hour quiet-hour times (HH:mm)." });
             return;
