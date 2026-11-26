@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { getAIProvider } from "./ai";
 
@@ -1280,6 +1281,99 @@ export const studyLibrary = onRequest(
         error: error instanceof Error ? error.message : "unknown"
       });
       response.status(500).json({ error: "Your Scribe library could not be synced. Please retry." });
+    }
+  }
+);
+
+
+// Private per-user file storage. Files are uploaded through this authenticated
+// endpoint so native clients never need a service-account credential.
+export const studyAttachments = onRequest(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 120,
+    memory: "1GiB",
+    maxInstances: 3,
+    cors: true
+  },
+  async (request, response) => {
+    if (request.method === "OPTIONS") {
+      response.status(204).send("");
+      return;
+    }
+    if (!["GET", "POST", "DELETE"].includes(request.method)) {
+      response.status(405).json({ error: "Use GET, POST or DELETE." });
+      return;
+    }
+    const authorization = request.header("authorization") ?? "";
+    const match = authorization.match(/^Bearer\\s+(.+)$/i);
+    if (!match) {
+      response.status(401).json({ error: "Sign in to Scribe first." });
+      return;
+    }
+    let uid: string;
+    try {
+      uid = (await getAuth().verifyIdToken(match[1], true)).uid;
+    } catch {
+      response.status(401).json({ error: "Your Firebase session is invalid or expired. Sign in again." });
+      return;
+    }
+
+    try {
+      const id = asText(request.method === "GET" || request.method === "DELETE"
+        ? request.query.id : request.body?.id, 80);
+      if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) {
+        response.status(400).json({ error: "A valid attachment ID is required." });
+        return;
+      }
+      const file = getStorage().bucket().file("users/" + uid + "/attachments/" + id);
+      if (request.method === "DELETE") {
+        await file.delete({ ignoreNotFound: true });
+        response.status(200).json({ deleted: true, id });
+        return;
+      }
+      if (request.method === "GET") {
+        const [exists] = await file.exists();
+        if (!exists) {
+          response.status(404).json({ error: "Attachment not found." });
+          return;
+        }
+        const [bytes] = await file.download();
+        const [metadata] = await file.getMetadata();
+        response.status(200).json({
+          id,
+          name: asText(metadata.metadata?.originalName, 240) || id,
+          contentType: metadata.contentType || "application/octet-stream",
+          base64: bytes.toString("base64")
+        });
+        return;
+      }
+
+      const encoded = asText(request.body?.base64, 28_000_000);
+      if (!encoded || encoded.length > 28_000_000) {
+        response.status(400).json({ error: "The attachment must be no larger than 20 MB." });
+        return;
+      }
+      const bytes = Buffer.from(encoded, "base64");
+      if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024) {
+        response.status(400).json({ error: "The attachment must be no larger than 20 MB." });
+        return;
+      }
+      const name = asText(request.body?.name, 240).replace(/[\\/]/g, "_") || id;
+      const contentType = asText(request.body?.contentType, 120) || "application/octet-stream";
+      await file.save(bytes, {
+        resumable: false,
+        metadata: {
+          contentType,
+          metadata: { ownerUid: uid, originalName: name }
+        }
+      });
+      response.status(201).json({ uploaded: true, id, name, size: bytes.length, contentType });
+    } catch (error) {
+      console.error("Scribe attachment operation failed", {
+        uid, error: error instanceof Error ? error.message : "unknown"
+      });
+      response.status(500).json({ error: "The attachment operation could not be completed." });
     }
   }
 );
