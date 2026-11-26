@@ -163,7 +163,7 @@ internal class ScribeFirebaseClient(
             if (firebaseId(item.tags) != id) dao.update(item.copy(tags = tagged(item.tags, id)))
         }
         local = dao.allItems()
-        val localByFirebase = local.mapNotNull { item -> firebaseId(item.tags)?.let { it to item } }.toMutableMap()
+        val localByFirebase = local.mapNotNull { item -> firebaseId(item.tags)?.let { it to item } }.toMap().toMutableMap()
         var inserted = 0
         var changed = 0
         val pending = (0 until remote.length()).mapNotNull { remote.optJSONObject(it) }.toMutableList()
