@@ -171,11 +171,32 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 items(visibleParagraphs) { paragraph ->
+                    val style = paragraph.style.lowercase()
+                    val headingLevel = Regex("""heading([1-6])""").find(style)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    val isTitle = style.contains("title")
+                    val isSubtitle = style.contains("subtitle")
+                    val isList = style.contains("list")
                     Column(
-                        Modifier.fillMaxWidth().background(Paper).padding(horizontal = 24.dp, vertical = 9.dp)
+                        Modifier.fillMaxWidth().background(Paper).padding(
+                            horizontal = if (headingLevel != null || isTitle) 18.dp else 24.dp,
+                            vertical = if (headingLevel != null || isTitle) 12.dp else 7.dp
+                        )
                     ) {
-                        Text(paragraph, color = Ink, fontFamily = FontFamily.Serif,
-                            fontSize = fontSize.sp, lineHeight = (fontSize + 11).sp)
+                        Text(
+                            text = if (isList) "•  ${paragraph.text}" else paragraph.text,
+                            color = Ink,
+                            fontFamily = FontFamily.Serif,
+                            fontSize = when {
+                                isTitle -> (fontSize + 10).sp
+                                headingLevel == 1 -> (fontSize + 7).sp
+                                headingLevel == 2 -> (fontSize + 5).sp
+                                headingLevel != null -> (fontSize + 2).sp
+                                isSubtitle -> (fontSize + 2).sp
+                                else -> fontSize.sp
+                            },
+                            fontWeight = if (headingLevel != null || isTitle || isSubtitle) FontWeight.SemiBold else FontWeight.Normal,
+                            lineHeight = (fontSize + 11).sp
+                        )
                     }
                 }
             }
