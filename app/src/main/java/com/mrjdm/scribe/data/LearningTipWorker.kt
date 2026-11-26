@@ -72,7 +72,7 @@ internal class LearningTipWorker(
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             val usedKey = "used_topics_$today"
             val used = preferences.getStringSet(usedKey, emptySet()).orEmpty()
-            val candidates = notes.filter { topicKey(it.id, it.title) !in used }
+            val candidates = notes.filter { topicKey(it.title) !in used }
             if (candidates.isEmpty()) return Result.success()
             val topic = candidates.random()
 
@@ -102,7 +102,7 @@ internal class LearningTipWorker(
             ) return Result.success()
 
             showNotification(topic.title, tip)
-            preferences.edit().putStringSet(usedKey, (used + topicKey(topic.id, topic.title)).toSet()).apply()
+            preferences.edit().putStringSet(usedKey, (used + topicKey(topic.title)).toSet()).apply()
             Result.success()
         } catch (_: java.net.SocketTimeoutException) {
             Result.retry()
@@ -113,7 +113,7 @@ internal class LearningTipWorker(
         }
     }
 
-    private fun topicKey(id: Long, title: String) = "${id}_${title.trim().lowercase(Locale.ROOT)}"
+    private fun topicKey(title: String) = title.trim().lowercase(Locale.ROOT)
 
     private fun insideQuietHours(startValue: String?, endValue: String?): Boolean {
         fun minutes(value: String?, fallback: Int): Int {
