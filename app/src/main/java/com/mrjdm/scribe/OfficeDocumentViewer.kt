@@ -346,7 +346,7 @@ private fun PresentationReadingSurface(
         }
     }
     var activeMatch by remember(searchText, matchingSlides) {
-        mutableIntStateOf(matchingSlides.indexOf(selectedSlide).coerceAtLeast(0))
+        mutableIntStateOf(matchingSlides.indexOf(selectedSlide))
     }
     if (slides.isEmpty()) {
         EmptyDocumentMessage("No readable slides were found.")
@@ -400,14 +400,16 @@ private fun PresentationReadingSurface(
                 IconButton(
                     enabled = matchingSlides.isNotEmpty(),
                     onClick = {
-                        activeMatch = (activeMatch - 1).mod(matchingSlides.size)
+                        activeMatch = if (activeMatch < 0) matchingSlides.lastIndex
+                            else (activeMatch - 1).mod(matchingSlides.size)
                         onSelectSlide(matchingSlides[activeMatch])
                     }
                 ) { Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous search match", tint = ReaderAccent) }
                 IconButton(
                     enabled = matchingSlides.isNotEmpty(),
                     onClick = {
-                        activeMatch = (activeMatch + 1).mod(matchingSlides.size)
+                        activeMatch = if (activeMatch < 0) 0
+                            else (activeMatch + 1).mod(matchingSlides.size)
                         onSelectSlide(matchingSlides[activeMatch])
                     }
                 ) { Icon(Icons.Rounded.ChevronRight, contentDescription = "Next search match", tint = ReaderAccent) }
