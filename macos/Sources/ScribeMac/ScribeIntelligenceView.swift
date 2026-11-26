@@ -18,7 +18,7 @@ struct ScribeIntelligenceView: View {
     @State private var mode = "notes"
     @State private var busy = false
     @State private var conversation: [String] = []
-    private let modes = ["notes", "explain", "exam", "quiz", "research", "summary"]
+    private let modes = ["notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup"]
 
     private func notebookPath(for item: ScribeItem) -> String {
         var names = [item.title]
@@ -62,7 +62,7 @@ struct ScribeIntelligenceView: View {
             }
             Picker("Mode", selection: $mode) {
                 ForEach(modes, id: \.self) { Text($0.capitalized).tag($0) }
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.menu)
             TextEditor(text: $question).frame(minHeight: 76, maxHeight: 110)
                 .padding(7).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(alignment: .topLeading) {
