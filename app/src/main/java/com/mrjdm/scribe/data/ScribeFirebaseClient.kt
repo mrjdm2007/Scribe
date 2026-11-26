@@ -336,6 +336,7 @@ internal class ScribeFirebaseClient(
                     payload.put("attachmentId", id).put("attachmentName", file.name).put("attachmentFingerprint", fingerprint)
                 } else if (file.isFile) payload.put("attachmentOmitted", true)
             }
+            payload.put("updatedAt", recordUpdatedAt)
             records.put(JSONObject().put("id", id).put("updatedAt", recordUpdatedAt).put("payload", payload))
         }
         var uploaded = 0
