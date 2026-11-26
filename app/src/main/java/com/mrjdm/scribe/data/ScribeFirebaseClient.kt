@@ -47,7 +47,7 @@ internal object ScribeFirebaseSession {
         val token = p.getString("refresh_token", null) ?: return null
         return FirebaseSavedSession(key, project, p.getString("email", "").orEmpty(), token)
     }
-    fun clear(context: Context) { prefs(context).edit().clear().apply(); WorkManager.getInstance(context).cancelUniqueWork("scribe-firebase-library-sync") }
+    fun clear(context: Context) { prefs(context).edit().clear().apply(); WorkManager.getInstance(context).cancelUniqueWork("scribe-firebase-library-sync"); LearningTipScheduler.cancel(context) }
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<ScribeFirebaseSyncWorker>(6, TimeUnit.HOURS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
@@ -128,6 +128,7 @@ internal class ScribeFirebaseClient(
             val tokens = authenticate(email, password, createAccount)
             ScribeFirebaseSession.save(context, apiKey, projectId, email.trim(), tokens.refreshToken)
             ScribeFirebaseSession.schedule(context)
+            LearningTipScheduler.update(context)
             syncWithToken(tokens.idToken, tokens.refreshToken, projectId)
         }
 
