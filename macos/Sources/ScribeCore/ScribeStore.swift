@@ -644,7 +644,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let rawName = result["name"] as? String ?? "attachment"
             let safeName = URL(fileURLWithPath: rawName).lastPathComponent.replacingOccurrences(of: "/", with: "_")
-            let destination = folder.appendingPathComponent("firebase_\\(id)_\\(safeName)")
+            let destination = folder.appendingPathComponent("firebase_\(id)_\(safeName)")
             try data.write(to: destination, options: .atomic)
             let cleanTags = currentTags.split(separator: ";").map(String.init)
                 .filter { !$0.hasPrefix("firebase_attachment_fingerprint:") }
@@ -739,6 +739,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         persist()
 
         var records: [[String: Any]] = []
+        var attachmentFingerprints: [Int64: String] = [:]
         let ids = Dictionary(uniqueKeysWithValues: items.compactMap { item in firebaseID(item.tags).map { (item.id, $0) } })
         for item in items {
             guard let id = ids[item.id] else { continue }
@@ -753,7 +754,9 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             ]
             if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
                 if data.count <= 20 * 1024 * 1024 {
-                    let fingerprint = "\\(data.count)_\\((try? FileManager.default.attributesOfItem(atPath: item.uri)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)"
+                    let attributes = try? FileManager.default.attributesOfItem(atPath: item.uri)
+                    let modifiedAt = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+                    let fingerprint = "\(data.count)_\(Int64(modifiedAt * 1000))"
                     let previous = item.tags.split(separator: ";").first(where: { $0.hasPrefix("firebase_attachment_fingerprint:") })
                         .map { String($0.dropFirst("firebase_attachment_fingerprint:".count)) } ?? ""
                     if previous != fingerprint {
@@ -761,11 +764,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                         let mime = UTType(filenameExtension: URL(fileURLWithPath: item.uri).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
                         _ = try await ScribeFirebaseClient.requestAttachment(projectId: projectId, idToken: idToken,
                             method: "POST", id: id, body: ["id": id, "name": name, "contentType": mime, "base64": data.base64EncodedString()])
-                        if let index = items.firstIndex(where: { $0.id == item.id }) {
-                            let clean = items[index].tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("firebase_attachment_fingerprint:") }
-                            items[index].tags = (clean + ["firebase_attachment_fingerprint:" + fingerprint]).joined(separator: ";")
-                        }
                     }
+                    attachmentFingerprints[item.id] = fingerprint
                     payload["attachmentId"] = id
                     payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
                     payload["attachmentFingerprint"] = fingerprint
@@ -773,6 +773,13 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             }
             records.append(["id": id, "updatedAt": item.updatedAt, "payload": payload])
         }
+        for index in items.indices {
+            guard let fingerprint = attachmentFingerprints[items[index].id] else { continue }
+            let clean = items[index].tags.split(separator: ";").map(String.init)
+                .filter { !$0.hasPrefix("firebase_attachment_fingerprint:") }
+            items[index].tags = (clean + ["firebase_attachment_fingerprint:" + fingerprint]).joined(separator: ";")
+        }
+        persist()
         var uploaded = 0
         for start in stride(from: 0, to: records.count, by: 100) {
             let batch = Array(records[start..<min(start + 100, records.count)])
