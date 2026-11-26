@@ -751,19 +751,30 @@ export const studyWorkspace = onRequest(
     const exams = userRef.collection("study_exams");
     const bookmarks = userRef.collection("study_bookmarks");
     const preferences = userRef.collection("study_preferences").doc("notifications");
+    const checklist = userRef.collection("study_checklist");
+    const focusSessions = userRef.collection("study_focus_sessions");
+    const notificationHistory = userRef.collection("study_notification_history");
+    const bookmarkFolders = userRef.collection("study_bookmark_folders");
+    const weeklyReflections = userRef.collection("study_weekly_reflections");
     const cleanId = (value: unknown) => asText(value, 80);
     const validId = (value: string) => /^[a-zA-Z0-9_-]{1,80}$/.test(value);
 
     try {
       if (request.method === "GET") {
-        const [examSnapshot, bookmarkSnapshot, dailySnapshot, preferenceSnapshot, sessionSnapshot, topicSnapshot] =
+        const [examSnapshot, bookmarkSnapshot, dailySnapshot, preferenceSnapshot, sessionSnapshot, topicSnapshot,
+          checklistSnapshot, focusSnapshot, notificationSnapshot, folderSnapshot, reflectionSnapshot] =
           await Promise.all([
             exams.orderBy("examDate", "asc").limit(50).get(),
             bookmarks.orderBy("createdAt", "desc").limit(100).get(),
             userRef.collection("study_daily").orderBy("date", "desc").limit(365).get(),
             preferences.get(),
             userRef.collection("study_sessions").count().get(),
-            userRef.collection("topic_progress").limit(300).get()
+            userRef.collection("topic_progress").limit(300).get(),
+            checklist.orderBy("updatedAt", "desc").limit(200).get(),
+            focusSessions.orderBy("createdAt", "desc").limit(30).get(),
+            notificationHistory.orderBy("createdAt", "desc").limit(100).get(),
+            bookmarkFolders.orderBy("name", "asc").limit(100).get(),
+            weeklyReflections.orderBy("weekStart", "desc").limit(12).get()
           ]);
 
         const daily = dailySnapshot.docs.map(doc => doc.data());
@@ -806,7 +817,12 @@ export const studyWorkspace = onRequest(
             enabled: false, intervalHours: 1, quietHoursStart: "22:00", quietHoursEnd: "07:00", platform: "android"
           },
           analytics: { streakDays, weeklyMinutes, last365DaysMinutes, totalSessions, masteredTopics },
-          achievements
+          achievements,
+          syllabusChecklist: (checklistSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+          focusSessions: focusSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          notificationHistory: notificationSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          bookmarkFolders: folderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          weeklyReflections: reflectionSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         });
         return;
       }
@@ -850,6 +866,78 @@ export const studyWorkspace = onRequest(
           response.status(201).json({ bookmark_id: ref.id });
           return;
         }
+        if (action === "syllabus_item") {
+          const examId = asText(body.examId, 80);
+          const title = asText(body.title, 160);
+          const exam = await exams.doc(examId).get();
+          if (!validId(examId) || !exam.exists || !title) {
+            response.status(400).json({ error: "A valid existing exam and syllabus item title are required." });
+            return;
+          }
+          const itemRef = checklist.doc();
+          await itemRef.set({ examId, title, completed: body.completed === true, notes: asText(body.notes, 500), createdAt: new Date(), updatedAt: new Date() });
+          response.status(201).json({ checklist_item_id: itemRef.id });
+          return;
+        }
+        if (action === "focus_session") {
+          const durationMinutes = Number(body.durationMinutes);
+          const plannedMinutes = Number(body.plannedMinutes ?? durationMinutes);
+          const completed = body.completed === true;
+          if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 240
+            || !Number.isInteger(plannedMinutes) || plannedMinutes < 1 || plannedMinutes > 240) {
+            response.status(400).json({ error: "Focus session durations must be whole minutes from 1 to 240." });
+            return;
+          }
+          const ref = focusSessions.doc();
+          await ref.set({ durationMinutes, plannedMinutes, completed, subject: asText(body.subject, 100) || null,
+            topic: asText(body.topic, 160) || null, interruptions: Math.max(0, Math.min(100, Math.floor(Number(body.interruptions) || 0))),
+            createdAt: new Date() });
+          response.status(201).json({ focus_session_id: ref.id });
+          return;
+        }
+        if (action === "notification_history") {
+          const topicKey = asText(body.topicKey, 160).toLocaleLowerCase();
+          const topic = asText(body.topic, 200);
+          const day = new Date().toISOString().slice(0, 10);
+          if (!topicKey || !topic) {
+            response.status(400).json({ error: "A topic and topicKey are required." });
+            return;
+          }
+          const ref = notificationHistory.doc(day + "_" + topicKey.replace(/[^a-z0-9_-]/g, "-").slice(0, 100));
+          const existing = await ref.get();
+          if (existing.exists) {
+            response.status(409).json({ duplicate: true, message: "This topic was already used for a learning notification today." });
+            return;
+          }
+          await ref.create({ topicKey, topic, day, sourceDocumentId: asText(body.sourceDocumentId, 160) || null, createdAt: new Date() });
+          response.status(201).json({ recorded: true, day });
+          return;
+        }
+        if (action === "bookmark_folder") {
+          const name = asText(body.name, 80);
+          if (!name) {
+            response.status(400).json({ error: "A bookmark folder name is required." });
+            return;
+          }
+          const ref = bookmarkFolders.doc();
+          await ref.set({ name, color: asText(body.color, 24) || null, createdAt: new Date(), updatedAt: new Date() });
+          response.status(201).json({ folder_id: ref.id });
+          return;
+        }
+        if (action === "weekly_reflection") {
+          const weekStart = asText(body.weekStart, 10);
+          const wins = asText(body.wins, 2000);
+          const challenges = asText(body.challenges, 2000);
+          const nextWeek = asText(body.nextWeek, 2000);
+          if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(weekStart) || !wins && !challenges && !nextWeek) {
+            response.status(400).json({ error: "Provide a valid weekStart date and at least one reflection field." });
+            return;
+          }
+          const ref = weeklyReflections.doc(weekStart);
+          await ref.set({ weekStart, wins, challenges, nextWeek, updatedAt: new Date() }, { merge: true });
+          response.status(200).json({ saved: true, weekStart });
+          return;
+        }
         if (action === "notification_preferences") {
           const enabled = body.enabled === true;
           const intervalHours = Number(body.intervalHours ?? 1);
@@ -872,8 +960,34 @@ export const studyWorkspace = onRequest(
         return;
       }
 
-      const type = asText(request.query.type ?? request.body?.type, 20);
+      const type = asText(request.query.type ?? request.body?.type, 30);
       const id = cleanId(request.query.id ?? request.body?.id);
+      if (type === "checklist" && validId(id)) {
+        const ref = checklist.doc(id);
+        const snapshot = await ref.get();
+        if (!snapshot.exists) { response.status(404).json({ error: "Checklist item not found." }); return; }
+        if (request.method === "DELETE") { await ref.delete(); response.status(200).json({ deleted: true, id }); return; }
+        const body = request.body ?? {};
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        if (typeof body.completed === "boolean") updates.completed = body.completed;
+        if (Object.prototype.hasOwnProperty.call(body, "title")) updates.title = asText(body.title, 160);
+        if (Object.prototype.hasOwnProperty.call(body, "notes")) updates.notes = asText(body.notes, 500);
+        if (Object.keys(updates).length === 1) { response.status(400).json({ error: "Provide completed, title or notes." }); return; }
+        await ref.set(updates, { merge: true });
+        response.status(200).json({ updated: true, id });
+        return;
+      }
+      if (type === "folder" && validId(id)) {
+        const ref = bookmarkFolders.doc(id);
+        const snapshot = await ref.get();
+        if (!snapshot.exists) { response.status(404).json({ error: "Bookmark folder not found." }); return; }
+        if (request.method === "DELETE") { await ref.delete(); response.status(200).json({ deleted: true, id }); return; }
+        const name = asText(request.body?.name, 80);
+        if (!name) { response.status(400).json({ error: "A folder name is required." }); return; }
+        await ref.set({ name, color: asText(request.body?.color, 24) || null, updatedAt: new Date() }, { merge: true });
+        response.status(200).json({ updated: true, id });
+        return;
+      }
       if (!["exam", "bookmark"].includes(type) || !validId(id)) {
         response.status(400).json({ error: "Provide type=exam or bookmark and a valid item ID." });
         return;
