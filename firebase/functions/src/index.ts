@@ -271,3 +271,72 @@ export const studyAssistant = onRequest(
     }
   }
 );
+
+
+/**
+ * Lists and deletes generated study artifacts for the authenticated user.
+ * The same data is also readable through the Firestore SDK under the
+ * owner-scoped users/{uid}/study_artifacts collection.
+ */
+export const studyArtifacts = onRequest(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    maxInstances: 3,
+    cors: true
+  },
+  async (request, response) => {
+    if (request.method === "OPTIONS") {
+      response.status(204).send("");
+      return;
+    }
+    if (request.method !== "GET" && request.method !== "DELETE") {
+      response.status(405).json({ error: "Use GET to list artifacts or DELETE to remove one." });
+      return;
+    }
+
+    const authorization = request.header("authorization") ?? "";
+    const match = authorization.match(/^Bearer\\s+(.+)$/i);
+    if (!match) {
+      response.status(401).json({ error: "Sign in to Scribe first." });
+      return;
+    }
+
+    let uid: string;
+    try {
+      uid = (await getAuth().verifyIdToken(match[1], true)).uid;
+    } catch {
+      response.status(401).json({ error: "Your Firebase session is invalid or expired. Sign in again." });
+      return;
+    }
+
+    const collection = db.collection("users").doc(uid).collection("study_artifacts");
+    try {
+      if (request.method === "DELETE") {
+        const artifactId = asText(request.query.id, 80);
+        if (!/^[a-f0-9-]{36}$/i.test(artifactId)) {
+          response.status(400).json({ error: "A valid artifact ID is required." });
+          return;
+        }
+        await collection.doc(artifactId).delete();
+        response.status(200).json({ deleted: true, artifact_id: artifactId });
+        return;
+      }
+
+      const snapshot = await collection.orderBy("createdAt", "desc").limit(50).get();
+      response.status(200).json({
+        artifacts: snapshot.docs.map(document => ({
+          id: document.id,
+          ...document.data()
+        }))
+      });
+    } catch (error) {
+      console.error("Scribe study artifact operation failed", {
+        uid,
+        error: error instanceof Error ? error.message : "unknown"
+      });
+      response.status(500).json({ error: "Saved study material is temporarily unavailable." });
+    }
+  }
+);
