@@ -35,7 +35,7 @@ internal object LearningTipScheduler {
         val preferences = context.getSharedPreferences("scribe_study_workspace", Context.MODE_PRIVATE)
         val enabled = preferences.getBoolean("notifications_enabled", false)
         val interval = preferences.getInt("notification_interval", 1).coerceIn(1, 4)
-        if (!enabled || ScribeCloudSession.read(context) == null) {
+        if (!enabled || ScribeFirebaseSession.read(context) == null) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
             return
         }
@@ -63,7 +63,7 @@ internal class LearningTipWorker(
         if (!preferences.getBoolean("notifications_enabled", false)) return Result.success()
         if (insideQuietHours(preferences.getString("quiet_start", "22:00"), preferences.getString("quiet_end", "07:00"))) return Result.success()
 
-        val session = ScribeCloudSession.read(applicationContext) ?: return Result.success()
+        val session = ScribeFirebaseSession.read(applicationContext) ?: return Result.success()
         return try {
             val notes = ScribeDatabase.get(applicationContext).dao().allItems()
                 .filter { it.deletedAt == null && it.kind in setOf("topic", "page", "block") && it.title.isNotBlank() }
@@ -76,7 +76,7 @@ internal class LearningTipWorker(
             if (candidates.isEmpty()) return Result.success()
             val topic = candidates.random()
 
-            val accessToken = refreshAccessToken(session.url, session.anonKey, session.refreshToken)
+            val accessToken = refreshFirebaseIdToken(session)
             val contextArray = JSONArray().put(
                 JSONObject()
                     .put("title", topic.title)
@@ -88,8 +88,7 @@ internal class LearningTipWorker(
                 .put("mode", "hourly_tip")
                 .put("note_context", contextArray)
             val response = postJson(
-                "${session.url.trimEnd('/')}/functions/v1/study-assistant",
-                session.anonKey,
+                "https://asia-south1-${session.projectId}.cloudfunctions.net/studyAssistant",
                 accessToken,
                 requestBody
             )
@@ -130,30 +129,29 @@ internal class LearningTipWorker(
         return if (start == end) false else if (start < end) now in start until end else now >= start || now < end
     }
 
-    private fun refreshAccessToken(baseUrl: String, anonKey: String, refreshToken: String): String {
-        val connection = (URL("${baseUrl.trimEnd('/')}/auth/v1/token?grant_type=refresh_token").openConnection() as HttpURLConnection).apply {
+    private fun refreshFirebaseIdToken(session: FirebaseSavedSession): String {
+        val connection = (URL("https://securetoken.googleapis.com/v1/token?key=${session.apiKey}").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"; connectTimeout = 20000; readTimeout = 30000; doOutput = true
-            setRequestProperty("Content-Type", "application/json"); setRequestProperty("apikey", anonKey)
+            setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         }
-        connection.outputStream.use { it.write(JSONObject().put("refresh_token", refreshToken).toString().toByteArray(Charsets.UTF_8)) }
+        val body = "grant_type=refresh_token&refresh_token=" + java.net.URLEncoder.encode(session.refreshToken, "UTF-8")
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
         val status = connection.responseCode
         val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-        val json = JSONObject(stream.bufferedReader().use { it.readText() })
+        val raw = stream.bufferedReader().use { it.readText() }
         connection.disconnect()
-        if (status !in 200..299) throw java.io.IOException("Cloud session refresh failed.")
-        json.optString("refresh_token").takeIf { it.isNotBlank() }?.let {
-            ScribeCloudSession.save(applicationContext, baseUrl, anonKey, sessionEmail(), it)
-        }
-        return json.getString("access_token")
+        val json = JSONObject(raw)
+        if (status !in 200..299) throw java.io.IOException("Firebase session refresh failed. Sign in again.")
+        val idToken = json.getString("id_token")
+        val nextRefresh = json.optString("refresh_token").takeIf { it.isNotBlank() } ?: session.refreshToken
+        ScribeFirebaseSession.save(applicationContext, session.apiKey, session.projectId, session.email, nextRefresh)
+        return idToken
     }
 
-    private fun sessionEmail(): String = ScribeCloudSession.read(applicationContext)?.email.orEmpty()
-
-    private fun postJson(url: String, anonKey: String, accessToken: String, body: JSONObject): JSONObject {
+    private fun postJson(url: String, accessToken: String, body: JSONObject): JSONObject {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"; connectTimeout = 20000; readTimeout = 90000; doOutput = true
             setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("apikey", anonKey)
             setRequestProperty("Authorization", "Bearer $accessToken")
         }
         connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
