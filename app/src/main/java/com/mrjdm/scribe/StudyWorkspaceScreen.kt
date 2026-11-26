@@ -105,6 +105,66 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         loaded = true
     }
 
+    LaunchedEffect(allItems, loaded) {
+        if (!loaded) return@LaunchedEffect
+        val examRecord = allItems.firstOrNull { it.kind == "study_workspace_exams" && it.deletedAt == null }
+        if (store.read("exams").isBlank() && examRecord != null) {
+            runCatching {
+                val array = JSONArray(examRecord.body)
+                for (i in 0 until array.length()) {
+                    val o = array.getJSONObject(i)
+                    val tasksJson = o.optJSONArray("tasks") ?: JSONArray()
+                    val tasks = buildList {
+                        for (j in 0 until tasksJson.length()) {
+                            val t = tasksJson.getJSONObject(j)
+                            add(WorkspaceTask(t.optString("id"), t.optString("title"), t.optBoolean("done"), t.optString("notes")))
+                        }
+                    }
+                    exams.add(WorkspaceExam(o.optString("id"), o.optString("title"), o.optString("subject"), o.optString("date"), o.optString("notes"), tasks))
+                }
+                store.write("exams", examRecord.body)
+            }
+        }
+        val focusRecord = allItems.firstOrNull { it.kind == "study_workspace_focus" && it.deletedAt == null }
+        if (store.read("focus").isBlank() && focusRecord != null) {
+            runCatching {
+                val array = JSONArray(focusRecord.body)
+                for (i in 0 until array.length()) {
+                    val o = array.getJSONObject(i)
+                    focus.add(WorkspaceFocus(o.optString("id"), o.optString("subject"), o.optString("topic"), o.optInt("minutes"), o.optInt("planned"), o.optInt("interruptions"), o.optString("date")))
+                }
+                store.write("focus", focusRecord.body)
+            }
+        }
+        val bookmarkRecord = allItems.firstOrNull { it.kind == "study_workspace_bookmarks" && it.deletedAt == null }
+        if (store.read("folders").isBlank() && bookmarkRecord != null) {
+            runCatching {
+                val objectValue = JSONObject(bookmarkRecord.body)
+                val folderArray = objectValue.optJSONArray("folders") ?: JSONArray()
+                for (i in 0 until folderArray.length()) {
+                    val folder = folderArray.getJSONObject(i)
+                    folders.add(WorkspaceFolder(folder.optString("id"), folder.optString("name")))
+                }
+                store.write("folders", folderArray.toString())
+                val links = objectValue.optJSONObject("links") ?: JSONObject()
+                folderLinks = links.keys().asSequence().associate { (it.toLongOrNull() ?: 0L) to links.optString(it) }.filterKeys { it > 0L }
+                store.write("bookmark_folder_links", links.toString())
+            }
+        }
+        val reflectionRecord = allItems.firstOrNull { it.kind == "study_workspace_reflection" && it.deletedAt == null }
+        if (reflectionRecord != null && store.read("reflection_wins").isBlank()) {
+            runCatching {
+                val value = JSONObject(reflectionRecord.body)
+                reflectionWins = value.optString("wins")
+                reflectionChallenges = value.optString("challenges")
+                reflectionNext = value.optString("nextWeek")
+                store.write("reflection_wins", reflectionWins)
+                store.write("reflection_challenges", reflectionChallenges)
+                store.write("reflection_next", reflectionNext)
+            }
+        }
+    }
+
     fun persistExams() {
         val array = JSONArray()
         exams.forEach { e -> array.put(JSONObject().apply {
