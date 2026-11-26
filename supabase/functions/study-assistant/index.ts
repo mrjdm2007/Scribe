@@ -9,7 +9,7 @@ const corsHeaders = {
 type RequestBody = {
   question?: string;
   note_context?: Array<{ title?: string; path?: string; content?: string }>;
-  mode?: "notes" | "explain" | "exam" | "quiz" | "research" | "summary";
+  mode?: "notes" | "explain" | "exam" | "quiz" | "research" | "summary" | "flashcards" | "mindmap" | "socratic" | "teach" | "revise" | "memorise" | "practice" | "test" | "followup" | "hourly_tip";
 };
 
 serve(async (request) => {
@@ -53,7 +53,15 @@ serve(async (request) => {
       "Cite note evidence using [Note N: title] labels and never invent notebook locations.",
       "Clearly separate outside knowledge from note-derived claims.",
       "For exam mode, produce structured questions and model answers at the requested level.",
-      "For quiz mode, ask one question at a time unless the user asks for a full quiz; explain answers after the student responds.",
+      "For quiz, practice and test modes, ask one question at a time unless a full set is requested; do not reveal the answer before the student's attempt.",
+      "For Socratic mode, ask exactly one guiding question per turn, give a small hint only when requested, diagnose misconceptions from the student's reply, and do not reveal the final answer prematurely.",
+      "For follow-up mode, use the supplied recent conversation and active-document context; preserve continuity but treat the current question as authoritative.",
+      "For flashcards mode, generate concise question/answer cards grounded in the notes. Return a JSON object with a flashcards array; each card has front, back, sourceTitle, and sourceQuote. Do not invent page numbers.",
+      "For mindmap mode, return a JSON object with a root string and nodes array. Each node has id, parentId, label, and optional sourceTitle/sourceQuote. Keep the hierarchy concise and grounded in source notes.",
+      "For hourly_tip mode, return one short, standalone learning tip grounded in the supplied notes, with sourceTitle and sourceQuote; never claim a page number unless one is supplied in the source context.",
+      "For teach mode, explain a topic as if teaching a peer, then invite the student to explain it back.",
+      "For revise and memorise modes, prioritize retrieval practice, chunking and spaced review rather than long passive summaries.",
+      "For test mode, behave like a test: do not show answers until submission or explicit request.",
       "For research mode, use web search and provide source citations; label external research separately from notebook evidence.",
       "Use clear, age-appropriate teaching language and encourage understanding rather than rote copying.",
     ].join(" ");
@@ -70,7 +78,7 @@ serve(async (request) => {
         instructions,
         tools,
         input: `STUDY MODE: ${mode}\n\nSTUDENT QUESTION:\n${question}\n\nRETRIEVED NOTE CONTEXT:\n${context || "No matching notes were supplied."}`,
-        max_output_tokens: 3000,
+        max_output_tokens: mode === "flashcards" || mode === "mindmap" ? 4500 : 3000,
         store: false,
       }),
     });
