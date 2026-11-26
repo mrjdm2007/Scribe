@@ -76,25 +76,20 @@ async function enforceDailyLimit(uid: string): Promise<void> {
   const now = Date.now();
   const day = new Date(now).toISOString().slice(0, 10);
   const ref = db.collection("scribe_ai_usage").doc(uid).collection("daily").doc(day);
-  const limit = Math.max(1, Math.min(200, Number(process.env.SCRIBE_AI_DAILY_LIMIT ?? "40")));
+  const configuredLimit = Number(process.env.SCRIBE_AI_DAILY_LIMIT ?? "40");
+  const limit = Number.isFinite(configuredLimit)
+    ? Math.max(1, Math.min(200, Math.floor(configuredLimit)))
+    : 40;
 
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
     const count = Number(snapshot.get("count") ?? 0);
     const lastRequestAt = Number(snapshot.get("lastRequestAt") ?? 0);
 
-    if (count >= limit) {
-      throw new Error("DAILY_LIMIT_REACHED");
-    }
-    if (now - lastRequestAt < 1_500) {
-      throw new Error("REQUEST_TOO_FREQUENT");
-    }
+    if (count >= limit) throw new Error("DAILY_LIMIT_REACHED");
+    if (now - lastRequestAt < 1_500) throw new Error("REQUEST_TOO_FREQUENT");
 
-    transaction.set(ref, {
-      count: count + 1,
-      lastRequestAt: now,
-      updatedAt: now
-    }, { merge: true });
+    transaction.set(ref, { count: count + 1, lastRequestAt: now, updatedAt: now }, { merge: true });
   });
 }
 
@@ -129,9 +124,11 @@ export const studyAssistant = onRequest(
       return;
     }
 
-    const question = asText(request.body?.question, 6_000);
+    const rawQuestion = typeof request.body?.question === "string"
+      ? request.body.question.trim()
+      : "";
     const mode = asText(request.body?.mode, 40) || "notes";
-    if (!question) {
+    if (!rawQuestion || rawQuestion.length > 6_000) {
       response.status(400).json({ error: "Enter a question up to 6,000 characters." });
       return;
     }
@@ -162,7 +159,7 @@ export const studyAssistant = onRequest(
 
       const prompt = [
         `STUDY MODE: ${mode}`,
-        `STUDENT QUESTION:\n${question}`,
+        `STUDENT QUESTION:\n${rawQuestion}`,
         `RETRIEVED NOTE CONTEXT:\n${context || "No matching notes were supplied."}`
       ].join("\n\n");
 
