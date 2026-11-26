@@ -684,20 +684,35 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                 let parentID = parentFirebase.flatMap { localByFirebase[$0] }
                 let remoteUpdated = (payload["updatedAt"] as? NSNumber)?.int64Value ?? (row["updatedAt"] as? NSNumber)?.int64Value ?? 0
                 if let localID = localByFirebase[id], let index = items.firstIndex(where: { $0.id == localID }) {
-                    if remoteUpdated > items[index].updatedAt {
+                    let current = items[index]
+                    let remoteFingerprint = payload["attachmentFingerprint"] as? String ?? ""
+                    let localFingerprint = current.tags.split(separator: ";")
+                        .first(where: { $0.hasPrefix("firebase_attachment_fingerprint:") })
+                        .map { String($0.dropFirst("firebase_attachment_fingerprint:".count)) } ?? ""
+                    let remoteRecordIsNewer = remoteUpdated > current.updatedAt
+                    let attachmentChanged = !remoteFingerprint.isEmpty && remoteFingerprint != localFingerprint
+                    if remoteRecordIsNewer || attachmentChanged {
                         let restoredAttachment = try await restoreFirebaseAttachment(payload, id: id,
-                            currentURI: items[index].uri, currentTags: items[index].tags)
-                        items[index] = ScribeItem(id: localID, parentId: parentID,
-                            kind: payload["kind"] as? String ?? items[index].kind,
-                            title: payload["title"] as? String ?? items[index].title,
-                            body: payload["body"] as? String ?? items[index].body,
+                            currentURI: current.uri, currentTags: current.tags)
+                        let latestIndex = items.firstIndex(where: { $0.id == localID }) ?? index
+                        let latest = items[latestIndex]
+                        let baseTags = remoteRecordIsNewer ? (payload["tags"] as? String ?? current.tags) : latest.tags
+                        var nextTags = tagged(baseTags, id)
+                        if !remoteFingerprint.isEmpty {
+                            nextTags = appendingTag(nextTags, tag: "firebase_attachment_fingerprint:" + remoteFingerprint)
+                        }
+                        items[latestIndex] = ScribeItem(id: localID,
+                            parentId: remoteRecordIsNewer ? parentID : latest.parentId,
+                            kind: remoteRecordIsNewer ? (payload["kind"] as? String ?? latest.kind) : latest.kind,
+                            title: remoteRecordIsNewer ? (payload["title"] as? String ?? latest.title) : latest.title,
+                            body: remoteRecordIsNewer ? (payload["body"] as? String ?? latest.body) : latest.body,
                             uri: restoredAttachment.0,
-                            tags: tagged(payload["tags"] as? String ?? items[index].tags, id) + (restoredAttachment.1.split(separator: ";").first(where: { $0.hasPrefix("firebase_attachment_fingerprint:") }).map { ";" + String($0) } ?? ""),
-                            bookmarked: payload["bookmarked"] as? Bool ?? items[index].bookmarked,
-                            position: payload["position"] as? Int ?? items[index].position,
-                            createdAt: (payload["createdAt"] as? NSNumber)?.int64Value ?? items[index].createdAt,
-                            updatedAt: remoteUpdated,
-                            deletedAt: (payload["deletedAt"] as? NSNumber)?.int64Value)
+                            tags: nextTags,
+                            bookmarked: remoteRecordIsNewer ? (payload["bookmarked"] as? Bool ?? latest.bookmarked) : latest.bookmarked,
+                            position: remoteRecordIsNewer ? (payload["position"] as? Int ?? latest.position) : latest.position,
+                            createdAt: remoteRecordIsNewer ? ((payload["createdAt"] as? NSNumber)?.int64Value ?? latest.createdAt) : latest.createdAt,
+                            updatedAt: remoteRecordIsNewer ? remoteUpdated : latest.updatedAt,
+                            deletedAt: remoteRecordIsNewer ? (payload["deletedAt"] as? NSNumber)?.int64Value : latest.deletedAt)
                         changed += 1
                     }
                 } else {
