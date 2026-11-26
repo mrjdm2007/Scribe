@@ -96,6 +96,19 @@ The authenticated `studyConversations` endpoint stores chat history inside the s
 
 Each conversation retains the newest 80 messages; message content is limited to 4,000 characters. The endpoint validates the mode and ID, verifies the Firebase ID token, and never accepts a user ID from the request body. The endpoint is implemented in the backend foundation; native Android/macOS clients still need integration before users see synced history in the apps.
 
+
+### Learning progress, mastery and revision API
+
+The authenticated `studyProgress` endpoint adds five connected learning features:
+
+1. **Study-session history:** `POST` with `action: "session"`, subject, durationMinutes (1–600), and optional topic records a session and updates that day's study-minute/session totals.
+2. **Quiz analytics:** `POST` with `action: "quiz"`, topic, correct and total updates cumulative accuracy and topic mastery.
+3. **Topic mastery tracking:** quiz results and review ratings update a bounded 0–100 mastery estimate for each topic.
+4. **Spaced-repetition queue:** quiz outcomes and `action: "review"` ratings (`again`, `hard`, `good`, `easy`) calculate the next review date and interval.
+5. **Study goals:** `POST` with `action: "goal"` and goalType (`daily_minutes`, `weekly_sessions`, or `target_topics`), target and optional label stores an owner-scoped goal.
+
+`GET /studyProgress` returns topic progress, active goals, recent sessions, due reviews and the weakest topics. All records are stored under the authenticated user's Firestore namespace. The endpoint is backend groundwork: Android/macOS dashboard screens and automatic event wiring still need client integration. The mastery score and review intervals are lightweight scheduling heuristics, not a validated educational assessment.
+
 ### Saved study artifact API
 
 The `studyArtifacts` endpoint accepts the same Firebase ID-token bearer authentication:
