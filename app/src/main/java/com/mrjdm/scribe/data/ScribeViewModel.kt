@@ -68,6 +68,11 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         return ScribeFirebaseClient(getApplication(), dao, saved.apiKey, saved.projectId)
             .saveConversationTurn(conversationId, mode, userMessage, assistantMessage)
     }
+    suspend fun loadFirebaseConversation(conversationId: String): org.json.JSONObject {
+        val saved = ScribeFirebaseSession.read(getApplication()) ?: error("No Firebase account is connected.")
+        return ScribeFirebaseClient(getApplication(), dao, saved.apiKey, saved.projectId)
+            .loadConversation(conversationId)
+    }
     suspend fun syncSavedFirebase(): String {
         val saved = ScribeFirebaseSession.read(getApplication()) ?: error("No Firebase account is connected.")
         return ScribeFirebaseClient(getApplication(), dao, saved.apiKey, saved.projectId).syncSaved()
