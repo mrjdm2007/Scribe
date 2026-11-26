@@ -173,11 +173,11 @@ private fun readerHtml(title: String, markdown: String, paper: ReaderPaper, font
 <script>window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true,packages:{'[+]':['ams']}},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 <style>
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:$safeBackground;color:$safeForeground;font:${fontSize}px/1.82 Georgia,serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:$safeBackground;color:$safeForeground;font:${fontSize}px/1.78 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:400;letter-spacing:-.012em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 article{max-width:${width}px;margin:0 auto;padding:46px 30px 100px}header{margin-bottom:34px;border-bottom:1px solid color-mix(in srgb,$safeMuted 28%,transparent);padding-bottom:24px}
 .kicker{font:10px/1.4 -apple-system,sans-serif;letter-spacing:2px;color:$safeMuted;text-transform:uppercase;margin-bottom:12px}
-h1{font:700 2.15em/1.18 Georgia,serif;letter-spacing:-.035em;margin:0 0 14px}h2{font:700 1.45em/1.3 Georgia,serif;margin:2em 0 .65em;letter-spacing:-.02em}h3{font:700 1.15em/1.35 Georgia,serif;margin:1.7em 0 .5em}
-p{margin:0 0 1.1em}ul,ol{padding-left:1.5em;margin:.5em 0 1.25em}li{padding-left:.25em;margin:.35em 0}blockquote{border-left:3px solid #c5a778;margin:1.4em 0;padding:.2em 0 .2em 1.1em;color:$safeMuted}
+h1{font:650 2.05em/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.04em;margin:0 0 14px}h2{font:650 1.42em/1.32 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:2em 0 .65em;letter-spacing:-.028em}h3{font:600 1.13em/1.38 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:1.7em 0 .5em;letter-spacing:-.018em}
+p{margin:0 0 1.15em;line-height:1.78}ul,ol{padding-left:1.5em;margin:.5em 0 1.25em}li{padding-left:.25em;margin:.35em 0}blockquote{border-left:3px solid #c5a778;margin:1.4em 0;padding:.2em 0 .2em 1.1em;color:$safeMuted}
 pre{padding:16px;border-radius:12px;overflow:auto;background:color-mix(in srgb,$safeForeground 8%,transparent);font: .78em/1.6 ui-monospace,monospace}code{font-family:ui-monospace,monospace;background:color-mix(in srgb,$safeForeground 9%,transparent);padding:.12em .35em;border-radius:4px}pre code{background:transparent;padding:0}
 table{border-collapse:collapse;width:100%;display:block;overflow-x:auto;margin:1.2em 0}th,td{border:1px solid color-mix(in srgb,$safeMuted 38%,transparent);padding:9px 12px;text-align:left}th{font-weight:700}
 a{color:#b78e53;text-decoration-thickness:1px;text-underline-offset:3px}img{max-width:100%;height:auto;border-radius:12px}hr{border:0;border-top:1px solid color-mix(in srgb,$safeMuted 35%,transparent);margin:2em 0}
