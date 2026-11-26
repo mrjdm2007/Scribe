@@ -85,6 +85,20 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             done(id)
         }
     }
+    suspend fun saveNow(item: ScribeItem, body: String) {
+        database.withTransaction {
+            val current = dao.byId(item.id) ?: return@withTransaction
+            val now = maxOf(System.currentTimeMillis(), current.updatedAt + 1)
+            if (current.body != body) {
+                val latestSnapshotAt = dao.snapshots(current.id).first().firstOrNull()?.savedAt ?: 0L
+                if (shouldSnapshotBody(current.body, body, latestSnapshotAt, now)) {
+                    dao.snapshot(NoteSnapshot(itemId = current.id, title = current.title, body = current.body, savedAt = now))
+                }
+            }
+            dao.update(current.copy(body = body, updatedAt = now))
+        }
+    }
+
     fun update(item: ScribeItem, title: String? = null, body: String? = null, uri: String? = null, tags: String? = null, bookmarked: Boolean? = null) {
         viewModelScope.launch {
             database.withTransaction {
