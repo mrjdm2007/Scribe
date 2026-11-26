@@ -189,8 +189,13 @@ struct StudyWorkspaceView: View {
                             VStack(alignment: .leading) { Text(item.title); Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary) }
                             Spacer()
                             Picker("Folder", selection: Binding(
-                                get: { folderLinks[String(item.id)] ?? "" },
-                                set: { folderLinks[String(item.id)] = $0; saveFolders() }
+                                get: { folderLinks[bookmarkKey(item)] ?? "" },
+                                set: { value in
+                                    let key = ensureBookmarkKey(item)
+                                    if value.isEmpty { folderLinks.removeValue(forKey: key) }
+                                    else { folderLinks[key] = value }
+                                    saveFolders()
+                                }
                             )) {
                                 Text("Unfiled").tag("")
                                 ForEach(folders) { Text($0.name).tag($0.id.uuidString) }
@@ -274,6 +279,22 @@ struct StudyWorkspaceView: View {
             reflectionChallenges = object["challenges"] ?? reflectionChallenges
             reflectionNext = object["nextWeek"] ?? reflectionNext
         }
+    }
+    private func bookmarkKey(_ item: ScribeItem) -> String {
+        item.tags.split(separator: ";").map(String.init)
+            .first(where: { $0.hasPrefix("bookmark_key:") })
+            .map { String($0.dropFirst("bookmark_key:".count)) }
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "local_\(item.id)"
+    }
+    private func ensureBookmarkKey(_ item: ScribeItem) -> String {
+        if let existing = item.tags.split(separator: ";").map(String.init)
+            .first(where: { $0.hasPrefix("bookmark_key:") }) {
+            let value = String(existing.dropFirst("bookmark_key:".count))
+            if !value.isEmpty { return value }
+        }
+        let key = UUID().uuidString
+        store.update(item, tags: appendingTag(item.tags, tag: "bookmark_key:\(key)"))
+        return key
     }
     private func saveRecord(kind: String, title: String, body: String) {
         if let existing = store.items.first(where: { $0.kind == kind && $0.title == title && $0.deletedAt == nil }) {
