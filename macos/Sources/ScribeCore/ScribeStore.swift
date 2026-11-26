@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 
 public func independentCopyTags(_ tags: String) -> String {
     tags.split(separator: ";").map(String.init)
-        .filter { !$0.isEmpty && !$0.hasPrefix("cloud_id:") }
+        .filter { !$0.isEmpty && !$0.hasPrefix("cloud_id:") && !$0.hasPrefix("firebase_id:") && !$0.hasPrefix("firebase_attachment_fingerprint:") }
         .joined(separator: ";")
 }
 
