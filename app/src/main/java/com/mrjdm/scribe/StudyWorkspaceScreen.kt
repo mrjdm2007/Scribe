@@ -447,6 +447,7 @@ private fun examCountdown(value: String): String {
     return when { days < 0 -> "Date passed"; days == 0L -> "Today"; days == 1L -> "Tomorrow"; else -> "$days days remaining" }
 }
 
+@Composable
 private fun FocusRow(session: WorkspaceFocus) {
     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Rounded.Timer, null, tint = WorkspaceGold)
