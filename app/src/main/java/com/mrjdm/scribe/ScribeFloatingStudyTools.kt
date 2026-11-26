@@ -58,6 +58,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
     var aiBusy by remember { mutableStateOf(false) }
     var aiError by remember { mutableStateOf("") }
     var aiMode by remember { mutableStateOf("notes") }
+    var aiSavedFlashcards by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val aiConversation = remember { mutableStateListOf<String>() }
     LaunchedEffect(startedAt) {
@@ -139,7 +140,7 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                             Text("SCRIBE INTELLIGENCE", color = Color(0xFFD5B98C), fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
                             Text("Your study assistant", style = MaterialTheme.typography.titleLarge)
                         }
-                        TextButton(onClick = { if (!aiBusy) { aiConversation.clear(); aiAnswer = ""; aiQuestion = "" } }) { Text("New chat") }
+                        TextButton(onClick = { if (!aiBusy) { aiConversation.clear(); aiAnswer = ""; aiQuestion = ""; aiSavedFlashcards = 0 } }) { Text("New chat") }
                         TextButton(onClick = { if (!aiBusy) aiOpen = false }) { Text("Close") }
                     }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -228,6 +229,11 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                         if (aiAnswer.isNotBlank()) Text(aiAnswer, style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp), color = MaterialTheme.colorScheme.onSurface)
                         else Text("Ask questions across your notebooks, generate exam questions, practise quizzes or research a topic. Note references are retrieved locally and sent only with your request.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     }
+                    if (aiMode == "flashcards" && aiAnswer.isNotBlank()) {
+                        Button(enabled = !aiBusy && aiSavedFlashcards == 0, onClick = { aiSavedFlashcards = saveGeneratedFlashcards(aiAnswer, vm) }) {
+                            Text(if (aiSavedFlashcards > 0) "Saved $aiSavedFlashcards flashcards" else "Save generated flashcards to library")
+                        }
+                    }
                 }
             }
         }
@@ -259,4 +265,24 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
             }
         }
     }
+}
+
+
+private fun saveGeneratedFlashcards(answer: String, vm: ScribeViewModel): Int {
+    val start = answer.indexOf('{')
+    val end = answer.lastIndexOf('}')
+    if (start < 0 || end <= start) return 0
+    val cards = runCatching { JSONObject(answer.substring(start, end + 1)).optJSONArray("flashcards") }.getOrNull() ?: return 0
+    var saved = 0
+    for (index in 0 until cards.length()) {
+        val card = cards.optJSONObject(index) ?: continue
+        val front = card.optString("front").trim()
+        val back = card.optString("back").trim()
+        if (front.isBlank() || back.isBlank()) continue
+        val source = card.optString("sourceTitle").trim().replace(";", ",").take(100)
+        val tags = if (source.isBlank()) "deck:AI generated" else "deck:AI generated;source_title:$source"
+        vm.add(null, "flashcard", front, body = back, tags = tags)
+        saved++
+    }
+    return saved
 }
