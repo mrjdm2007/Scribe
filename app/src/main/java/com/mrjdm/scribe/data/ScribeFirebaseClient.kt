@@ -319,10 +319,10 @@ internal class ScribeFirebaseClient(
         var start = 0
         while (start < records.length()) {
             val batch = JSONArray()
-            for (i in start until minOf(start + 100, records.length())) batch.put(records.getJSONObject(i))
+            for (i in start until minOf(start + 20, records.length())) batch.put(records.getJSONObject(i))
             val result = request(root, "POST", JSONObject().put("records", batch).toString(), idToken)
             uploaded += result.optInt("saved")
-            start += 100
+            start += 20
         }
         ScribeFirebaseSession.read(context)?.let { saved ->
             ScribeFirebaseSession.save(context, saved.apiKey, saved.projectId, saved.email, refreshToken)
