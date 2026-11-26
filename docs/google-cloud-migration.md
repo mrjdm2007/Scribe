@@ -120,7 +120,14 @@ The authenticated `studyWorkspace` endpoint adds five further capabilities:
 4. **Achievements:** milestone badges are calculated from session count, study minutes, streak length and mastered-topic count.
 5. **Android learning-notification preferences:** stores enable/disable, 1–4 hour interval and quiet-hour settings. This is preference storage only; the Android app must still schedule local notifications, and macOS notifications remain out of scope.
 
-`GET /studyWorkspace` returns exams, bookmarks, notification preferences, streak/weekly analytics and achievement unlock states. `POST` accepts `action: "exam"`, `"bookmark"` or `"notification_preferences"`. `PATCH` and `DELETE` accept `type=exam|bookmark` and an item `id`. All data is scoped to the authenticated Firebase user. The native clients have not yet been wired to these endpoints.
+Additional workspace tools:
+- **Syllabus checklist:** `POST action: "syllabus_item"` with `examId` and `title`; `PATCH/DELETE type=checklist&id=<item_id>` updates completion, title or notes.
+- **Focus-session log:** `POST action: "focus_session"` records planned/actual minutes, completion, subject, topic and interruption count. It is separate from study-session totals to avoid double-counting.
+- **Notification no-repeat history:** `POST action: "notification_history"` records a topic for the current UTC day and rejects a duplicate topic key with HTTP 409. Android still needs to use this endpoint when selecting/delivering tips; this does not schedule notifications.
+- **Bookmark folders:** `POST action: "bookmark_folder"` creates a folder. Bookmarks may be created/updated with `folderId`; `PATCH/DELETE type=folder&id=<folder_id>` renames or deletes a folder.
+- **Weekly reflections:** `POST action: "weekly_reflection"` saves wins, challenges and next-week priorities for a YYYY-MM-DD week start.
+
+`GET /studyWorkspace` returns exams, bookmarks, notification preferences, streak/weekly analytics, achievement states, syllabus checklist items, focus-session history, notification history, bookmark folders and recent weekly reflections. `POST` accepts `action: "exam"`, `"bookmark"`, `"notification_preferences"`, `"syllabus_item"`, `"focus_session"`, `"notification_history"`, `"bookmark_folder"` or `"weekly_reflection"`. `PATCH` and `DELETE` accept `type=exam|bookmark|checklist|folder` and an item `id`. All data is scoped to the authenticated Firebase user. The native clients have not yet been wired to these endpoints.
 
 ### Saved study artifact API
 
