@@ -191,6 +191,11 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         val body = JSONObject().put("wins", reflectionWins).put("challenges", reflectionChallenges).put("nextWeek", reflectionNext).toString()
         mirrorWorkspaceRecord("study_workspace_reflection", "Weekly reflection", body)
     }
+    fun persistNotificationPreferences() {
+        val body = JSONObject().put("enabled", notificationEnabled).put("intervalHours", interval)
+            .put("quietHoursStart", quietStart).put("quietHoursEnd", quietEnd).toString()
+        mirrorWorkspaceRecord("study_workspace_notifications", "Android learning notifications", body)
+    }
 
     LaunchedEffect(timerRunning) {
         while (timerRunning) { delay(1000); timerSeconds += 1 }
@@ -279,7 +284,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                             Text(String.format(Locale.US, "%02d:%02d", timerSeconds / 60, timerSeconds % 60), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Light)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { timerRunning = !timerRunning }, colors = ButtonDefaults.buttonColors(containerColor = WorkspaceGold, contentColor = androidx.compose.ui.graphics.Color.Black)) { Text(if (timerRunning) "Pause" else "Start") }
-                                OutlinedButton(onClick = { timerRunning = false; if (timerSeconds >= 60) { focus.add(WorkspaceFocus(UUID.randomUUID().toString(), "Focus", "Timer session", timerSeconds / 60, timerSeconds / 60, 0, today)); persistFocus() }; timerSeconds = 0 }) { Text("Finish") }
+                                OutlinedButton(onClick = { timerRunning = false; if (timerSeconds >= 60) { focus.add(WorkspaceFocus(UUID.randomUUID().toString(), "Focus", "Timer session", timerSeconds / 60, timerSeconds / 60, 0, today)); persistFocus(); vm.add(null, "study_session", "Focused study", body = "Workspace timer session.", tags = "minutes:${timerSeconds / 60}") }; timerSeconds = 0 }) { Text("Finish") }
                             }
                         }
                     }
@@ -325,12 +330,12 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             }
             "Reminders" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("ANDROID LEARNING REMINDERS", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · local scheduling", color = WorkspaceMuted, fontSize = 12.sp) }; Switch(notificationEnabled, { notificationEnabled = it; store.setBool("notifications_enabled", it) }) }
+                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · saved preferences", color = WorkspaceMuted, fontSize = 12.sp) }; Switch(notificationEnabled, { notificationEnabled = it; store.setBool("notifications_enabled", it); persistNotificationPreferences() }) }
                 Text("Reminder interval")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4).forEach { h -> FilterChip(selected = interval == h, onClick = { interval = h; store.setInt("notification_interval", h) }, label = { Text("$h h") }) } }
-                OutlinedTextField(quietStart, { quietStart = it; store.write("quiet_start", it) }, label = { Text("Quiet hours start (HH:mm)") }, singleLine = true)
-                OutlinedTextField(quietEnd, { quietEnd = it; store.write("quiet_end", it) }, label = { Text("Quiet hours end (HH:mm)") }, singleLine = true)
-                Text("These preferences are saved locally. AI-generated topic tips and reliable background delivery require the Firebase service to be configured; periodic Android work is approximate, not exact to the minute.", color = WorkspaceMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4).forEach { h -> FilterChip(selected = interval == h, onClick = { interval = h; store.setInt("notification_interval", h); persistNotificationPreferences() }, label = { Text("$h h") }) } }
+                OutlinedTextField(quietStart, { quietStart = it; store.write("quiet_start", it); persistNotificationPreferences() }, label = { Text("Quiet hours start (HH:mm)") }, singleLine = true)
+                OutlinedTextField(quietEnd, { quietEnd = it; store.write("quiet_end", it); persistNotificationPreferences() }, label = { Text("Quiet hours end (HH:mm)") }, singleLine = true)
+                Text("These preferences are saved locally. AI-generated topic tips and background delivery are not active yet. They require a configured AI service and Android scheduler; periodic work is approximate, not exact to the minute.", color = WorkspaceMuted, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
     }
@@ -346,7 +351,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             OutlinedTextField(focusSubject, { focusSubject = it }, label = { Text("Subject") }, singleLine = true)
             OutlinedTextField(focusTopic, { focusTopic = it }, label = { Text("Topic") }, singleLine = true)
             OutlinedTextField(focusMinutes, { focusMinutes = it.filter(Char::isDigit).take(3) }, label = { Text("Minutes") }, singleLine = true)
-        } }, confirmButton = { TextButton(onClick = { val m = focusMinutes.toIntOrNull(); if (m != null && m in 1..240 && focusSubject.isNotBlank()) { focus.add(WorkspaceFocus(UUID.randomUUID().toString(), focusSubject.trim(), focusTopic.trim(), m, m, 0, today)); persistFocus(); focusSubject = ""; focusTopic = ""; focusMinutes = "25"; showFocusDialog = false } }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showFocusDialog = false }) { Text("Cancel") } })
+        } }, confirmButton = { TextButton(onClick = { val m = focusMinutes.toIntOrNull(); if (m != null && m in 1..240 && focusSubject.isNotBlank()) { focus.add(WorkspaceFocus(UUID.randomUUID().toString(), focusSubject.trim(), focusTopic.trim(), m, m, 0, today)); persistFocus(); vm.add(null, "study_session", focusSubject.trim(), body = "Workspace focus session.", tags = "minutes:$m;topic:${focusTopic.trim()}"); focusSubject = ""; focusTopic = ""; focusMinutes = "25"; showFocusDialog = false } }) { Text("Save") } }, dismissButton = { TextButton(onClick = { showFocusDialog = false }) { Text("Cancel") } })
     if (showFolderDialog) AlertDialog(onDismissRequest = { showFolderDialog = false }, title = { Text("New bookmark folder") },
         text = { OutlinedTextField(folderName, { folderName = it }, label = { Text("Folder name") }, singleLine = true) },
         confirmButton = { TextButton(onClick = { if (folderName.isNotBlank()) { folders.add(WorkspaceFolder(UUID.randomUUID().toString(), folderName.trim())); persistFolders(); folderName = ""; showFolderDialog = false } }) { Text("Create") } },
