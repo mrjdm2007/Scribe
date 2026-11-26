@@ -175,7 +175,6 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                     val headingLevel = Regex("""heading([1-6])""").find(style)?.groupValues?.getOrNull(1)?.toIntOrNull()
                     val isTitle = style.contains("title")
                     val isSubtitle = style.contains("subtitle")
-                    val isList = style.contains("list")
                     Column(
                         Modifier.fillMaxWidth().background(Paper).padding(
                             horizontal = if (headingLevel != null || isTitle) 18.dp else 24.dp,
@@ -183,7 +182,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                         )
                     ) {
                         Text(
-                            text = if (isList) "•  ${paragraph.text}" else paragraph.text,
+                            text = paragraph.text,
                             color = Ink,
                             fontFamily = FontFamily.Serif,
                             fontSize = when {
