@@ -57,6 +57,9 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
     fun observeAllItems() = dao.observeAllItems()
     suspend fun syncSupabase(url: String, anonKey: String, email: String, password: String): String =
         ScribeSupabaseSync(getApplication(), dao).sync(url, anonKey, email, password)
+    suspend fun syncFirebase(apiKey: String, projectId: String, email: String, password: String, createAccount: Boolean): String =
+        ScribeFirebaseClient(getApplication(), dao, apiKey.trim(), projectId.trim()).signInAndSync(email, password, createAccount)
+    suspend fun syncSavedFirebase(): String = ScribeFirebaseClient(getApplication(), dao, "", "").syncSaved()
 
     fun add(parentId: Long?, kind: String, title: String, body: String = "", uri: String = "", tags: String = "", done: (Long) -> Unit = {}) {
         viewModelScope.launch {
