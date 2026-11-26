@@ -1,6 +1,7 @@
 package com.mrjdm.scribe
 
 import android.content.Context
+import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Paint
@@ -22,6 +23,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -251,7 +255,39 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 "Library" -> {
                     if (current?.kind == "page") {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
-                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
+                            attachmentPicker.launch(arrayOf("*/*"))
+                        }, onPaste = {
+                            val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)?.primaryClip
+                            val clipItem = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+                            val pageId = current.id
+                            val pastedUri = clipItem?.uri
+                            if (pastedUri != null) {
+                                scope.launch(Dispatchers.IO) {
+                                    val mime = context.contentResolver.getType(pastedUri).orEmpty()
+                                    val rawName = pastedUri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')
+                                        ?.takeIf { it.isNotBlank() } ?: "Pasted attachment"
+                                    val safeName = rawName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                    val directory = File(context.filesDir, "attachments").apply { mkdirs() }
+                                    val target = File(directory, "${System.currentTimeMillis()}_${safeName}")
+                                    val copied = runCatching {
+                                        val input = context.contentResolver.openInputStream(pastedUri) ?: error("Clipboard item is unavailable")
+                                        input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
+                                        target.isFile && target.length() > 0L
+                                    }.getOrDefault(false)
+                                    if (copied) {
+                                        val kind = when {
+                                            mime.startsWith("image/") -> "image"
+                                            mime == "application/pdf" -> "pdf"
+                                            else -> "file"
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            vm.add(pageId, "block", rawName, body = "Pasted from clipboard", uri = target.absolutePath, tags = "type:$kind")
+                                        }
+                                    }
+                                }
+                            } else if (clipItem?.text != null) {
+                                vm.add(pageId, "block", "Pasted text", body = clipItem.text.toString(), tags = "type:text")
+                            }
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -403,7 +439,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 }
 
 @Composable
-private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onExport: () -> Unit) {
+private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit, onHistory: () -> Unit, onOpenTopic: (ScribeItem) -> Unit, onAttach: () -> Unit, onPaste: () -> Unit, onExport: () -> Unit) {
     val blocks by vm.children(page.id).collectAsState(initial = emptyList())
     val topics by vm.kind("topic").collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
@@ -430,7 +466,8 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
             Text("${blocks.size} CONTENT BLOCKS", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { showLinkPicker = true }) { Icon(Icons.Rounded.Link, null); Text("Link topic") }
-                TextButton(onClick = { showAdd = true }) { Icon(Icons.Rounded.Add, null); Text("Add content") }
+                TextButton(onClick = onPaste) { Icon(Icons.Rounded.ContentPaste, null); Text("Paste") }
+                TextButton(onClick = { showAdd = true }) { Icon(Icons.Rounded.Add, null); Text("Add element") }
             }
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
@@ -467,7 +504,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                 }
             }
         }, confirmButton = { TextButton(onClick = { showLinkPicker = false }) { Text("Close") } })
-    if (showAdd) AddBlockDialog(onDismiss = { showAdd = false }) { type, title, body, tags ->
+    if (showAdd) AddBlockDialog(onDismiss = { showAdd = false }, onAttach = onAttach) { type, title, body, tags ->
         vm.add(page.id, "block", title.ifBlank { type.replaceFirstChar { it.uppercase() } }, body = body, tags = "type:$type,$tags")
         showAdd = false
     }
@@ -597,30 +634,71 @@ private fun CreateDialog(kind: String, onDismiss: () -> Unit, title: String = "C
 }
 
 @Composable
-private fun AddBlockDialog(onDismiss: () -> Unit, onAdd: (String, String, String, String) -> Unit) {
+private fun AddBlockDialog(onDismiss: () -> Unit, onAttach: () -> Unit, onAdd: (String, String, String, String) -> Unit) {
     var type by remember { mutableStateOf("text") }
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var tags by remember { mutableStateOf("") }
     val types = listOf("text", "heading", "equation", "code", "table", "list", "checklist", "quote", "link", "diagram", "question", "flashcard")
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add to page") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("CONTENT TYPE", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                types.chunked(4).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        row.forEach { value ->
-                            FilterChip(selected = type == value, onClick = { type = value }, label = { Text(value.replaceFirstChar { it.uppercase() }, fontSize = 10.sp) })
-                        }
+    val descriptions = mapOf(
+        "text" to "A normal paragraph for lecture notes and explanations.",
+        "heading" to "Create a clear section heading inside this page.",
+        "equation" to "Store a LaTeX equation source for later typesetting.",
+        "code" to "A monospaced code or command snippet.",
+        "table" to "Start a table using tab-separated columns and rows.",
+        "list" to "Create a simple bullet list, one item per line.",
+        "checklist" to "Create tasks that you can tick off as you study.",
+        "quote" to "Highlight a definition, quotation or important idea.",
+        "link" to "Save a web address with a useful label.",
+        "diagram" to "Describe a diagram or concept map.",
+        "question" to "Write a question for active recall.",
+        "flashcard" to "Write a prompt, then its answer on the next line."
+    )
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add an element") }, text = {
+        Column(
+            Modifier.fillMaxWidth().heightIn(max = screenHeight * 0.62f).verticalScroll(rememberScrollState()).imePadding(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("MEDIA & FILES", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+            OutlinedButton(onClick = onAttach, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Insert image, PDF or any document")
+            }
+            Text("CONTENT ELEMENT", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+            types.chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { value ->
+                        FilterChip(
+                            modifier = Modifier.weight(1f),
+                            selected = type == value,
+                            onClick = {
+                                type = value
+                                if (body.isBlank()) body = when (value) {
+                                    "table" -> "Column 1\tColumn 2\nValue 1\tValue 2"
+                                    "list" -> "First item\nSecond item"
+                                    "checklist" -> "[ ] First task\n[ ] Second task"
+                                    "quote" -> "Important idea…"
+                                    "question" -> "What do I need to remember?"
+                                    "flashcard" -> "Question or prompt\nAnswer"
+                                    else -> body
+                                }
+                            },
+                            label = { Text(value.replaceFirstChar { it.uppercase() }, fontSize = 10.sp, maxLines = 1) }
+                        )
                     }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
-            OutlinedTextField(title, { title = it }, label = { Text("Heading / label") }, singleLine = true, colors = fieldColors())
-            OutlinedTextField(body, { body = it }, label = { Text(if (type == "equation") "Equation (LaTeX source)" else if (type == "link") "URL" else "Write your content") },
-                minLines = 3, maxLines = 7, colors = fieldColors())
-            OutlinedTextField(tags, { tags = it }, label = { Text("Tags (optional)") }, singleLine = true, colors = fieldColors())
+            Text(descriptions[type].orEmpty(), color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+            OutlinedTextField(title, { title = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Title (optional)") }, singleLine = true, colors = fieldColors())
+            OutlinedTextField(
+                body, { body = it }, modifier = Modifier.fillMaxWidth(),
+                label = { Text(when (type) { "equation" -> "LaTeX source"; "link" -> "Web address"; "code" -> "Code"; else -> "Element content" }) },
+                minLines = 4, maxLines = 9, colors = fieldColors()
+            )
+            OutlinedTextField(tags, { tags = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Tags (optional)") }, singleLine = true, colors = fieldColors())
         }
-    }, confirmButton = { TextButton(onClick = { onAdd(type, title, body, tags) }) { Text("Add block", color = Gold) } },
+    }, confirmButton = { TextButton(onClick = { onAdd(type, title, body, tags) }) { Text("Insert element", color = Gold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }, containerColor = Color(0xFF202125))
 }
 
@@ -629,10 +707,16 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
     var title by remember(item.id) { mutableStateOf(item.title) }
     var bodyValue by remember(item.id) { mutableStateOf(TextFieldValue(item.body)) }
     var tags by remember(item.id) { mutableStateOf(item.tags) }
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val bodyBringIntoView = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit ${item.kind}") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            OutlinedTextField(title, { title = it }, label = { Text("Title") }, colors = fieldColors())
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(
+            Modifier.fillMaxWidth().heightIn(max = screenHeight * 0.62f).verticalScroll(rememberScrollState()).imePadding(),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            OutlinedTextField(title, { title = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Title") }, colors = fieldColors())
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("**", "**") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("B", fontWeight = FontWeight.Bold) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("*", "*") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("I", fontStyle = FontStyle.Italic) }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("__", "__") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("U", textDecoration = TextDecoration.Underline) }
@@ -640,8 +724,14 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("## ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("H2") }
                 TextButton(onClick = { bodyValue = bodyValue.wrapSelection("- ", "") }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("List") }
             }
-            OutlinedTextField(bodyValue, { bodyValue = it }, label = { Text("Description / content") }, minLines = 3, colors = fieldColors())
-            OutlinedTextField(tags, { tags = it }, label = { Text("Tags") }, colors = fieldColors())
+            OutlinedTextField(
+                bodyValue, { bodyValue = it },
+                modifier = Modifier.fillMaxWidth().bringIntoViewRequester(bodyBringIntoView).onFocusEvent { state ->
+                    if (state.isFocused) scope.launch { bodyBringIntoView.bringIntoView() }
+                },
+                label = { Text("Description / content") }, minLines = 4, maxLines = 12, colors = fieldColors()
+            )
+            OutlinedTextField(tags, { tags = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Tags") }, colors = fieldColors())
         }
     }, confirmButton = { TextButton(onClick = { onSave(title, bodyValue.text, tags) }) { Text("Save", color = Gold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }, containerColor = Color(0xFF202125))
