@@ -27,7 +27,7 @@ import java.util.Locale
 internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val chatPreferences = remember(context) { chatPreferences }
+    val chatPreferences = remember(context) { context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE) }
     var notes by remember { mutableStateOf<List<ScribeItem>>(emptyList()) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
@@ -45,7 +45,7 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
 
     LaunchedEffect(Unit) {
         notes = runCatching { vm.all() }.getOrDefault(emptyList())
-        val preferences = context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE)
+        val preferences = chatPreferences
         val savedId = preferences.getString("active_conversation_id", "").orEmpty()
         if (savedId.isNotBlank()) {
             runCatching {
