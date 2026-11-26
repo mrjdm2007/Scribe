@@ -175,7 +175,12 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && current != null && current.kind in listOf("page", "topic")) {
             scope.launch(Dispatchers.IO) {
-                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment"
+                val name = runCatching {
+                    context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    }
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+                    ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfter(':') ?: "Attachment"
                 val mimeType = context.contentResolver.getType(uri).orEmpty()
                 val fileExtension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
                 val officeExtensions = setOf("docx", "xlsx", "pptx", "doc", "xls", "ppt", "odt", "ods", "odp", "rtf", "csv")
