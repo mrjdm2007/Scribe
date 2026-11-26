@@ -185,7 +185,7 @@ private fun ScribeApp(initialDocumentUri: Uri? = null, vm: ScribeViewModel = vie
         }
         val copiedFile = withContext(Dispatchers.IO) {
             runCatching {
-                val directory = File(context.filesDir, "attachments").apply { mkdirs() }
+                val directory = File(context.cacheDir, "incoming-documents").apply { mkdirs() }
                 val safeName = displayName.substringAfterLast(':').replace('/', '_').replace('\\', '_').take(180)
                 val target = File(directory, "shared_${System.currentTimeMillis()}_${safeName}")
                 val input = context.contentResolver.openInputStream(uri) ?: error("The shared document is no longer accessible.")
@@ -611,9 +611,9 @@ private fun ScribeApp(initialDocumentUri: Uri? = null, vm: ScribeViewModel = vie
 
     incomingDocument?.let { shared ->
         if (shared.tags.contains("type:pdf")) {
-            PdfViewerDialog(shared, vm, readOnly = true, onDismiss = { incomingDocument = null })
+            PdfViewerDialog(shared, vm, readOnly = true, onDismiss = { File(shared.uri).delete(); incomingDocument = null })
         } else {
-            OfficeDocumentViewer(shared, onDismiss = { incomingDocument = null })
+            OfficeDocumentViewer(shared, onDismiss = { File(shared.uri).delete(); incomingDocument = null })
         }
     }
     incomingDocumentError?.let { message ->
