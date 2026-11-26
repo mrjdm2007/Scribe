@@ -53,13 +53,6 @@ private class WorkspaceStore(context: Context) {
 @Composable
 fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.ScribeViewModel) {
     val context = LocalContext.current
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) {
-            notificationEnabled = false
-            store.setBool("notifications_enabled", false)
-            LearningTipScheduler.cancel(context)
-        }
-    }
     val store = remember { WorkspaceStore(context) }
     val allItems by vm.observeAllItems().collectAsState(initial = emptyList())
     fun mirrorWorkspaceRecord(kind: String, title: String, body: String) {
@@ -93,6 +86,14 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
     var quietEnd by remember { mutableStateOf("07:00") }
     var timerRunning by remember { mutableStateOf(false) }
     var timerSeconds by remember { mutableIntStateOf(0) }
+
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) {
+            notificationEnabled = false
+            store.setBool("notifications_enabled", false)
+            LearningTipScheduler.cancel(context)
+        }
+    }
 
     LaunchedEffect(Unit) {
         runCatching {
