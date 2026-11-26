@@ -755,16 +755,18 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
 
         var records: [[String: Any]] = []
         var attachmentFingerprints: [Int64: String] = [:]
+        var attachmentUpdatedAt: [Int64: Int64] = [:]
         let ids = Dictionary(uniqueKeysWithValues: items.compactMap { item in firebaseID(item.tags).map { (item.id, $0) } })
         for item in items {
             guard let id = ids[item.id] else { continue }
+            var recordUpdatedAt = item.updatedAt
             let parentFirebase = item.parentId.flatMap { ids[$0] }
             let history = (snapshots[item.id] ?? []).map { ["title": $0.title, "body": $0.body, "savedAt": $0.savedAt] as [String: Any] }
             var payload: [String: Any] = [
                 "kind": item.kind, "title": item.title, "body": item.body,
                 "tags": tagged(item.tags, id), "bookmarked": item.bookmarked,
                 "position": item.position, "createdAt": item.createdAt,
-                "updatedAt": item.updatedAt, "deletedAt": item.deletedAt as Any? ?? NSNull(),
+                "updatedAt": recordUpdatedAt, "deletedAt": item.deletedAt as Any? ?? NSNull(),
                 "parentFirebaseId": parentFirebase as Any? ?? NSNull(), "history": history
             ]
             if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
@@ -779,6 +781,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                         let mime = UTType(filenameExtension: URL(fileURLWithPath: item.uri).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
                         _ = try await ScribeFirebaseClient.requestAttachment(projectId: projectId, idToken: idToken,
                             method: "POST", id: id, body: ["id": id, "name": name, "contentType": mime, "base64": data.base64EncodedString()])
+                        recordUpdatedAt = max(Int64(Date().timeIntervalSince1970 * 1000), item.updatedAt + 1)
+                        attachmentUpdatedAt[item.id] = recordUpdatedAt
                     }
                     attachmentFingerprints[item.id] = fingerprint
                     payload["attachmentId"] = id
@@ -786,7 +790,12 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                     payload["attachmentFingerprint"] = fingerprint
                 } else { payload["attachmentOmitted"] = true }
             }
-            records.append(["id": id, "updatedAt": item.updatedAt, "payload": payload])
+            records.append(["id": id, "updatedAt": recordUpdatedAt, "payload": payload])
+        }
+        for index in items.indices {
+            if let updatedAt = attachmentUpdatedAt[items[index].id] {
+                items[index].updatedAt = updatedAt
+            }
         }
         for index in items.indices {
             guard let fingerprint = attachmentFingerprints[items[index].id] else { continue }
