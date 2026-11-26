@@ -278,58 +278,69 @@ private fun ReminderHub(vm: ScribeViewModel) {
 
 @Composable
 private fun UnitConverter() {
-    val groups = mapOf(
-        "Length" to listOf("m", "cm", "mm", "km"),
-        "Voltage" to listOf("V", "mV", "kV"),
-        "Current" to listOf("A", "mA", "µA"),
-        "Resistance" to listOf("Ω", "kΩ", "MΩ"),
-        "Capacitance" to listOf("F", "mF", "µF", "nF", "pF"),
-        "Frequency" to listOf("Hz", "kHz", "MHz", "GHz"),
-        "Power" to listOf("W", "mW", "kW"),
-        "Energy" to listOf("J", "kJ", "Wh", "kWh"),
-        "Time" to listOf("s", "ms", "min", "h"),
-        "Speed" to listOf("m/s", "km/h"),
-        "Charge" to listOf("C", "mC", "µC"),
-        "Inductance" to listOf("H", "mH", "µH")
-    )
-    val factors = mapOf(
-        "m" to 1.0, "cm" to .01, "mm" to .001, "km" to 1000.0,
-        "V" to 1.0, "mV" to .001, "kV" to 1000.0,
-        "A" to 1.0, "mA" to .001, "µA" to .000001,
-        "Ω" to 1.0, "kΩ" to 1000.0, "MΩ" to 1000000.0,
-        "F" to 1.0, "mF" to .001, "µF" to .000001, "nF" to .000000001, "pF" to .000000000001,
-        "Hz" to 1.0, "kHz" to 1000.0, "MHz" to 1000000.0, "GHz" to 1000000000.0,
-        "W" to 1.0, "mW" to .001, "kW" to 1000.0,
-        "J" to 1.0, "kJ" to 1000.0, "Wh" to 3600.0, "kWh" to 3600000.0,
-        "s" to 1.0, "ms" to .001, "min" to 60.0, "h" to 3600.0,
-        "m/s" to 1.0, "km/h" to (1.0 / 3.6),
-        "C" to 1.0, "mC" to .001, "µC" to .000001,
-        "H" to 1.0, "mH" to .001, "µH" to .000001
-    )
-    var group by remember { mutableStateOf("Length") }
+    val groups = EngineeringUnitCatalog.groups
+    var group by remember { mutableStateOf("Voltage") }
     var amount by remember { mutableStateOf("1") }
-    var from by remember { mutableStateOf("m") }
-    var to by remember { mutableStateOf("cm") }
-    val units = groups[group]!!
-    val result = amount.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { it * factors.getValue(from) / factors.getValue(to) }
+    var from by remember { mutableStateOf("V") }
+    var to by remember { mutableStateOf("mV") }
+    val units = groups[group].orEmpty()
+    val result = amount.trim().replace(',', '.').toDoubleOrNull()
+        ?.takeIf { it.isFinite() }
+        ?.let { EngineeringUnitCatalog.convert(it, from, to) }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("ENGINEERING UNIT CONVERTER", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
-        groups.keys.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            row.forEach { g -> FilterChip(group == g, onClick = { group = g; from = groups[g]!!.first(); to = groups[g]!!.getOrElse(1) { groups[g]!!.first() } }, label = { Text(g, fontSize = 10.sp) }) }
-        } }
-        OutlinedTextField(amount, { amount = it }, label = { Text("Value") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f)) { Text("FROM", color = ToolMuted, fontSize = 10.sp); UnitPicker(units, from) { from = it } }
-            Icon(Icons.Rounded.ArrowForward, null, tint = ToolGold, modifier = Modifier.align(Alignment.CenterVertically))
-            Column(Modifier.weight(1f)) { Text("TO", color = ToolMuted, fontSize = 10.sp); UnitPicker(units, to) { to = it } }
-        }
-        Card(colors = CardDefaults.cardColors(containerColor = ToolPanel), shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.padding(18.dp)) {
-                Text("RESULT", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
-                Text(result?.let { "%.8g".format(it) } ?: "Enter a valid number", color = ToolGold, style = MaterialTheme.typography.headlineMedium)
-                Text("$amount $from = ${result?.let { "%.8g".format(it) } ?: "—"} $to", color = ToolMuted, fontSize = 12.sp)
+        Text("ENGINEERING & SCIENTIFIC CONVERTER", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
+        Text("Real electrical, mechanical and scientific quantities with correct conversion factors.", color = ToolMuted, fontSize = 12.sp)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            groups.keys.forEach { category ->
+                FilterChip(
+                    selected = group == category,
+                    onClick = {
+                        group = category
+                        val next = groups.getValue(category)
+                        from = next.first().symbol
+                        to = next.getOrElse(1) { next.first() }.symbol
+                    },
+                    label = { Text(category, fontSize = 10.sp) }
+                )
             }
         }
+        OutlinedTextField(
+            value = amount, onValueChange = { amount = it },
+            label = { Text("Value to convert") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("FROM", color = ToolMuted, fontSize = 10.sp)
+                UnitPicker(units.map { it.symbol }, from) { from = it }
+            }
+            Icon(Icons.Rounded.ArrowForward, null, tint = ToolGold)
+            Column(Modifier.weight(1f)) {
+                Text("TO", color = ToolMuted, fontSize = 10.sp)
+                UnitPicker(units.map { it.symbol }, to) { to = it }
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = ToolPanel), shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("CONVERTED VALUE", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
+                Text(result?.let { EngineeringUnitCatalog.format(it) } ?: "Enter a valid number",
+                    color = ToolGold, style = MaterialTheme.typography.headlineMedium)
+                Text("$amount $from = ${result?.let { EngineeringUnitCatalog.format(it) } ?: "—"} $to",
+                    color = ToolMuted, fontSize = 12.sp)
+            }
+        }
+        Text("UNIT REFERENCE", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
+        groups[group].orEmpty().forEach { unit ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(unit.symbol, fontWeight = FontWeight.Medium)
+                Text(unit.description, color = ToolMuted, fontSize = 11.sp)
+            }
+        }
+        Text("Temperature uses offset-aware K / °C / °F conversion. Cross-dimension conversions are blocked.", color = ToolMuted, fontSize = 10.sp)
     }
 }
 
