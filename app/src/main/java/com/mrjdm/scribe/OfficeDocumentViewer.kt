@@ -251,7 +251,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                             else -> fontSize.sp
                         },
                         fontWeight = if (headingLevel != null || isTitle || isSubtitle) FontWeight.SemiBold else FontWeight.Normal,
-                        lineHeight = (fontSize + if (relaxedSpacing) 15 else 8).sp
+                        lineHeight = (fontSize + (if (relaxedSpacing) 15 else 8)).sp
                     )
                 }
             }
@@ -401,7 +401,11 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
             text = { SelectionContainer { Text(value.ifBlank { "(empty cell)" }, color = Color(0xFFE7E4DD)) } },
             confirmButton = {
                 Row {
-                    TextButton(onClick = { clipboard.setText(AnnotatedString(value)) }) { Text("Copy") }
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(value)) }) { Text("Copy cell") }
+                    TextButton(onClick = {
+                        val rowText = sheet?.rows?.getOrNull(row).orEmpty().joinToString("\t")
+                        clipboard.setText(AnnotatedString(rowText))
+                    }) { Text("Copy row") }
                     TextButton(onClick = { selectedCell = null }) { Text("Close") }
                 }
             },
