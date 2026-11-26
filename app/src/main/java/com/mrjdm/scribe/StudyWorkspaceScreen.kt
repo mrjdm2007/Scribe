@@ -252,20 +252,12 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         while (timerRunning) { delay(1000); timerSeconds += 1 }
     }
     val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-    val minutesThisWeek = focus.filter { it.date >= SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis() - 6L * 86_400_000L)) }.sumOf { it.minutes }
-    val minutesToday = focus.filter { it.date == today }.sumOf { it.minutes }
+    val minutesThisWeek = (0L..6L).sumOf { StudyProgress.minutesStudied(allItems, java.time.LocalDate.now().minusDays(it)) }
+    val minutesToday = StudyProgress.minutesStudied(allItems)
+
     val completedTopics = exams.sumOf { it.tasks.count(WorkspaceTask::done) }
     val totalTopics = exams.sumOf { it.tasks.size }
-    val streak = remember(focus.toList()) {
-        val days = focus.map { it.date }.toSet()
-        var cursor = today; var count = 0
-        while (cursor in days && count < 365) {
-            count++
-            val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(cursor) ?: break
-            cursor = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(parsed.time - 86_400_000L))
-        }
-        count
-    }
+    val streak = StudyProgress.currentStreakDays(allItems)
 
     Column(Modifier.fillMaxSize()) {
         Text("STUDY WORKSPACE", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
