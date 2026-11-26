@@ -491,16 +491,16 @@ struct ScribeMacRoot: View {
                     Button { showingReadingMode = true } label: { Label("Read", systemImage: "book.pages") }
                         .buttonStyle(.bordered).help("Open distraction-free reading mode")
                 }
+                let backlinkBlocks = item.kind == "topic" ? store.items.filter { block in
+                    block.tags.contains("type:crosslink") &&
+                    Int64(block.tags.components(separatedBy: "target:").last?.components(separatedBy: CharacterSet(charactersIn: ";,")).first ?? "") == item.id
+                } : []
+                let backlinkSources = backlinkBlocks.compactMap { block in
+                    store.items.first(where: { $0.id == block.parentId })
+                }.reduce(into: [ScribeItem]()) { result, source in
+                    if !result.contains(where: { $0.id == source.id }) { result.append(source) }
+                }
                 if item.kind == "topic" {
-                    let backlinkBlocks = store.items.filter { block in
-                        block.tags.contains("type:crosslink") &&
-                        Int64(block.tags.components(separatedBy: "target:").last?.components(separatedBy: CharacterSet(charactersIn: ";,")).first ?? "") == item.id
-                    }
-                    let backlinkSources = backlinkBlocks.compactMap { block in
-                        store.items.first(where: { $0.id == block.parentId })
-                    }.reduce(into: [ScribeItem]()) { result, source in
-                        if !result.contains(where: { $0.id == source.id }) { result.append(source) }
-                    }
                     if !backlinkSources.isEmpty {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("LINKED FROM").font(.caption.bold()).foregroundStyle(.secondary)
@@ -1124,44 +1124,3 @@ private func latexPreviewHTML(_ source: String) -> String {
     """
 }
 
-
-private extension View {
-    func scribeGlassPanel(cornerRadius: CGFloat = 18) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        return self
-            .background(.ultraThinMaterial, in: shape)
-            .overlay {
-                shape.fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.075),
-                            Color.white.opacity(0.012),
-                            Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.035),
-                            Color.clear
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .allowsHitTesting(false)
-            }
-            .overlay {
-                shape.stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.30),
-                            Color.white.opacity(0.045),
-                            Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.20),
-                            Color.white.opacity(0.035)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-                .allowsHitTesting(false)
-            }
-            .shadow(color: .black.opacity(0.26), radius: 18, x: 0, y: 9)
-            .shadow(color: Color(red: 0.84, green: 0.72, blue: 0.55).opacity(0.055), radius: 22, x: 0, y: 3)
-    }
-}
