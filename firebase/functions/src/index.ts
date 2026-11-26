@@ -711,6 +711,236 @@ export const studyProgress = onRequest(
 
 
 /**
+ * Study workspace API for exams, bookmarks, notification preferences,
+ * streaks, weekly summaries and milestone achievements.
+ * Notification preferences are data for native clients; this function does
+ * not schedule operating-system notifications itself.
+ */
+export const studyWorkspace = onRequest(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    maxInstances: 3,
+    cors: true
+  },
+  async (request, response) => {
+    if (request.method === "OPTIONS") {
+      response.status(204).send("");
+      return;
+    }
+    if (!["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
+      response.status(405).json({ error: "Use GET, POST, PATCH or DELETE." });
+      return;
+    }
+    const authorization = request.header("authorization") ?? "";
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    if (!match) {
+      response.status(401).json({ error: "Sign in to Scribe first." });
+      return;
+    }
+    let uid: string;
+    try {
+      uid = (await getAuth().verifyIdToken(match[1], true)).uid;
+    } catch {
+      response.status(401).json({ error: "Your Firebase session is invalid or expired. Sign in again." });
+      return;
+    }
+
+    const userRef = db.collection("users").doc(uid);
+    const exams = userRef.collection("study_exams");
+    const bookmarks = userRef.collection("study_bookmarks");
+    const preferences = userRef.collection("study_preferences").doc("notifications");
+    const cleanId = (value: unknown) => asText(value, 80);
+    const validId = (value: string) => /^[a-zA-Z0-9_-]{1,80}$/.test(value);
+
+    try {
+      if (request.method === "GET") {
+        const [examSnapshot, bookmarkSnapshot, dailySnapshot, preferenceSnapshot, sessionSnapshot, topicSnapshot] =
+          await Promise.all([
+            exams.orderBy("examDate", "asc").limit(50).get(),
+            bookmarks.orderBy("createdAt", "desc").limit(100).get(),
+            userRef.collection("study_daily").orderBy("date", "desc").limit(365).get(),
+            preferences.get(),
+            userRef.collection("study_sessions").limit(500).get(),
+            userRef.collection("topic_progress").limit(300).get()
+          ]);
+
+        const daily = dailySnapshot.docs.map(doc => doc.data());
+        const studiedDates = new Set(daily.filter(day => Number(day.studyMinutes ?? 0) > 0)
+          .map(day => String(day.date ?? "")));
+        const today = new Date().toISOString().slice(0, 10);
+        const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+        let streakDays = 0;
+        let cursor = studiedDates.has(today) ? today : yesterday;
+        while (studiedDates.has(cursor) && streakDays < 365) {
+          streakDays += 1;
+          const [year, month, date] = cursor.split("-").map(Number);
+          cursor = new Date(Date.UTC(year, month - 1, date - 1)).toISOString().slice(0, 10);
+        }
+
+        const weekStart = new Date();
+        weekStart.setUTCHours(0, 0, 0, 0);
+        weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+        const weeklyMinutes = daily
+          .filter(day => String(day.date ?? "") >= weekStart.toISOString().slice(0, 10))
+          .reduce((sum, day) => sum + Number(day.studyMinutes ?? 0), 0);
+        const totalMinutes = daily.reduce((sum, day) => sum + Number(day.studyMinutes ?? 0), 0);
+        const totalSessions = sessionSnapshot.size;
+        const masteredTopics = topicSnapshot.docs.filter(doc => Number(doc.get("mastery") ?? 0) >= 80).length;
+
+        const achievements = [
+          { id: "first_session", title: "First steps", description: "Complete your first study session.", unlocked: totalSessions >= 1 },
+          { id: "five_sessions", title: "Building momentum", description: "Complete five study sessions.", unlocked: totalSessions >= 5 },
+          { id: "ten_hours", title: "Ten-hour milestone", description: "Study for 600 minutes in total.", unlocked: totalMinutes >= 600 },
+          { id: "three_day_streak", title: "Three-day streak", description: "Study on three consecutive days.", unlocked: streakDays >= 3 },
+          { id: "seven_day_streak", title: "One-week streak", description: "Study on seven consecutive days.", unlocked: streakDays >= 7 },
+          { id: "first_mastery", title: "Topic mastered", description: "Reach 80% mastery in a topic.", unlocked: masteredTopics >= 1 },
+          { id: "five_mastered", title: "Knowledge builder", description: "Reach 80% mastery in five topics.", unlocked: masteredTopics >= 5 }
+        ];
+
+        response.status(200).json({
+          exams: examSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          bookmarks: bookmarkSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          notificationPreferences: preferenceSnapshot.exists ? preferenceSnapshot.data() : {
+            enabled: false, intervalHours: 1, quietHoursStart: "22:00", quietHoursEnd: "07:00", platform: "android"
+          },
+          analytics: { streakDays, weeklyMinutes, totalMinutes, totalSessions, masteredTopics },
+          achievements
+        });
+        return;
+      }
+
+      if (request.method === "POST") {
+        const body = request.body ?? {};
+        const action = asText(body.action, 40);
+        if (action === "exam") {
+          const title = asText(body.title, 120);
+          const subject = asText(body.subject, 100);
+          const dateText = asText(body.examDate, 40);
+          const examDate = new Date(dateText);
+          if (!title || !subject || !dateText || !Number.isFinite(examDate.getTime())) {
+            response.status(400).json({ error: "An exam requires a title, subject and valid examDate." });
+            return;
+          }
+          const syllabus = Array.isArray(body.syllabus)
+            ? body.syllabus.slice(0, 100).map((item: unknown) => asText(item, 160)).filter(Boolean)
+            : [];
+          const ref = exams.doc();
+          await ref.set({ title, subject, examDate, syllabus, notes: asText(body.notes, 2000), createdAt: new Date(), updatedAt: new Date() });
+          response.status(201).json({ exam_id: ref.id });
+          return;
+        }
+        if (action === "bookmark") {
+          const title = asText(body.title, 160);
+          const documentId = asText(body.documentId, 160);
+          const location = asText(body.location, 300);
+          if (!title || !documentId) {
+            response.status(400).json({ error: "A bookmark requires a title and documentId." });
+            return;
+          }
+          const ref = bookmarks.doc();
+          await ref.set({
+            title, documentId, location: location || null,
+            excerpt: asText(body.excerpt, 1000),
+            note: asText(body.note, 1000),
+            tags: Array.isArray(body.tags) ? body.tags.slice(0, 12).map((tag: unknown) => asText(tag, 40)).filter(Boolean) : [],
+            createdAt: new Date()
+          });
+          response.status(201).json({ bookmark_id: ref.id });
+          return;
+        }
+        if (action === "notification_preferences") {
+          const enabled = body.enabled === true;
+          const intervalHours = Number(body.intervalHours ?? 1);
+          const start = asText(body.quietHoursStart, 5) || "22:00";
+          const end = asText(body.quietHoursEnd, 5) || "07:00";
+          const timePattern = /^(?:[01]\\d|2[0-3]):[0-5]\\d$/;
+          if (![1, 2, 3, 4].includes(intervalHours) || !timePattern.test(start) || !timePattern.test(end)) {
+            response.status(400).json({ error: "Choose a 1–4 hour interval and valid 24-hour quiet-hour times (HH:mm)." });
+            return;
+          }
+          const value = {
+            enabled, intervalHours, quietHoursStart: start, quietHoursEnd: end,
+            platform: "android", updatedAt: new Date()
+          };
+          await preferences.set(value, { merge: true });
+          response.status(200).json({ saved: true, preferences: value });
+          return;
+        }
+        response.status(400).json({ error: "Supported actions are exam, bookmark and notification_preferences." });
+        return;
+      }
+
+      const type = asText(request.query.type ?? request.body?.type, 20);
+      const id = cleanId(request.query.id ?? request.body?.id);
+      if (!["exam", "bookmark"].includes(type) || !validId(id)) {
+        response.status(400).json({ error: "Provide type=exam or bookmark and a valid item ID." });
+        return;
+      }
+      const collection = type === "exam" ? exams : bookmarks;
+      const ref = collection.doc(id);
+      const snapshot = await ref.get();
+      if (!snapshot.exists) {
+        response.status(404).json({ error: "Item not found." });
+        return;
+      }
+      if (request.method === "DELETE") {
+        await ref.delete();
+        response.status(200).json({ deleted: true, id });
+        return;
+      }
+
+      const body = request.body ?? {};
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      if (type === "exam") {
+        if (Object.prototype.hasOwnProperty.call(body, "title")) updates.title = asText(body.title, 120);
+        if (Object.prototype.hasOwnProperty.call(body, "subject")) updates.subject = asText(body.subject, 100);
+        if (Object.prototype.hasOwnProperty.call(body, "notes")) updates.notes = asText(body.notes, 2000);
+        if (Object.prototype.hasOwnProperty.call(body, "examDate")) {
+          const date = new Date(asText(body.examDate, 40));
+          if (!Number.isFinite(date.getTime())) {
+            response.status(400).json({ error: "examDate must be a valid date-time." });
+            return;
+          }
+          updates.examDate = date;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "syllabus")) {
+          if (!Array.isArray(body.syllabus)) {
+            response.status(400).json({ error: "syllabus must be a list." });
+            return;
+          }
+          updates.syllabus = body.syllabus.slice(0, 100).map((item: unknown) => asText(item, 160)).filter(Boolean);
+        }
+      } else {
+        for (const field of ["title", "location", "excerpt", "note"] as const) {
+          if (Object.prototype.hasOwnProperty.call(body, field)) updates[field] = asText(body[field], field === "excerpt" || field === "note" ? 1000 : 300);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "tags")) {
+          if (!Array.isArray(body.tags)) {
+            response.status(400).json({ error: "tags must be a list." });
+            return;
+          }
+          updates.tags = body.tags.slice(0, 12).map((tag: unknown) => asText(tag, 40)).filter(Boolean);
+        }
+      }
+      if (Object.keys(updates).length === 1) {
+        response.status(400).json({ error: "No supported fields were provided to update." });
+        return;
+      }
+      await ref.set(updates, { merge: true });
+      response.status(200).json({ updated: true, id });
+    } catch (error) {
+      console.error("Scribe study workspace operation failed", {
+        uid, error: error instanceof Error ? error.message : "unknown"
+      });
+      response.status(500).json({ error: "Study workspace is temporarily unavailable." });
+    }
+  }
+);
+
+
+/**
  * Lists and deletes generated study artifacts for the authenticated user.
  * The same data is also readable through the Firestore SDK under the
  * owner-scoped users/{uid}/study_artifacts collection.
