@@ -1,13 +1,23 @@
 import SwiftUI
 import UserNotifications
 
+private struct WorkbenchUnitDefinition: Hashable {
+    let symbol: String
+    let description: String
+    let factor: Double
+    var offset: Double = 0
+}
+private func workbenchUnit(_ symbol: String, _ description: String, _ factor: Double, _ offset: Double = 0) -> WorkbenchUnitDefinition {
+    WorkbenchUnitDefinition(symbol: symbol, description: description, factor: factor, offset: offset)
+}
+
 struct DesktopWorkbenchView: View {
     @EnvironmentObject private var library: ScribeLibrary
     @State private var tool = "Converter"
-    @State private var group = "Length"
+    @State private var group = "Voltage"
     @State private var amount = "1"
-    @State private var from = "m"
-    @State private var to = "cm"
+    @State private var from = "V"
+    @State private var to = "mV"
     @State private var expression = "sin(x)"
     @State private var graphRange = 6.28
     @State private var formulaName = "New formula"
@@ -37,26 +47,38 @@ struct DesktopWorkbenchView: View {
     @State private var reminderDate = Calendar.current.date(byAdding: .hour, value: 1, to: .now) ?? .now
     @State private var reminderStatus = ""
 
-    private let groups: [String: [String]] = [
-        "Length":["m","cm","mm","km"], "Voltage":["V","mV","kV"],
-        "Current":["A","mA","µA"], "Resistance":["Ω","kΩ","MΩ"],
-        "Capacitance":["F","mF","µF","nF","pF"], "Frequency":["Hz","kHz","MHz","GHz"],
-        "Power":["W","mW","kW"], "Energy":["J","kJ","Wh","kWh"],
-        "Time":["s","ms","min","h"], "Speed":["m/s","km/h"],
-        "Charge":["C","mC","µC"], "Inductance":["H","mH","µH"]
+    private let groups: [String: [WorkbenchUnitDefinition]] = [
+        "Voltage":[workbenchUnit("V","volt",1),workbenchUnit("mV","millivolt",1e-3),workbenchUnit("µV","microvolt",1e-6),workbenchUnit("kV","kilovolt",1e3)],
+        "Current":[workbenchUnit("A","ampere",1),workbenchUnit("mA","milliampere",1e-3),workbenchUnit("µA","microampere",1e-6),workbenchUnit("nA","nanoampere",1e-9)],
+        "Resistance":[workbenchUnit("Ω","ohm",1),workbenchUnit("kΩ","kiloohm",1e3),workbenchUnit("MΩ","megaohm",1e6),workbenchUnit("GΩ","gigaohm",1e9)],
+        "Capacitance":[workbenchUnit("F","farad",1),workbenchUnit("mF","millifarad",1e-3),workbenchUnit("µF","microfarad",1e-6),workbenchUnit("nF","nanofarad",1e-9),workbenchUnit("pF","picofarad",1e-12)],
+        "Inductance":[workbenchUnit("H","henry",1),workbenchUnit("mH","millihenry",1e-3),workbenchUnit("µH","microhenry",1e-6),workbenchUnit("nH","nanohenry",1e-9)],
+        "Conductance":[workbenchUnit("S","siemens",1),workbenchUnit("mS","millisiemens",1e-3),workbenchUnit("µS","microsiemens",1e-6)],
+        "Frequency":[workbenchUnit("Hz","hertz",1),workbenchUnit("kHz","kilohertz",1e3),workbenchUnit("MHz","megahertz",1e6),workbenchUnit("GHz","gigahertz",1e9),workbenchUnit("rpm","revolutions/min",1.0/60.0)],
+        "Power":[workbenchUnit("W","watt",1),workbenchUnit("mW","milliwatt",1e-3),workbenchUnit("kW","kilowatt",1e3),workbenchUnit("MW","megawatt",1e6),workbenchUnit("hp","mechanical horsepower",745.6998716)],
+        "Energy":[workbenchUnit("J","joule",1),workbenchUnit("kJ","kilojoule",1e3),workbenchUnit("Wh","watt-hour",3600),workbenchUnit("kWh","kilowatt-hour",3.6e6),workbenchUnit("eV","electronvolt",1.602176634e-19)],
+        "Charge":[workbenchUnit("C","coulomb",1),workbenchUnit("mC","millicoulomb",1e-3),workbenchUnit("µC","microcoulomb",1e-6),workbenchUnit("Ah","ampere-hour",3600),workbenchUnit("mAh","milliampere-hour",3.6)],
+        "Length":[workbenchUnit("m","metre",1),workbenchUnit("mm","millimetre",1e-3),workbenchUnit("cm","centimetre",1e-2),workbenchUnit("km","kilometre",1e3),workbenchUnit("µm","micrometre",1e-6),workbenchUnit("nm","nanometre",1e-9),workbenchUnit("in","inch",0.0254),workbenchUnit("ft","foot",0.3048),workbenchUnit("mi","mile",1609.344)],
+        "Area":[workbenchUnit("m²","square metre",1),workbenchUnit("cm²","square centimetre",1e-4),workbenchUnit("mm²","square millimetre",1e-6),workbenchUnit("km²","square kilometre",1e6),workbenchUnit("ha","hectare",1e4),workbenchUnit("ft²","square foot",0.09290304)],
+        "Volume":[workbenchUnit("m³","cubic metre",1),workbenchUnit("L","litre",1e-3),workbenchUnit("mL","millilitre",1e-6),workbenchUnit("cm³","cubic centimetre",1e-6),workbenchUnit("ft³","cubic foot",0.028316846592),workbenchUnit("gal","US gallon",0.003785411784)],
+        "Mass":[workbenchUnit("kg","kilogram",1),workbenchUnit("g","gram",1e-3),workbenchUnit("mg","milligram",1e-6),workbenchUnit("t","metric tonne",1e3),workbenchUnit("lb","pound",0.45359237),workbenchUnit("oz","ounce",0.028349523125)],
+        "Temperature":[workbenchUnit("K","kelvin",1),workbenchUnit("°C","degree Celsius",1,273.15),workbenchUnit("°F","degree Fahrenheit",5.0/9.0,255.3722222222222)],
+        "Time":[workbenchUnit("s","second",1),workbenchUnit("ms","millisecond",1e-3),workbenchUnit("µs","microsecond",1e-6),workbenchUnit("ns","nanosecond",1e-9),workbenchUnit("min","minute",60),workbenchUnit("h","hour",3600),workbenchUnit("day","day",86400)],
+        "Speed":[workbenchUnit("m/s","metre/second",1),workbenchUnit("km/h","kilometre/hour",1.0/3.6),workbenchUnit("mph","mile/hour",0.44704),workbenchUnit("ft/s","foot/second",0.3048)],
+        "Acceleration":[workbenchUnit("m/s²","metre/second²",1),workbenchUnit("ft/s²","foot/second²",0.3048),workbenchUnit("g₀","standard gravity",9.80665)],
+        "Force":[workbenchUnit("N","newton",1),workbenchUnit("kN","kilonewton",1e3),workbenchUnit("MN","meganewton",1e6),workbenchUnit("lbf","pound-force",4.4482216152605)],
+        "Pressure":[workbenchUnit("Pa","pascal",1),workbenchUnit("kPa","kilopascal",1e3),workbenchUnit("MPa","megapascal",1e6),workbenchUnit("bar","bar",1e5),workbenchUnit("atm","atmosphere",101325),workbenchUnit("psi","pound/in²",6894.757293168),workbenchUnit("mmHg","millimetre mercury",133.322387415)],
+        "Density":[workbenchUnit("kg/m³","kilogram/cubic metre",1),workbenchUnit("g/cm³","gram/cubic centimetre",1000),workbenchUnit("g/L","gram/litre",1),workbenchUnit("lb/ft³","pound/cubic foot",16.01846337)],
+        "Torque":[workbenchUnit("N·m","newton-metre",1),workbenchUnit("kN·m","kilonewton-metre",1e3),workbenchUnit("lb·ft","pound-foot",1.3558179483)],
+        "Magnetic field":[workbenchUnit("T","tesla",1),workbenchUnit("mT","millitesla",1e-3),workbenchUnit("µT","microtesla",1e-6),workbenchUnit("G","gauss",1e-4)],
+        "Angle":[workbenchUnit("rad","radian",1),workbenchUnit("°","degree",Double.pi/180),workbenchUnit("rev","revolution",2*Double.pi)]
     ]
-    private let factors: [String: Double] = [
-        "m":1,"cm":0.01,"mm":0.001,"km":1000,"V":1,"mV":0.001,"kV":1000,
-        "A":1,"mA":0.001,"µA":0.000001,"Ω":1,"kΩ":1000,"MΩ":1000000,
-        "F":1,"mF":0.001,"µF":0.000001,"nF":0.000000001,"pF":0.000000000001,
-        "Hz":1,"kHz":1000,"MHz":1000000,"GHz":1000000000,"W":1,"mW":0.001,"kW":1000,
-        "J":1,"kJ":1000,"Wh":3600,"kWh":3600000,"s":1,"ms":0.001,"min":60,"h":3600,
-        "m/s":1,"km/h":1.0/3.6,"C":1,"mC":0.001,"µC":0.000001,"H":1,"mH":0.001,"µH":0.000001
-    ]
-    private var units: [String] { groups[group] ?? ["m","cm"] }
+    private var units: [WorkbenchUnitDefinition] { groups[group] ?? groups["Voltage"]! }
     private var conversion: Double? {
-        guard let number = Double(amount), number.isFinite, let a = factors[from], let b = factors[to] else { return nil }
-        return number * a / b
+        guard let number = Double(amount), number.isFinite,
+              let source = units.first(where: { $0.symbol == from }),
+              let target = units.first(where: { $0.symbol == to }) else { return nil }
+        return ((number * source.factor + source.offset) - target.offset) / target.factor
     }
     private var graphValues: [CGFloat] {
         (0...500).map { index in
@@ -117,26 +139,44 @@ struct DesktopWorkbenchView: View {
 
     private var converterView: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("ENGINEERING UNIT CONVERTER").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 115))], alignment: .leading, spacing: 8) {
+            Text("ENGINEERING & SCIENTIFIC CONVERTER").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text("Physical quantities, electrical values and practical engineering units — all calculated locally.")
+                .font(.callout).foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 112))], alignment: .leading, spacing: 8) {
                 ForEach(groups.keys.sorted(), id: \.self) { key in
                     Button(key) {
                         group = key
-                        from = groups[key]!.first!
-                        to = groups[key]!.dropFirst().first ?? groups[key]!.first!
-                    }.buttonStyle(.borderedProminent).tint(group == key ? Color.accentColor : Color.gray.opacity(0.2))
+                        from = groups[key]!.first!.symbol
+                        to = groups[key]!.dropFirst().first?.symbol ?? groups[key]!.first!.symbol
+                    }.buttonStyle(.borderedProminent)
+                        .tint(group == key ? Color.accentColor : Color.gray.opacity(0.2))
                 }
             }
-            TextField("Value", text: $amount).textFieldStyle(.roundedBorder).frame(maxWidth: 300)
+            TextField("Value to convert", text: $amount).textFieldStyle(.roundedBorder).frame(maxWidth: 340)
             HStack(spacing: 12) {
-                Picker("From", selection: $from) { ForEach(units, id: \.self) { Text($0).tag($0) } }.frame(maxWidth: 180)
+                Picker("From", selection: $from) {
+                    ForEach(units, id: \.symbol) { Text($0.symbol).tag($0.symbol) }
+                }.frame(maxWidth: 220)
                 Image(systemName: "arrow.right").foregroundStyle(.secondary)
-                Picker("To", selection: $to) { ForEach(units, id: \.self) { Text($0).tag($0) } }.frame(maxWidth: 180)
+                Picker("To", selection: $to) {
+                    ForEach(units, id: \.symbol) { Text($0.symbol).tag($0.symbol) }
+                }.frame(maxWidth: 220)
             }
             if let conversion {
                 Text(conversion, format: .number.precision(.significantDigits(1...9))).font(.system(size: 34, weight: .medium, design: .rounded))
                 Text("\(amount) \(from) = \(conversion.formatted(.number.precision(.significantDigits(1...9)))) \(to)").foregroundStyle(.secondary)
             } else { Text("Enter a valid finite number.").foregroundStyle(.secondary) }
+            Divider()
+            Text("UNIT REFERENCE").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            ForEach(units, id: \.symbol) { unit in
+                HStack {
+                    Text(unit.symbol).fontWeight(.medium)
+                    Spacer()
+                    Text(unit.description).foregroundStyle(.secondary)
+                }.font(.callout)
+            }
+            Text("Temperature conversions include the correct offsets; other dimensions use SI-based scale factors.")
+                .font(.caption).foregroundStyle(.secondary)
         }.padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
