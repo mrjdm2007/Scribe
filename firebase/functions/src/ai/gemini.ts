@@ -15,7 +15,7 @@ export class GeminiVertexProvider implements AIProvider {
       enterprise: true,
       apiVersion: "v1",
       project,
-      location: process.env.GOOGLE_CLOUD_LOCATION ?? "asia-south1"
+      location: process.env.GOOGLE_CLOUD_LOCATION ?? "global"
     });
     this.model = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
   }
