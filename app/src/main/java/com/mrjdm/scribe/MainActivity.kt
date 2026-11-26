@@ -126,6 +126,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         if (navigationReady) savedStackIds = stack.joinToString(",") { it.id.toString() }
     }
     var tab by remember { mutableStateOf("Library") }
+    var showMoreNavigation by rememberSaveable { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
     var createKind by remember { mutableStateOf("course") }
     var editItem by remember { mutableStateOf<ScribeItem?>(null) }
@@ -338,12 +339,22 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         bottomBar = {
             if (!isWide) NavigationBar(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).scribeGlass(RoundedCornerShape(22.dp)),
-                containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp
+                containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp,
+                windowInsets = WindowInsets.navigationBars
             ) {
-                listOf("Library", "Saved", "Study", "AI", "Workspace", "Tools", "Settings").forEach { label ->
-                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "AI" -> Icons.Rounded.AutoAwesome; "Workspace" -> Icons.Rounded.Insights; else -> Icons.Rounded.Settings }
-                    NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
-                        icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
+                listOf("Library", "Saved", "Study", "AI", "More").forEach { label ->
+                    val icon = when(label) {
+                        "Library" -> Icons.Rounded.AutoStories
+                        "Saved" -> Icons.Rounded.Bookmark
+                        "Study" -> Icons.Rounded.School
+                        "AI" -> Icons.Rounded.AutoAwesome
+                        else -> Icons.Rounded.MoreHoriz
+                    }
+                    val selected = if (label == "More") tab in listOf("Workspace", "Tools", "Settings") else tab == label
+                    NavigationBarItem(selected = selected, onClick = {
+                        if (label == "More") showMoreNavigation = true
+                        else { tab = label; stack = emptyList() }
+                    }, icon = { Icon(icon, contentDescription = label) }, label = { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
             }
@@ -365,7 +376,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
             Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp).animateContentSize()) {
             Spacer(Modifier.height(18.dp))
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Column(Modifier.weight(1f).fillMaxWidth().then(if (tab == "Library" && current == null && searchQuery.isBlank()) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
             when (tab) {
                 "Library" -> {
                     if (current?.kind == "page") {
@@ -544,6 +555,41 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
             }
             }
+            }
+        }
+    }
+
+    if (showMoreNavigation) {
+        ModalBottomSheet(
+            onDismissRequest = { showMoreNavigation = false },
+            containerColor = Color(0xFF1B1D22),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                Text("MORE", color = Gold, fontSize = 10.sp, letterSpacing = 2.sp,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                listOf(
+                    Triple("Workspace", Icons.Rounded.Insights, "Study dashboard and progress"),
+                    Triple("Tools", Icons.Rounded.Functions, "Academic and engineering tools"),
+                    Triple("Settings", Icons.Rounded.Settings, "Sync, backups and preferences")
+                ).forEach { (label, icon, description) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            tab = label
+                            stack = emptyList()
+                            showMoreNavigation = false
+                        }.padding(horizontal = 24.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(icon, contentDescription = null, tint = if (tab == label) Gold else Muted)
+                        Spacer(Modifier.width(18.dp))
+                        Column {
+                            Text(label, fontWeight = FontWeight.SemiBold,
+                                color = if (tab == label) Gold else MaterialTheme.colorScheme.onSurface)
+                            Text(description, color = Muted, fontSize = 12.sp)
+                        }
+                    }
+                }
             }
         }
     }
