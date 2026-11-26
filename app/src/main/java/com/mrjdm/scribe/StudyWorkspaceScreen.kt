@@ -95,6 +95,8 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
     var reflectionChallenges by remember { mutableStateOf("") }
     var reflectionNext by remember { mutableStateOf("") }
     var notificationEnabled by remember { mutableStateOf(false) }
+    var dailyGoalMinutes by remember { mutableIntStateOf(120) }
+    var bookmarkQuery by remember { mutableStateOf("") }
     var interval by remember { mutableIntStateOf(1) }
     var quietStart by remember { mutableStateOf("22:00") }
     var quietEnd by remember { mutableStateOf("07:00") }
@@ -130,6 +132,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             folderLinks = links.keys().asSequence().associate { it to links.optString(it) }
         }
         notificationEnabled = store.bool("notifications_enabled", false)
+        dailyGoalMinutes = store.int("daily_goal_minutes", 120).coerceIn(30, 600)
         interval = store.int("notification_interval", 1).coerceIn(1, 4)
         quietStart = store.read("quiet_start").ifBlank { "22:00" }
         quietEnd = store.read("quiet_end").ifBlank { "07:00" }
@@ -226,6 +229,10 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         val body = JSONObject().put("wins", reflectionWins).put("challenges", reflectionChallenges).put("nextWeek", reflectionNext).toString()
         mirrorWorkspaceRecord("study_workspace_reflection", "Weekly reflection", body)
     }
+    fun persistDailyGoal() {
+        store.setInt("daily_goal_minutes", dailyGoalMinutes)
+        mirrorWorkspaceRecord("study_workspace_daily_goal", "Daily study goal", JSONObject().put("minutes", dailyGoalMinutes).toString())
+    }
     fun persistNotificationPreferences() {
         val body = JSONObject().put("enabled", notificationEnabled).put("intervalHours", interval)
             .put("quietHoursStart", quietStart).put("quietHoursEnd", quietEnd).toString()
@@ -237,6 +244,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
     }
     val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     val minutesThisWeek = focus.filter { it.date >= SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis() - 6L * 86_400_000L)) }.sumOf { it.minutes }
+    val minutesToday = focus.filter { it.date == today }.sumOf { it.minutes }
     val completedTopics = exams.sumOf { it.tasks.count(WorkspaceTask::done) }
     val totalTopics = exams.sumOf { it.tasks.size }
     val streak = remember(focus.toList()) {
@@ -267,6 +275,19 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                         MetricTile("SYLLABUS", "$completedTopics/$totalTopics", Modifier.weight(1f))
                     }
                 }
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("DAILY STUDY GOAL", color = WorkspaceMuted, fontSize = 10.sp, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
+                                Text("$minutesToday / $dailyGoalMinutes min", color = WorkspaceGold, fontWeight = FontWeight.SemiBold)
+                            }
+                            LinearProgressIndicator(progress = (minutesToday.toFloat() / dailyGoalMinutes.coerceAtLeast(1)).coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth())
+                            Slider(value = dailyGoalMinutes.toFloat(), onValueChange = { dailyGoalMinutes = it.toInt() }, onValueChangeFinished = { persistDailyGoal() }, valueRange = 30f..600f, steps = 18)
+                            Text("Adjust your daily target · saved and synced with your workspace", color = WorkspaceMuted, fontSize = 11.sp)
+                        }
+                    }
+                }
                 item { WorkspaceSectionTitle("Upcoming exams") }
                 if (exams.isEmpty()) item { WorkspaceEmpty("No exams planned", "Add an exam and turn its syllabus into a checklist.") }
                 items(exams.sortedBy { it.date }.take(4), key = { it.id }) { exam ->
@@ -275,6 +296,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                             Text(exam.title, fontWeight = FontWeight.SemiBold)
                             Text("${exam.subject} · ${exam.date}", color = WorkspaceMuted, fontSize = 12.sp)
                             Text("${exam.tasks.count { it.done }} of ${exam.tasks.size} syllabus items completed", color = WorkspaceMuted, fontSize = 12.sp)
+                            Text(examCountdown(exam.date), color = WorkspaceGold, fontSize = 11.sp)
                         }
                     }
                 }
@@ -338,9 +360,10 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                         TextButton(onClick = { folders.remove(folder); folderLinks = folderLinks.filterValues { it != folder.id }; persistFolders() }) { Text("Remove") }
                     }
                 }
+                item { OutlinedTextField(bookmarkQuery, { bookmarkQuery = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search saved notes") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }) }
                 item { WorkspaceSectionTitle("Saved notes") }
                 if (bookmarks.isEmpty()) item { WorkspaceEmpty("No saved notes", "Bookmark notes in your library; they will appear here.") }
-                items(bookmarks, key = { it.id }) { item ->
+                items(bookmarks.filter { bookmarkQuery.isBlank() || it.title.contains(bookmarkQuery, true) || it.body.contains(bookmarkQuery, true) }, key = { it.id }) { item ->
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             Text(item.title, fontWeight = FontWeight.Medium)
@@ -414,7 +437,15 @@ private fun MetricTile(label: String, value: String, modifier: Modifier = Modifi
         Text(detail, color = WorkspaceMuted, fontSize = 12.sp)
     }
 }
-@Composable private fun FocusRow(session: WorkspaceFocus) {
+@Composable private fun examCountdown(value: String): String {
+    val parsed = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(value) }.getOrNull() ?: return "Date: $value"
+    val today = java.time.LocalDate.now()
+    val examDay = java.time.Instant.ofEpochMilli(parsed.time).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+    val days = java.time.temporal.ChronoUnit.DAYS.between(today, examDay)
+    return when { days < 0 -> "Date passed"; days == 0L -> "Today"; days == 1L -> "Tomorrow"; else -> "$days days remaining" }
+}
+
+private fun FocusRow(session: WorkspaceFocus) {
     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Rounded.Timer, null, tint = WorkspaceGold)
         Spacer(Modifier.width(10.dp))
