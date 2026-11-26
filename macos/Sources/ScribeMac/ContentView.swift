@@ -144,6 +144,7 @@ struct ScribeMacRoot: View {
                 case .converter: converter
                 case .settings: backup
                 case .academic: AcademicToolsView()
+                case .workspace: StudyWorkspaceView(store: store)
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity).background {
                 ZStack {
@@ -297,6 +298,7 @@ struct ScribeMacRoot: View {
         case .converter: return "arrow.left.arrow.right"
         case .settings: return "externaldrive"
         case .academic: return "graduationcap"
+        case .workspace: return "chart.bar.xaxis"
         }
     }
     private var library: some View {
