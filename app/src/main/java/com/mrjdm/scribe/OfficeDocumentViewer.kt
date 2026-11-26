@@ -3,12 +3,14 @@ package com.mrjdm.scribe
 import com.mrjdm.scribe.data.ScribeItem
 import android.util.Xml
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -31,6 +33,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
 import java.util.zip.ZipFile
@@ -118,6 +121,16 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
     var fontSize by remember { mutableIntStateOf(16) }
     var searchVisible by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
+    var pageTone by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val pageBackground = when (pageTone) { 1 -> Color(0xFFF1E7D4); 2 -> Color(0xFF202126); else -> Paper }
+    val pageInk = if (pageTone == 2) Color(0xFFE7E4DD) else Ink
+    val headings = remember(paragraphs) { paragraphs.mapIndexedNotNull { index, p ->
+        val style = p.style.lowercase()
+        if (Regex("""heading[1-3]""").containsMatchIn(style) || style.contains("title") && !style.contains("subtitle"))
+            (index to p.text) else null
+    } }
     val visibleParagraphs = remember(paragraphs, searchText) {
         if (searchText.isBlank()) paragraphs
         else paragraphs.filter { it.text.contains(searchText, ignoreCase = true) }
@@ -132,6 +145,9 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("${paragraphs.size} paragraphs", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = { pageTone = (pageTone + 1) % 3 }) {
+                Text(listOf("Paper", "Sepia", "Night")[pageTone], color = ReaderAccent, fontSize = 11.sp)
+            }
             IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchText = "" }) {
                 Icon(if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
                     contentDescription = if (searchVisible) "Close search" else "Find in document",
@@ -159,6 +175,23 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                 )
             )
         }
+        if (headings.isNotEmpty() && searchText.isBlank()) {
+            Row(
+                Modifier.fillMaxWidth().background(ReaderBar).horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                headings.forEach { (paragraphIndex, heading) ->
+                    AssistChip(
+                        onClick = { scope.launch { listState.animateScrollToItem(paragraphIndex) } },
+                        label = { Text(heading, maxLines = 1) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = Color(0xFF292A30), labelColor = Color(0xFFE7E4DD)
+                        )
+                    )
+                }
+            }
+        }
         if (searchText.isNotBlank()) {
             Text("${visibleParagraphs.size} matching paragraphs", color = ReaderMuted, fontSize = 10.sp,
                 modifier = Modifier.padding(start = 18.dp, bottom = 5.dp))
@@ -167,8 +200,9 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
             EmptyDocumentMessage("No matching text was found.")
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth().widthIn(max = 760.dp)
-                    .align(Alignment.CenterHorizontally).background(Paper),
+                    .align(Alignment.CenterHorizontally).background(pageBackground),
                 contentPadding = PaddingValues(horizontal = 30.dp, vertical = 26.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
@@ -183,7 +217,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                             top = if (headingLevel != null || isTitle) 12.dp else 2.dp,
                             bottom = if (headingLevel != null || isTitle) 5.dp else 2.dp
                         ),
-                        color = Ink,
+                        color = pageInk,
                         fontFamily = FontFamily.Serif,
                         fontSize = when {
                             isTitle -> (fontSize + 10).sp
@@ -205,6 +239,8 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
 private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: Int, onSheetSelected: (Int) -> Unit) {
     var searchVisible by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
+    var selectedCell by remember { mutableStateOf<Triple<Int, Int, String>?>(null) }
+    val sheetHorizontalScroll = rememberScrollState()
     if (sheets.isEmpty()) {
         EmptyDocumentMessage("No readable worksheets were found.")
         return
@@ -276,7 +312,7 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                 ) {
                     item(key = "column-labels") {
                         Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            Modifier.fillMaxWidth().horizontalScroll(sheetHorizontalScroll),
                             horizontalArrangement = Arrangement.spacedBy(1.dp)
                         ) {
                             Surface(Modifier.width(48.dp).heightIn(min = 30.dp), color = Color(0xFFD5D2CA)) {
@@ -296,7 +332,7 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                     }
                     items(matchingRows, key = { it.first }) { (rowIndex, row) ->
                         Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            Modifier.fillMaxWidth().horizontalScroll(sheetHorizontalScroll),
                             horizontalArrangement = Arrangement.spacedBy(1.dp)
                         ) {
                             Surface(
@@ -315,7 +351,8 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                                 ) {
                                     Text(
                                         cell,
-                                        Modifier.padding(horizontal = 9.dp, vertical = 10.dp),
+                                        Modifier.clickable { selectedCell = Triple(rowIndex, columnIndex, cell) }
+                                            .padding(horizontal = 9.dp, vertical = 10.dp),
                                         color = Ink, fontSize = 12.sp, lineHeight = 17.sp,
                                         fontWeight = if (rowIndex == 0 || columnIndex == 0) FontWeight.Medium else FontWeight.Normal
                                     )
@@ -326,6 +363,16 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                 }
             }
         }
+    }
+    selectedCell?.let { (row, column, value) ->
+        AlertDialog(
+            onDismissRequest = { selectedCell = null },
+            title = { Text("Cell ${excelColumnName(column)}${row + 1}") },
+            text = { Text(value.ifBlank { "(empty cell)" }, color = Color(0xFFE7E4DD)) },
+            confirmButton = { TextButton(onClick = { selectedCell = null }) { Text("Close") } },
+            containerColor = ReaderBar,
+            titleContentColor = Color(0xFFF3F1EC)
+        )
     }
 }
 
@@ -416,6 +463,12 @@ private fun PresentationReadingSurface(
                 ) { Icon(Icons.Rounded.ChevronRight, contentDescription = "Next search match", tint = ReaderAccent) }
             }
         }
+        LinearProgressIndicator(
+            progress = { (selectedSlide + 1).toFloat() / slides.size.coerceAtLeast(1) },
+            modifier = Modifier.fillMaxWidth().height(2.dp),
+            color = ReaderAccent,
+            trackColor = Color(0xFF303137)
+        )
         Row(
             Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 12.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
