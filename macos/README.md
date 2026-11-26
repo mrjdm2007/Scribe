@@ -21,7 +21,7 @@ The packaging script creates `build/Scribe.app` and `build/Scribe-macOS.zip`.
 - Portable Markdown-style formatting markers and resizable note editor.
 - Flashcard review with Again / Hard / Good / Easy scheduling.
 - Focus timer with 15 / 25 / 45 / 60-minute presets and saved sessions.
-- Native Study Workspace for exam planning, syllabus checklists, focus-session logging, bookmark folders and weekly reflections. Workspace records are currently stored locally on this Mac.
+- Native Study Workspace for exam planning, syllabus checklists, focus-session logging, bookmark folders and weekly reflections. Workspace records are stored in the shared notebook data model and can use the existing Supabase sync when configured.
 - Engineering formula shelf and electrical unit conversion.
 - JSON backup import/export using the Android Scribe backup record shape, including embedded attachment bytes.
 - Native macOS navigation, resizable split view, keyboard shortcuts and a custom generated notebook app icon.
