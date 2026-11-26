@@ -108,7 +108,8 @@ struct ScribeReadingMode: View {
     let title: String
     let bodyText: String
     let attachments: [ScribeItem]
-    let allItems: [ScribeItem]
+    @ObservedObject var store: ScribeStore
+    private var allItems: [ScribeItem] { store.items }
     @Environment(\.dismiss) private var dismiss
     @State private var showingAI = false
     @State private var showingSettings = false
@@ -215,7 +216,7 @@ struct ScribeReadingMode: View {
         .background(paperColor)
         .preferredColorScheme(paper == "Dark" ? .dark : .light)
         .frame(minWidth: 600, minHeight: 560)
-        .sheet(isPresented: $showingAI) { ScribeIntelligenceView(items: allItems) }
+        .sheet(isPresented: $showingAI) { ScribeIntelligenceView(store: store) }
     }
 
     private var paperColor: Color {
