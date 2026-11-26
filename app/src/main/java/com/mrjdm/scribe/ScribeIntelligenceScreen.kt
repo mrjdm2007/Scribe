@@ -10,6 +10,7 @@ import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +26,7 @@ import java.util.Locale
 @Composable
 internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var notes by remember { mutableStateOf<List<ScribeItem>>(emptyList()) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
@@ -34,13 +36,34 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
     var error by remember { mutableStateOf("") }
     var artifact by remember { mutableStateOf<JSONObject?>(null) }
     var savedCards by remember { mutableIntStateOf(0) }
-    var conversationId by rememberSaveable { mutableStateOf("") }
+    var conversationId by remember { mutableStateOf("") }
     var conversationTurns by remember { mutableStateOf(emptyList<String>()) }
     val modes = listOf("notes", "explain", "exam", "quiz", "research", "summary", "flashcards",
         "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup",
         "compare", "glossary", "formula_sheet", "study_plan", "lesson", "misconception", "mnemonics", "case_study")
 
-    LaunchedEffect(Unit) { notes = runCatching { vm.all() }.getOrDefault(emptyList()) }
+    LaunchedEffect(Unit) {
+        notes = runCatching { vm.all() }.getOrDefault(emptyList())
+        val preferences = context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE)
+        val savedId = preferences.getString("active_conversation_id", "").orEmpty()
+        if (savedId.isNotBlank()) {
+            runCatching {
+                val response = vm.loadFirebaseConversation(savedId)
+                val conversation = response.optJSONObject("conversation")
+                val messages = conversation?.optJSONArray("messages") ?: JSONArray()
+                val restored = buildList {
+                    for (index in 0 until messages.length()) {
+                        val message = messages.optJSONObject(index) ?: continue
+                        val role = message.optString("role")
+                        val content = message.optString("content")
+                        if (content.isNotBlank()) add((if (role == "assistant") "SCRIBE: " else "STUDENT: ") + content)
+                    }
+                }
+                conversationId = savedId
+                conversationTurns = restored.takeLast(16)
+            }
+        }
+    }
 
     fun pathFor(item: ScribeItem): String {
         val names = mutableListOf(item.title)
@@ -63,7 +86,7 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                 Text("SCRIBE INTELLIGENCE", fontSize = 11.sp, letterSpacing = 1.6.sp, color = MaterialTheme.colorScheme.secondary)
                 Text("Your study assistant", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             }
-            TextButton(onClick = { question = ""; answer = ""; error = ""; artifact = null; savedCards = 0; conversationId = ""; conversationTurns = emptyList() }) { Text("New chat") }
+            TextButton(onClick = { question = ""; answer = ""; error = ""; artifact = null; savedCards = 0; conversationId = ""; conversationTurns = emptyList(); context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE).edit().remove("active_conversation_id").apply() }) { Text("New chat") }
         }
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
             OutlinedTextField(value = mode.replace('_', ' ').replaceFirstChar { it.uppercase() },
@@ -105,7 +128,7 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                         artifact = result.optJSONObject("artifact")
                         runCatching {
                             vm.saveFirebaseConversationTurn(conversationId.ifBlank { null }, mode, studentQuestion, answer)
-                        }.onSuccess { conversationId = it }
+                        }.onSuccess { conversationId = it; context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE).edit().putString("active_conversation_id", it).apply() }
                             .onFailure { error = "Answer generated, but conversation history could not sync: ${it.localizedMessage}" }
                         conversationTurns = (conversationTurns + listOf("STUDENT: " + studentQuestion, "SCRIBE: " + answer)).takeLast(16)
                         question = ""
