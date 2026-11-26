@@ -405,10 +405,10 @@ private fun PresentationReadingSurface(
                 Icon(Icons.Rounded.Add, contentDescription = "Increase slide text size", tint = ReaderAccent)
             }
         }
-        Box(Modifier.weight(1f).fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Surface(
-                Modifier.fillMaxWidth().aspectRatio(16f / 10f),
-                color = Paper, shape = RoundedCornerShape(3.dp), shadowElevation = 3.dp
+                Modifier.fillMaxSize(),
+                color = Paper, shape = RoundedCornerShape(8.dp), shadowElevation = 2.dp
             ) {
                 if (slide == null || slide.paragraphs.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
