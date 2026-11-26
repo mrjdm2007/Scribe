@@ -1214,9 +1214,16 @@ export const studyLibrary = onRequest(
         const limit = Number.isFinite(requestedLimit)
           ? Math.max(1, Math.min(500, Math.floor(requestedLimit)))
           : 500;
-        const snapshot = await collection.orderBy("updatedAt", "desc").limit(limit).get();
+        const cursor = asText(request.query.cursor, 80);
+        let query = collection.orderBy("updatedAt", "desc").limit(limit);
+        if (cursor) {
+          const cursorDocument = await collection.doc(cursor).get();
+          if (cursorDocument.exists) query = query.startAfter(cursorDocument);
+        }
+        const snapshot = await query.get();
         response.status(200).json({
           records: snapshot.docs.map(document => ({ id: document.id, ...document.data() })),
+          nextCursor: snapshot.size === limit ? snapshot.docs[snapshot.docs.length - 1]?.id ?? null : null,
           hasMore: snapshot.size === limit
         });
         return;
