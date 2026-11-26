@@ -13,6 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -109,29 +112,69 @@ internal fun OfficeDocumentViewer(item: ScribeItem, onDismiss: () -> Unit) {
 
 @Composable
 private fun WordReadingSurface(paragraphs: List<String>) {
+    var fontSize by remember { mutableIntStateOf(16) }
+    var searchVisible by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
+    val visibleParagraphs = remember(paragraphs, searchText) {
+        if (searchText.isBlank()) paragraphs
+        else paragraphs.filter { it.contains(searchText, ignoreCase = true) }
+    }
     if (paragraphs.isEmpty()) {
         EmptyDocumentMessage("No readable text was found in this document.")
         return
     }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        item {
-            Column(
-                Modifier.fillMaxWidth().background(Paper, RoundedCornerShape(3.dp))
-                    .padding(horizontal = 24.dp, vertical = 30.dp),
-                verticalArrangement = Arrangement.spacedBy(15.dp)
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("\${paragraphs.size} paragraphs", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchText = "" }) {
+                Icon(if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                    contentDescription = if (searchVisible) "Close search" else "Find in document",
+                    tint = Color(0xFFE8E6E1))
+            }
+            IconButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(13) }, enabled = fontSize > 13) {
+                Icon(Icons.Rounded.Remove, contentDescription = "Decrease text size", tint = ReaderAccent)
+            }
+            Text("A", color = Color(0xFFE8E6E1), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 2.dp))
+            IconButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(23) }, enabled = fontSize < 23) {
+                Icon(Icons.Rounded.Add, contentDescription = "Increase text size", tint = ReaderAccent)
+            }
+        }
+        if (searchVisible) {
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                singleLine = true,
+                placeholder = { Text("Find text in this document") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = ReaderAccent, unfocusedBorderColor = Color(0xFF45464A),
+                    focusedTextColor = Color(0xFFF3F1EC), unfocusedTextColor = Color(0xFFF3F1EC),
+                    cursorColor = ReaderAccent
+                )
+            )
+        }
+        if (searchText.isNotBlank()) {
+            Text("\${visibleParagraphs.size} matching paragraphs", color = ReaderMuted, fontSize = 10.sp,
+                modifier = Modifier.padding(start = 18.dp, bottom = 5.dp))
+        }
+        if (visibleParagraphs.isEmpty()) {
+            EmptyDocumentMessage("No matching text was found.")
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                paragraphs.forEachIndexed { index, paragraph ->
-                    val looksLikeHeading = paragraph.length < 90 && !paragraph.endsWith(".") && index < 12
-                    Text(
-                        paragraph, color = Ink, fontFamily = FontFamily.Serif,
-                        fontSize = if (looksLikeHeading) 18.sp else 16.sp,
-                        fontWeight = if (looksLikeHeading) FontWeight.SemiBold else FontWeight.Normal,
-                        lineHeight = if (looksLikeHeading) 25.sp else 27.sp
-                    )
+                items(visibleParagraphs) { paragraph ->
+                    Column(
+                        Modifier.fillMaxWidth().background(Paper).padding(horizontal = 24.dp, vertical = 9.dp)
+                    ) {
+                        Text(paragraph, color = Ink, fontFamily = FontFamily.Serif,
+                            fontSize = fontSize.sp, lineHeight = (fontSize + 11).sp)
+                    }
                 }
             }
         }
