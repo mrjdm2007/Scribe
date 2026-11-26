@@ -942,7 +942,7 @@ export const studyWorkspace = onRequest(
           const wins = asText(body.wins, 2000);
           const challenges = asText(body.challenges, 2000);
           const nextWeek = asText(body.nextWeek, 2000);
-          if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(weekStart) || !wins && !challenges && !nextWeek) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart) || !wins && !challenges && !nextWeek) {
             response.status(400).json({ error: "Provide a valid weekStart date and at least one reflection field." });
             return;
           }
