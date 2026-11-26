@@ -27,7 +27,7 @@ import java.util.Locale
 internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val chatPreferences = remember(context) { context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE) }
+    val chatPreferences = remember(context) { chatPreferences }
     var notes by remember { mutableStateOf<List<ScribeItem>>(emptyList()) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
@@ -87,7 +87,7 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                 Text("SCRIBE INTELLIGENCE", fontSize = 11.sp, letterSpacing = 1.6.sp, color = MaterialTheme.colorScheme.secondary)
                 Text("Your study assistant", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             }
-            TextButton(onClick = { question = ""; answer = ""; error = ""; artifact = null; savedCards = 0; conversationId = ""; conversationTurns = emptyList(); context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE).edit().remove("active_conversation_id").apply() }) { Text("New chat") }
+            TextButton(onClick = { question = ""; answer = ""; error = ""; artifact = null; savedCards = 0; conversationId = ""; conversationTurns = emptyList(); chatPreferences.edit().remove("active_conversation_id").apply() }) { Text("New chat") }
         }
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
             OutlinedTextField(value = mode.replace('_', ' ').replaceFirstChar { it.uppercase() },
@@ -129,7 +129,7 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                         artifact = result.optJSONObject("artifact")
                         runCatching {
                             vm.saveFirebaseConversationTurn(conversationId.ifBlank { null }, mode, studentQuestion, answer)
-                        }.onSuccess { conversationId = it; context.getSharedPreferences("scribe_firebase_chat", android.content.Context.MODE_PRIVATE).edit().putString("active_conversation_id", it).apply() }
+                        }.onSuccess { conversationId = it; chatPreferences.edit().putString("active_conversation_id", it).apply() }
                             .onFailure { error = "Answer generated, but conversation history could not sync: ${it.localizedMessage}" }
                         conversationTurns = (conversationTurns + listOf("STUDENT: " + studentQuestion, "SCRIBE: " + answer)).takeLast(16)
                         question = ""
