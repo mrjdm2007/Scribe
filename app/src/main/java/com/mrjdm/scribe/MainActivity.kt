@@ -339,8 +339,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).scribeGlass(RoundedCornerShape(22.dp)),
                 containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp
             ) {
-                listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
-                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                listOf("Library", "Saved", "Study", "Workspace", "Tools", "Settings").forEach { label ->
+                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "Workspace" -> Icons.Rounded.Insights; else -> Icons.Rounded.Settings }
                     NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
                         icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
@@ -355,8 +355,8 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     containerColor = Color.Transparent, contentColor = Gold
                 ) {
                     Spacer(Modifier.height(12.dp))
-                    listOf("Library", "Saved", "Study", "Tools", "Settings").forEach { label ->
-                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; else -> Icons.Rounded.Settings }
+                    listOf("Library", "Saved", "Study", "Workspace", "Tools", "Settings").forEach { label ->
+                        val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "Workspace" -> Icons.Rounded.Insights; else -> Icons.Rounded.Settings }
                         NavigationRailItem(selected = tab == label, onClick = { tab = label; stack = emptyList() }, icon = { Icon(icon, null) }, label = { Text(label, fontSize = 10.sp) })
                     }
                 }
@@ -518,6 +518,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
                 "Study" -> FlashcardsScreen(vm)
+                "Workspace" -> StudyWorkspaceScreen(bookmarks)
                 "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
