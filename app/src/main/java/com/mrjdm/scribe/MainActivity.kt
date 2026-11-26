@@ -8,6 +8,7 @@ import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -104,19 +105,32 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && current?.kind == "page") {
             scope.launch(Dispatchers.IO) {
-                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment"
-                val ext = context.contentResolver.getType(uri).orEmpty()
+                val name = runCatching {
+                    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    }
+                }.getOrNull()?.takeIf { it.isNotBlank() } ?: (uri.lastPathSegment?.substringAfterLast('/') ?: "Attachment")
+                val mime = context.contentResolver.getType(uri).orEmpty()
+                val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
                 val file = File(context.filesDir, "attachments").apply { mkdirs() }
-                val target = File(file, "${System.currentTimeMillis()}_${name.substringAfterLast(':').replace('/', '_')}")
+                val safeName = name.substringAfterLast(':').substringAfterLast('/').substringAfterLast('\\')
+                    .replace(Regex("[^A-Za-z0-9._-]"), "_").trim('.').take(120).ifBlank { "Attachment" }
+                val target = File(file, "${System.currentTimeMillis()}_$safeName")
                 val copied = runCatching {
                     val input = context.contentResolver.openInputStream(uri) ?: error("Unable to open selected file")
                     input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
                     target.isFile && target.length() > 0L
                 }.getOrDefault(false)
-                if (!copied) return@launch
+                if (!copied) {
+                    runCatching { target.delete() }
+                    return@launch
+                }
                 val kind = when {
-                    ext.startsWith("image/") -> "image"
-                    ext == "application/pdf" -> "pdf"
+                    mime.startsWith("image/") || extension in setOf("jpg", "jpeg", "png", "webp", "gif", "heic") -> "image"
+                    mime == "application/pdf" || extension == "pdf" -> "pdf"
+                    mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || extension == "docx" -> "docx"
+                    mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || extension == "xlsx" -> "xlsx"
+                    mime == "application/vnd.openxmlformats-officedocument.presentationml.presentation" || extension == "pptx" -> "pptx"
                     else -> "file"
                 }
                 vm.add(current.id, "block", name, body = "Attached file", uri = target.absolutePath, tags = "type:$kind")
@@ -251,7 +265,13 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 "Library" -> {
                     if (current?.kind == "page") {
                         PageEditor(current, vm, onBack = { stack = stack.dropLast(1) }, onHistory = { showHistory = current }, onOpenTopic = { linked -> stack = listOf(linked) }, onAttach = {
-                            attachmentPicker.launch(arrayOf("image/*", "application/pdf", "text/*"))
+                            attachmentPicker.launch(arrayOf(
+                                "image/*", "application/pdf", "text/*",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "application/zip"
+                            ))
                         }, onExport = { pdfLauncher.launch("${current.title}.pdf") })
                     } else if (current != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -411,6 +431,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     var showLinkPicker by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
     var previewPdf by remember { mutableStateOf<ScribeItem?>(null) }
+    var previewOffice by remember { mutableStateOf<ScribeItem?>(null) }
     var pageTitle by remember(page.id) { mutableStateOf(page.title) }
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -439,6 +460,8 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                     val blockType = block.tags.substringAfter("type:", "").substringBefore(",")
                     if (blockType == "pdf") {
                         previewPdf = block
+                    } else if (blockType in setOf("docx", "xlsx", "pptx")) {
+                        previewOffice = block
                     } else if (block.tags.contains("type:crosslink")) {
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
@@ -448,7 +471,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
             if (blocks.isEmpty()) item { EmptyState("A blank page", "Add rich text, equations, diagrams, images, PDFs, tables and more.") }
             item {
                 OutlinedButton(onClick = onAttach, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF or document")
+                    Icon(Icons.Rounded.AttachFile, null); Spacer(Modifier.width(8.dp)); Text("Attach image, PDF or Office document")
                 }
             }
         }
@@ -475,6 +498,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         vm.update(block, title = title, body = body, tags = tags); editBlock = null
     }) }
     previewPdf?.let { pdf -> PdfViewerDialog(pdf, onDismiss = { previewPdf = null }) }
+    previewOffice?.let { office -> OfficeDocumentViewer(office, onDismiss = { previewOffice = null }) }
 }
 
 @Composable
@@ -482,7 +506,19 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
     val type = item.tags.substringAfter("type:", "").substringBefore(",")
     var menuExpanded by remember(item.id) { mutableStateOf(false) }
     val preview = remember(item.uri, type) { if (type == "image" && item.uri.isNotBlank()) runCatching { BitmapFactory.decodeFile(item.uri)?.asImageBitmap() }.getOrNull() else null }
-    val icon = when(type) { "equation" -> Icons.Rounded.Functions; "image" -> Icons.Rounded.Image; "pdf" -> Icons.Rounded.PictureAsPdf; "code" -> Icons.Rounded.Code; "table" -> Icons.Rounded.TableChart; "heading" -> Icons.Rounded.Title; "link" -> Icons.Rounded.Link; else -> Icons.Rounded.Notes }
+    val icon = when(type) {
+        "equation" -> Icons.Rounded.Functions
+        "image" -> Icons.Rounded.Image
+        "pdf" -> Icons.Rounded.PictureAsPdf
+        "docx" -> Icons.Rounded.Description
+        "xlsx" -> Icons.Rounded.TableChart
+        "pptx" -> Icons.Rounded.Slideshow
+        "code" -> Icons.Rounded.Code
+        "table" -> Icons.Rounded.TableChart
+        "heading" -> Icons.Rounded.Title
+        "link" -> Icons.Rounded.Link
+        else -> Icons.Rounded.Notes
+    }
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF191A1D)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
