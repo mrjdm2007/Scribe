@@ -108,7 +108,7 @@ enum CodableValue: Codable { case string(String), integer(Int64), bool(Bool), nu
     func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); switch self { case .string(let v): try c.encode(v); case .integer(let v): try c.encode(v); case .bool(let v): try c.encode(v); case .null: try c.encodeNil() } }
 }
 
-public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings", academic = "Academic tools"; public var id: String { rawValue } }
+public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case library = "Library", flashcards = "Flashcards", focus = "Focus", formulas = "Formula shelf", converter = "Unit converter", settings = "Backup & settings", academic = "Academic tools", workspace = "Study workspace"; public var id: String { rawValue } }
 
 @MainActor public final class ScribeStore: ObservableObject {
     @Published public var items: [ScribeItem] = []
