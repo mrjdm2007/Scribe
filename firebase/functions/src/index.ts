@@ -163,15 +163,81 @@ export const studyAssistant = onRequest(
         `RETRIEVED NOTE CONTEXT:\n${context || "No matching notes were supplied."}`
       ].join("\n\n");
 
+      const wantsStructuredOutput = ["flashcards", "mindmap", "hourly_tip"].includes(mode);
       const answer = await getAIProvider().generate({
         systemInstruction: instructionsFor(mode),
         prompt,
-        maxOutputTokens: ["flashcards", "mindmap", "formula_sheet", "glossary", "study_plan", "lesson", "case_study"].includes(mode) ? 4500 : 3000
+        maxOutputTokens: ["flashcards", "mindmap", "formula_sheet", "glossary", "study_plan", "lesson", "case_study"].includes(mode) ? 4500 : 3000,
+        responseMimeType: wantsStructuredOutput ? "application/json" : undefined
       });
+
+      // Structured output is additive: legacy clients can continue rendering
+      // the answer string while newer clients consume the validated artifact.
+      let artifact: Record<string, unknown> | null = null;
+      if (wantsStructuredOutput) {
+        try {
+          const parsed: unknown = JSON.parse(answer);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            const candidate = parsed as Record<string, unknown>;
+            if (mode === "flashcards" && Array.isArray(candidate.flashcards)) {
+              const flashcards = candidate.flashcards
+                .slice(0, 50)
+                .filter((card): card is Record<string, unknown> =>
+                  !!card && typeof card === "object" && !Array.isArray(card)
+                  && typeof card.front === "string" && card.front.trim().length > 0
+                  && typeof card.back === "string" && card.back.trim().length > 0)
+                .map(card => ({
+                  front: String(card.front).trim().slice(0, 500),
+                  back: String(card.back).trim().slice(0, 1500),
+                  sourceTitle: asText(card.sourceTitle, 160),
+                  sourceQuote: asText(card.sourceQuote, 500)
+                }));
+              if (flashcards.length > 0) artifact = { type: "flashcards", flashcards };
+            } else if (mode === "mindmap" && Array.isArray(candidate.nodes)) {
+              const nodes = candidate.nodes
+                .slice(0, 100)
+                .filter((node): node is Record<string, unknown> =>
+                  !!node && typeof node === "object" && !Array.isArray(node)
+                  && typeof node.id === "string" && typeof node.label === "string"
+                  && node.label.trim().length > 0)
+                .map(node => ({
+                  id: String(node.id).slice(0, 100),
+                  parentId: typeof node.parentId === "string" ? node.parentId.slice(0, 100) : null,
+                  label: String(node.label).trim().slice(0, 300),
+                  sourceTitle: asText(node.sourceTitle, 160),
+                  sourceQuote: asText(node.sourceQuote, 500)
+                }));
+              if (nodes.length > 0) artifact = {
+                type: "mindmap",
+                root: asText(candidate.root, 300),
+                nodes
+              };
+            } else if (mode === "hourly_tip") {
+              const tip = asText(candidate.tip, 1000);
+              if (tip) artifact = {
+                type: "hourly_tip",
+                tip,
+                sourceTitle: asText(candidate.sourceTitle, 160),
+                sourceQuote: asText(candidate.sourceQuote, 500)
+              };
+            }
+          }
+        } catch {
+          // Preserve the raw answer so an older client can still display it.
+        }
+      }
+
+      const citations = artifact?.type === "flashcards" && Array.isArray(artifact.flashcards)
+        ? artifact.flashcards
+            .filter((card): card is Record<string, unknown> => !!card && typeof card === "object")
+            .filter(card => typeof card.sourceTitle === "string" && card.sourceTitle.length > 0)
+            .map(card => ({ title: card.sourceTitle, quote: card.sourceQuote ?? "" }))
+        : [];
 
       response.status(200).json({
         answer,
-        citations: [],
+        artifact,
+        citations,
         response_id: crypto.randomUUID()
       });
     } catch (error) {
