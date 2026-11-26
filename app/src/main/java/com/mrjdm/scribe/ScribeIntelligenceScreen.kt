@@ -113,9 +113,9 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                 val relevant = notes.filter { it.deletedAt == null && it.body.isNotBlank() }
                     .map { item -> item to (terms.count { item.title.contains(it, true) } * 3 + terms.count { item.body.contains(it, true) }) }
                     .filter { it.second > 0 }.sortedByDescending { it.second }.take(24)
-                val context = JSONArray()
+                val noteContext = JSONArray()
                 relevant.forEach { (item, _) ->
-                    context.put(JSONObject().put("title", item.title).put("path", pathFor(item)).put("content", item.body.take(12000)))
+                    noteContext.put(JSONObject().put("title", item.title).put("path", pathFor(item)).put("content", item.body.take(12000)))
                 }
                 busy = true; error = ""; answer = ""; artifact = null
                 val priorTurns = conversationTurns.takeLast(8).joinToString("\n\n")
@@ -123,7 +123,7 @@ internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
                     else priorTurns + "\n\nSTUDENT: " + studentQuestion
                 scope.launch {
                     try {
-                        val result = vm.askFirebaseAI(contextualQuestion, mode, context)
+                        val result = vm.askFirebaseAI(contextualQuestion, mode, noteContext)
                         answer = result.optString("answer").ifBlank { "The assistant returned an empty response." }
                         artifact = result.optJSONObject("artifact")
                         runCatching {
