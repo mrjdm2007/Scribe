@@ -206,14 +206,13 @@ struct StudyWorkspaceView: View {
                 .font(.callout).foregroundStyle(.secondary)
             Group {
                 Text("What went well?").font(.headline)
-                TextEditor(text: $reflectionWins).frame(minHeight: 90).scribeGlassPanel(cornerRadius: 10)
+                TextEditor(text: $reflectionWins).frame(minHeight: 90).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                 Text("What was challenging?").font(.headline)
-                TextEditor(text: $reflectionChallenges).frame(minHeight: 90).scribeGlassPanel(cornerRadius: 10)
+                TextEditor(text: $reflectionChallenges).frame(minHeight: 90).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                 Text("Priorities for next week").font(.headline)
-                TextEditor(text: $reflectionNext).frame(minHeight: 90).scribeGlassPanel(cornerRadius: 10)
+                TextEditor(text: $reflectionNext).frame(minHeight: 90).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
             }
         }
-        .onChange(of: reflectionWins) { _ in }
     }
 
     private var examForm: some View {
@@ -242,11 +241,11 @@ struct StudyWorkspaceView: View {
 
     private func metric(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 6) { Text(title).font(.caption.bold()).foregroundStyle(.secondary); Text(value).font(.title2.bold()) }
-            .frame(maxWidth: .infinity, alignment: .leading).padding(14).scribeGlassPanel(cornerRadius: 12)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(14).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
     private func empty(_ title: String, _ detail: String) -> some View {
         VStack(alignment: .leading, spacing: 4) { Text(title).font(.headline); Text(detail).font(.callout).foregroundStyle(.secondary) }
-            .frame(maxWidth: .infinity, alignment: .leading).padding(16).scribeGlassPanel(cornerRadius: 12)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
     private func minutes(from item: ScribeItem) -> Int {
         Int(item.tags.range(of: #"minutes:\d+"#, options: .regularExpression).map { String(item.tags[$0].dropFirst(8)) } ?? "") ?? 0
