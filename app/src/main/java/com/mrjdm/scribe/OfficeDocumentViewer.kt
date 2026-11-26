@@ -128,9 +128,11 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
-    val readingProgress = remember(listState.layoutInfo) {
-        val total = paragraphs.size.coerceAtLeast(1)
-        ((listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.plus(1) ?: 0).toFloat() / total).coerceIn(0f, 1f)
+    val readingProgress by remember {
+        derivedStateOf {
+            val total = paragraphs.size.coerceAtLeast(1)
+            ((listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.plus(1) ?: 0).toFloat() / total).coerceIn(0f, 1f)
+        }
     }
     val pageBackground = when (pageTone) { 1 -> Color(0xFFF1E7D4); 2 -> Color(0xFF202126); else -> Paper }
     val pageInk = if (pageTone == 2) Color(0xFFE7E4DD) else Ink
@@ -153,7 +155,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("${paragraphs.size} paragraphs", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = { clipboard.setText(AnnotatedString(paragraphs.joinToString("\\n\\n") { it.text })) }) {
+            TextButton(onClick = { clipboard.setText(AnnotatedString(paragraphs.joinToString("\n\n") { it.text })) }) {
                 Text("Copy all", color = ReaderAccent, fontSize = 11.sp)
             }
             TextButton(onClick = { pageTone = (pageTone + 1) % 3 }) {
@@ -210,6 +212,9 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
         if (visibleParagraphs.isEmpty()) {
             EmptyDocumentMessage("No matching text was found.")
         } else {
+            LinearProgressIndicator(progress = readingProgress, modifier = Modifier.fillMaxWidth().height(2.dp),
+                color = ReaderAccent, trackColor = Color(0xFF303137))
+            SelectionContainer {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth().widthIn(max = 760.dp)
@@ -242,6 +247,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                     )
                 }
             }
+            }
         }
     }
 }
@@ -251,6 +257,7 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
     var searchVisible by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     var selectedCell by remember { mutableStateOf<Triple<Int, Int, String>?>(null) }
+    val clipboard = LocalClipboardManager.current
     val sheetHorizontalScroll = rememberScrollState()
     if (sheets.isEmpty()) {
         EmptyDocumentMessage("No readable worksheets were found.")
@@ -379,8 +386,13 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
         AlertDialog(
             onDismissRequest = { selectedCell = null },
             title = { Text("Cell ${excelColumnName(column)}${row + 1}") },
-            text = { Text(value.ifBlank { "(empty cell)" }, color = Color(0xFFE7E4DD)) },
-            confirmButton = { TextButton(onClick = { selectedCell = null }) { Text("Close") } },
+            text = { SelectionContainer { Text(value.ifBlank { "(empty cell)" }, color = Color(0xFFE7E4DD)) } },
+            confirmButton = {
+                Row {
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(value)) }) { Text("Copy") }
+                    TextButton(onClick = { selectedCell = null }) { Text("Close") }
+                }
+            },
             containerColor = ReaderBar,
             titleContentColor = Color(0xFFF3F1EC)
         )
@@ -503,6 +515,7 @@ private fun PresentationReadingSurface(
                         Text("No readable text on this slide.", color = ReaderMuted)
                     }
                 } else {
+                    SelectionContainer {
                     Column(
                         Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp)
                             .verticalScroll(rememberScrollState()),
@@ -517,6 +530,7 @@ private fun PresentationReadingSurface(
                                 modifier = Modifier.padding(vertical = 5.dp)
                             )
                         }
+                    }
                     }
                 }
             }
