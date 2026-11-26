@@ -48,7 +48,7 @@ fun NotesReadingMode(
     var progress by remember { mutableFloatStateOf(0f) }
     var bookmarked by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var headings by remember(markdown) {
+    val headings = remember(markdown) {
         mutableStateOf(markdown.lines().mapNotNull { line ->
             val match = Regex("^#{1,3}\\s+(.+)$").find(line.trim())
             match?.groupValues?.get(1)?.trim()
@@ -173,7 +173,7 @@ private fun readerHtml(title: String, markdown: String, paper: ReaderPaper, font
 <script>window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true,packages:{'[+]':['ams']}},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 <style>
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:$safeBackground;color:$safeForeground;font:$fontSizepx/1.82 Georgia,serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:$safeBackground;color:$safeForeground;font:${fontSize}px/1.82 Georgia,serif}
 article{max-width:${width}px;margin:0 auto;padding:46px 30px 100px}header{margin-bottom:34px;border-bottom:1px solid color-mix(in srgb,$safeMuted 28%,transparent);padding-bottom:24px}
 .kicker{font:10px/1.4 -apple-system,sans-serif;letter-spacing:2px;color:$safeMuted;text-transform:uppercase;margin-bottom:12px}
 h1{font:700 2.15em/1.18 Georgia,serif;letter-spacing:-.035em;margin:0 0 14px}h2{font:700 1.45em/1.3 Georgia,serif;margin:2em 0 .65em;letter-spacing:-.02em}h3{font:700 1.15em/1.35 Georgia,serif;margin:1.7em 0 .5em}
