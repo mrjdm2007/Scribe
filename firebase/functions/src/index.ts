@@ -1219,7 +1219,11 @@ export const studyLibrary = onRequest(
         let query = collection.orderBy("updatedAt", "desc").limit(limit);
         if (cursor) {
           const cursorDocument = await collection.doc(cursor).get();
-          if (cursorDocument.exists) query = query.startAfter(cursorDocument);
+          if (!cursorDocument.exists) {
+            response.status(409).json({ error: "The library sync cursor is no longer available. Restart sync from the first page." });
+            return;
+          }
+          query = query.startAfter(cursorDocument);
         }
         const snapshot = await query.get();
         response.status(200).json({
@@ -1245,7 +1249,7 @@ export const studyLibrary = onRequest(
           || !payload || typeof payload !== "object" || Array.isArray(payload)
           || !Number.isSafeInteger(updatedAt) || updatedAt < 0) return null;
         const encoded = JSON.stringify(payload);
-        if (encoded.length > 700_000) return null;
+        if (Buffer.byteLength(encoded, "utf8") > 700_000) return null;
         return { id, payload: payload as Record<string, unknown>, updatedAt };
       });
       if (parsed.some(item => item === null)) {
