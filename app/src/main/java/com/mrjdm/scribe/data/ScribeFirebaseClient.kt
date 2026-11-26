@@ -176,6 +176,15 @@ internal class ScribeFirebaseClient(
             id
         }
 
+    suspend fun loadConversation(conversationId: String): JSONObject = withContext(Dispatchers.IO) {
+        val saved = ScribeFirebaseSession.read(context) ?: error("No Firebase account is connected.")
+        val tokens = refresh(saved)
+        ScribeFirebaseSession.save(context, saved.apiKey, saved.projectId, saved.email, tokens.refreshToken)
+        val encodedId = java.net.URLEncoder.encode(conversationId, "UTF-8")
+        request("https://asia-south1-${saved.projectId}.cloudfunctions.net/studyConversations?id=$encodedId",
+            "GET", token = tokens.idToken)
+    }
+
     suspend fun syncSaved(): String = withContext(Dispatchers.IO) {
         val saved = ScribeFirebaseSession.read(context) ?: error("No Firebase account is connected.")
         val tokens = refresh(saved)
