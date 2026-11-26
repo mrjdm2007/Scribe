@@ -93,7 +93,8 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { ScribeTheme { ScribeApp() } }
+        val sharedDocument = if (intent?.action == Intent.ACTION_VIEW) intent.data else null
+        setContent { ScribeTheme { ScribeApp(initialDocumentUri = sharedDocument) } }
     }
 }
 
@@ -102,7 +103,7 @@ private val Muted = Color(0xFF96938D)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
+private fun ScribeApp(initialDocumentUri: Uri? = null, vm: ScribeViewModel = viewModel()) {
     val context = LocalContext.current
     val hapticView = LocalView.current
     val isWide = LocalConfiguration.current.screenWidthDp >= 600
@@ -158,6 +159,51 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         firebaseProjectId = firebasePrefs.getString("project_id", "").orEmpty()
     }
     var integrityReport by remember { mutableStateOf<String?>(null) }
+    var incomingDocument by remember { mutableStateOf<ScribeItem?>(null) }
+    var incomingDocumentError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(initialDocumentUri) {
+        val uri = initialDocumentUri ?: return@LaunchedEffect
+        val mimeType = context.contentResolver.getType(uri).orEmpty()
+        val displayName = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }.getOrNull()
+        }?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfter(':') ?: "Shared document"
+        val extension = displayName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val officeTypes = mapOf(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" to "docx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" to "xlsx",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation" to "pptx"
+        )
+        val format = officeTypes[mimeType] ?: extension.takeIf { it in setOf("docx", "xlsx", "pptx") }
+        val isPdf = mimeType in setOf("application/pdf", "application/x-pdf") || extension == "pdf"
+        if (!isPdf && format == null) {
+            incomingDocumentError = "Scribe supports PDF, DOCX, XLSX and PPTX documents. This file type isn't supported yet."
+            return@LaunchedEffect
+        }
+        val copiedFile = withContext(Dispatchers.IO) {
+            runCatching {
+                val directory = File(context.filesDir, "attachments").apply { mkdirs() }
+                val safeName = displayName.substringAfterLast(':').replace('/', '_').replace('\\', '_').take(180)
+                val target = File(directory, "shared_${System.currentTimeMillis()}_${safeName}")
+                val input = context.contentResolver.openInputStream(uri) ?: error("The shared document is no longer accessible.")
+                input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
+                check(target.isFile && target.length() > 0L) { "The shared document was empty." }
+                target
+            }.getOrNull()
+        }
+        if (copiedFile == null) {
+            incomingDocumentError = "Scribe couldn't read this shared document. Download it in WhatsApp first, then try opening it again."
+        } else {
+            val tags = if (isPdf) "type:pdf;external:shared" else "type:office;format:$format;external:shared"
+            incomingDocument = ScribeItem(
+                id = -System.currentTimeMillis(), kind = "block", title = displayName,
+                uri = copiedFile.absolutePath, tags = tags
+            )
+        }
+    }
     val current = stack.lastOrNull()
     val children by vm.children(current?.id).collectAsState(initial = emptyList())
     val bookmarks by vm.bookmarks.collectAsState(initial = emptyList())
@@ -561,6 +607,20 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
             }
         }
+    }
+
+    incomingDocument?.let { shared ->
+        if (shared.tags.contains("type:pdf")) {
+            PdfViewerDialog(shared, vm, onDismiss = { incomingDocument = null })
+        } else {
+            OfficeDocumentViewer(shared, onDismiss = { incomingDocument = null })
+        }
+    }
+    incomingDocumentError?.let { message ->
+        AlertDialog(onDismissRequest = { incomingDocumentError = null },
+            title = { Text("Couldn't open document") }, text = { Text(message) },
+            confirmButton = { TextButton(onClick = { incomingDocumentError = null }) { Text("OK", color = Gold) } },
+            containerColor = Color(0xFF202125))
     }
 
     integrityReport?.let { report ->
@@ -994,6 +1054,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     var showLinkPicker by remember { mutableStateOf(false) }
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
     var previewPdf by remember { mutableStateOf<ScribeItem?>(null) }
+    var previewOffice by remember { mutableStateOf<ScribeItem?>(null) }
     var pageTitle by remember(page.id) { mutableStateOf(page.title) }
     var showReadingMode by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
@@ -1065,7 +1126,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                     if (blockType == "pdf") {
                         previewPdf = block
                     } else if (blockType == "office") {
-                        openOfficeDocument(context, block)
+                        previewOffice = block
                     } else if (block.tags.contains("type:crosslink")) {
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
@@ -1107,6 +1168,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         vm.update(block, title = title, body = body, tags = tags); editBlock = null
     }) }
     previewPdf?.let { pdf -> PdfViewerDialog(pdf, vm, onDismiss = { previewPdf = null }) }
+    previewOffice?.let { office -> OfficeDocumentViewer(office, onDismiss = { previewOffice = null }) }
 
 
 }
