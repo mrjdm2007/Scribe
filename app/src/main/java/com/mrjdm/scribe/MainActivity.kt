@@ -3,7 +3,6 @@ package com.mrjdm.scribe
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
-import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
