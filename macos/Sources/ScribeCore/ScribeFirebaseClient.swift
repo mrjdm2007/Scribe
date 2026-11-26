@@ -108,6 +108,45 @@ public enum ScribeFirebaseClient {
         return try await jsonRequest(url, method: "POST", body: body, token: idToken)
     }
 
+    public static func saveConversationTurn(conversationID: String?, mode: String,
+                                            userMessage: String, assistantMessage: String) async throws -> String {
+        guard let session = ScribeFirebaseSessionVault.load() else {
+            throw NSError(domain: "ScribeFirebase", code: 7,
+                userInfo: [NSLocalizedDescriptionKey: "Connect Firebase to save conversation history."])
+        }
+        let (idToken, refreshedSession) = try await refreshed(session)
+        try ScribeFirebaseSessionVault.save(refreshedSession)
+        let url = URL(string: "https://asia-south1-\\(session.projectId).cloudfunctions.net/studyConversations")!
+        func append(_ id: String?, role: String, content: String) async throws -> [String: Any] {
+            var body: [String: Any] = [
+                "mode": mode,
+                "message": ["role": role, "content": String(content.prefix(4000))]
+            ]
+            if let id, !id.isEmpty { body["conversationId"] = id }
+            return try await jsonRequest(url, method: "POST",
+                body: JSONSerialization.data(withJSONObject: body), token: idToken)
+        }
+        let userResult = try await append(conversationID, role: "user", content: userMessage)
+        guard let id = userResult["conversation_id"] as? String, !id.isEmpty else {
+            throw NSError(domain: "ScribeFirebase", code: 8,
+                userInfo: [NSLocalizedDescriptionKey: "Firebase did not return a conversation ID."])
+        }
+        _ = try await append(id, role: "assistant", content: assistantMessage)
+        return id
+    }
+
+    public static func loadConversation(id: String) async throws -> [String: Any] {
+        guard let session = ScribeFirebaseSessionVault.load() else {
+            throw NSError(domain: "ScribeFirebase", code: 7,
+                userInfo: [NSLocalizedDescriptionKey: "Connect Firebase to restore conversation history."])
+        }
+        let (idToken, refreshedSession) = try await refreshed(session)
+        try ScribeFirebaseSessionVault.save(refreshedSession)
+        var components = URLComponents(string: "https://asia-south1-\\(session.projectId).cloudfunctions.net/studyConversations")!
+        components.queryItems = [URLQueryItem(name: "id", value: id)]
+        return try await jsonRequest(components.url!, method: "GET", token: idToken)
+    }
+
     public static func requestAttachment(projectId: String, idToken: String, method: String,
                                           id: String, body: [String: Any]? = nil) async throws -> [String: Any] {
         var components = URLComponents(string: "https://asia-south1-\(projectId).cloudfunctions.net/studyAttachments")!
