@@ -1171,3 +1171,108 @@ export const studyArtifacts = onRequest(
     }
   }
 );
+
+
+// Owner-scoped notebook sync endpoint used by the Android and macOS clients.
+// Each item is an independent Firestore document to avoid the 1 MiB document limit.
+export const studyLibrary = onRequest(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 60,
+    memory: "512MiB",
+    maxInstances: 5,
+    concurrency: 20,
+    cors: true
+  },
+  async (request, response) => {
+    if (request.method === "OPTIONS") {
+      response.status(204).send("");
+      return;
+    }
+    if (!["GET", "POST"].includes(request.method)) {
+      response.status(405).json({ error: "Use GET or POST." });
+      return;
+    }
+    const authorization = request.header("authorization") ?? "";
+    const match = authorization.match(/^Bearer\\s+(.+)$/i);
+    if (!match) {
+      response.status(401).json({ error: "Sign in to Scribe first." });
+      return;
+    }
+    let uid: string;
+    try {
+      uid = (await getAuth().verifyIdToken(match[1], true)).uid;
+    } catch {
+      response.status(401).json({ error: "Your Firebase session is invalid or expired. Sign in again." });
+      return;
+    }
+
+    const collection = db.collection("users").doc(uid).collection("library_items");
+    try {
+      if (request.method === "GET") {
+        const requestedLimit = Number(request.query.limit ?? 500);
+        const limit = Number.isFinite(requestedLimit)
+          ? Math.max(1, Math.min(500, Math.floor(requestedLimit)))
+          : 500;
+        const snapshot = await collection.orderBy("updatedAt", "desc").limit(limit).get();
+        response.status(200).json({
+          records: snapshot.docs.map(document => ({ id: document.id, ...document.data() })),
+          hasMore: snapshot.size === limit
+        });
+        return;
+      }
+
+      const incoming = request.body?.records;
+      if (!Array.isArray(incoming) || incoming.length < 1 || incoming.length > 200) {
+        response.status(400).json({ error: "Send between 1 and 200 library records per batch." });
+        return;
+      }
+      const parsed = incoming.map((entry: unknown) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+        const value = entry as Record<string, unknown>;
+        const id = asText(value.id, 80);
+        const payload = value.payload;
+        const updatedAt = Number(value.updatedAt);
+        if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)
+          || !payload || typeof payload !== "object" || Array.isArray(payload)
+          || !Number.isSafeInteger(updatedAt) || updatedAt < 0) return null;
+        const encoded = JSON.stringify(payload);
+        if (encoded.length > 700_000) return null;
+        return { id, payload: payload as Record<string, unknown>, updatedAt };
+      });
+      if (parsed.some(item => item === null)) {
+        response.status(400).json({ error: "A library record is malformed or exceeds the 700 KB record limit." });
+        return;
+      }
+
+      const batch = db.batch();
+      const refs = parsed.map(item => collection.doc(item!.id));
+      const existing = await db.getAll(...refs);
+      let saved = 0;
+      let ignored = 0;
+      for (let index = 0; index < parsed.length; index++) {
+        const item = parsed[index]!;
+        const snapshot = existing[index];
+        const previousUpdatedAt = Number(snapshot.get("updatedAt") ?? -1);
+        if (snapshot.exists && previousUpdatedAt > item.updatedAt) {
+          ignored++;
+          continue;
+        }
+        batch.set(refs[index], {
+          payload: item.payload,
+          updatedAt: item.updatedAt,
+          syncedAt: new Date()
+        });
+        saved++;
+      }
+      if (saved > 0) await batch.commit();
+      response.status(200).json({ saved, ignored, received: parsed.length });
+    } catch (error) {
+      console.error("Scribe library sync failed", {
+        uid,
+        error: error instanceof Error ? error.message : "unknown"
+      });
+      response.status(500).json({ error: "Your Scribe library could not be synced. Please retry." });
+    }
+  }
+);
