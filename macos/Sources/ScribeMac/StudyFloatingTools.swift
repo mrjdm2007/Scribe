@@ -256,7 +256,7 @@ private struct ReaderWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ web: WKWebView, context: Context) {
-        context.coordinator.progress = $progress
+        context.coordinator._progress = $progress
         context.coordinator.webView = web
         if context.coordinator.lastHTML != html {
             context.coordinator.lastHTML = html
