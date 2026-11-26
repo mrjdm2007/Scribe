@@ -1190,8 +1190,8 @@ export const studyLibrary = onRequest(
       response.status(204).send("");
       return;
     }
-    if (!["GET", "POST"].includes(request.method)) {
-      response.status(405).json({ error: "Use GET or POST." });
+    if (!["GET", "POST", "DELETE"].includes(request.method)) {
+      response.status(405).json({ error: "Use GET, POST or DELETE." });
       return;
     }
     const authorization = request.header("authorization") ?? "";
@@ -1210,6 +1210,16 @@ export const studyLibrary = onRequest(
 
     const collection = db.collection("users").doc(uid).collection("library_items");
     try {
+      if (request.method === "DELETE") {
+        const id = asText(request.query.id, 80);
+        if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) {
+          response.status(400).json({ error: "A valid library record ID is required." });
+          return;
+        }
+        await collection.doc(id).delete();
+        response.status(200).json({ deleted: true, id });
+        return;
+      }
       if (request.method === "GET") {
         const requestedLimit = Number(request.query.limit ?? 500);
         const limit = Number.isFinite(requestedLimit)
