@@ -110,7 +110,7 @@ public enum ScribeFirebaseClient {
 
     public static func requestAttachment(projectId: String, idToken: String, method: String,
                                           id: String, body: [String: Any]? = nil) async throws -> [String: Any] {
-        var components = URLComponents(string: "https://asia-south1-\\(projectId).cloudfunctions.net/studyAttachments")!
+        var components = URLComponents(string: "https://asia-south1-\(projectId).cloudfunctions.net/studyAttachments")!
         if method == "GET" || method == "DELETE" {
             components.queryItems = [URLQueryItem(name: "id", value: id)]
         }
