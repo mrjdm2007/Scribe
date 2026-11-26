@@ -258,7 +258,8 @@ struct StudyWorkspaceView: View {
         let bookmarkBody = store.items.first { $0.kind == "study_workspace_bookmarks" && $0.deletedAt == nil }?.body
         let reflectionBody = store.items.first { $0.kind == "study_workspace_reflection" && $0.deletedAt == nil }?.body
         exams = (try? JSONDecoder().decode([WorkspaceExamRecord].self, from: Data((examBody ?? examsData).utf8))) ?? []
-        if let bookmarkBody, let object = try? JSONSerialization.jsonObject(with: Data(bookmarkBody.utf8)) as? [String: Any] {
+        if let bookmarkBody,
+           let object = (try? JSONSerialization.jsonObject(with: Data(bookmarkBody.utf8))) as? [String: Any] {
             let folderData = (try? JSONSerialization.data(withJSONObject: object["folders"] ?? [])) ?? Data("[]".utf8)
             let linksData = (try? JSONSerialization.data(withJSONObject: object["links"] ?? [:])) ?? Data("{}".utf8)
             folders = (try? JSONDecoder().decode([WorkspaceBookmarkFolder].self, from: folderData)) ?? []
@@ -267,7 +268,8 @@ struct StudyWorkspaceView: View {
             folders = (try? JSONDecoder().decode([WorkspaceBookmarkFolder].self, from: Data(foldersData.utf8))) ?? []
             folderLinks = (try? JSONDecoder().decode([String: String].self, from: Data(folderLinksData.utf8))) ?? [:]
         }
-        if let reflectionBody, let object = try? JSONSerialization.jsonObject(with: Data(reflectionBody.utf8)) as? [String: String] {
+        if let reflectionBody,
+           let object = (try? JSONSerialization.jsonObject(with: Data(reflectionBody.utf8))) as? [String: String] {
             reflectionWins = object["wins"] ?? reflectionWins
             reflectionChallenges = object["challenges"] ?? reflectionChallenges
             reflectionNext = object["nextWeek"] ?? reflectionNext
