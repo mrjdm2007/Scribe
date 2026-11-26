@@ -129,6 +129,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
     private let deletionQueueURL: URL
     private var pendingCloudDeletions: [String: Int64] = [:]
     private var cloudSyncTimer: Timer?
+    private var firebaseSyncTimer: Timer?
 
     public init() {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -149,6 +150,10 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             Task { @MainActor [weak self] in
                 _ = try? await self?.syncSavedCloudSession()
             }
+        }
+        if ScribeFirebaseSessionVault.load() != nil {
+            scheduleFirebaseSync()
+            Task { @MainActor [weak self] in _ = try? await self?.syncSavedFirebase() }
         }
     }
     public var selected: ScribeItem? { items.first { $0.id == selectedID } }
@@ -569,6 +574,157 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             url: session.url, anonKey: session.anonKey,
             email: session.email, refreshToken: session.refreshToken
         )
+    }
+
+
+    public func syncFirebase(apiKey: String, projectId: String, email: String, password: String,
+                             createAccount: Bool) async throws -> String {
+        let session = try await ScribeFirebaseClient.authenticate(
+            apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            projectId: projectId.trimmingCharacters(in: .whitespacesAndNewlines),
+            email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+            password: password, createAccount: createAccount)
+        try ScribeFirebaseSessionVault.save(session)
+        scheduleFirebaseSync()
+        let (idToken, refreshedSession) = try await ScribeFirebaseClient.refreshed(session)
+        try ScribeFirebaseSessionVault.save(refreshedSession)
+        return try await syncFirebaseLibrary(projectId: projectId, idToken: idToken)
+    }
+
+    public func syncSavedFirebase() async throws -> String {
+        guard let session = ScribeFirebaseSessionVault.load() else {
+            throw NSError(domain: "ScribeFirebase", code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "No Firebase account is connected."])
+        }
+        let (idToken, refreshedSession) = try await ScribeFirebaseClient.refreshed(session)
+        try ScribeFirebaseSessionVault.save(refreshedSession)
+        return try await syncFirebaseLibrary(projectId: session.projectId, idToken: idToken)
+    }
+
+    public func disableFirebaseSync() {
+        firebaseSyncTimer?.invalidate()
+        firebaseSyncTimer = nil
+        ScribeFirebaseSessionVault.clear()
+    }
+
+    private func scheduleFirebaseSync() {
+        firebaseSyncTimer?.invalidate()
+        firebaseSyncTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in _ = try? await self?.syncSavedFirebase() }
+        }
+    }
+
+    private func syncFirebaseLibrary(projectId: String, idToken: String) async throws -> String {
+        func firebaseID(_ tags: String) -> String? {
+            tags.split(separator: ";").first(where: { $0.hasPrefix("firebase_id:") }).map { String($0.dropFirst("firebase_id:".count)) }
+        }
+        func tagged(_ tags: String, _ id: String) -> String {
+            (tags.split(separator: ";").map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("firebase_id:") } + ["firebase_id:" + id]).joined(separator: ";")
+        }
+
+        for index in items.indices {
+            if firebaseID(items[index].tags) == nil {
+                items[index].tags = tagged(items[index].tags, UUID().uuidString.lowercased())
+            }
+        }
+        persist()
+        let remoteResponse = try await ScribeFirebaseClient.requestLibrary(projectId: projectId, idToken: idToken, method: "GET")
+        var pending = remoteResponse["records"] as? [[String: Any]] ?? []
+        var localByFirebase = Dictionary(uniqueKeysWithValues: items.compactMap { item in
+            firebaseID(item.tags).map { ($0, item.id) }
+        })
+        var inserted = 0
+        var changed = 0
+        var madeProgress = true
+        while !pending.isEmpty && madeProgress {
+            madeProgress = false
+            var remaining: [[String: Any]] = []
+            for row in pending {
+                guard let id = row["id"] as? String, let payload = row["payload"] as? [String: Any] else { continue }
+                let parentFirebase = payload["parentFirebaseId"] as? String
+                if let parentFirebase, localByFirebase[parentFirebase] == nil {
+                    remaining.append(row); continue
+                }
+                let parentID = parentFirebase.flatMap { localByFirebase[$0] }
+                let remoteUpdated = (payload["updatedAt"] as? NSNumber)?.int64Value ?? (row["updatedAt"] as? NSNumber)?.int64Value ?? 0
+                if let localID = localByFirebase[id], let index = items.firstIndex(where: { $0.id == localID }) {
+                    if remoteUpdated > items[index].updatedAt {
+                        items[index] = ScribeItem(id: localID, parentId: parentID,
+                            kind: payload["kind"] as? String ?? items[index].kind,
+                            title: payload["title"] as? String ?? items[index].title,
+                            body: payload["body"] as? String ?? items[index].body,
+                            uri: items[index].uri,
+                            tags: tagged(payload["tags"] as? String ?? items[index].tags, id),
+                            bookmarked: payload["bookmarked"] as? Bool ?? items[index].bookmarked,
+                            position: payload["position"] as? Int ?? items[index].position,
+                            createdAt: (payload["createdAt"] as? NSNumber)?.int64Value ?? items[index].createdAt,
+                            updatedAt: remoteUpdated,
+                            deletedAt: (payload["deletedAt"] as? NSNumber)?.int64Value)
+                        changed += 1
+                    }
+                } else {
+                    let localID = (items.map(\.id).max() ?? 0) + 1
+                    let item = ScribeItem(id: localID, parentId: parentID,
+                        kind: payload["kind"] as? String ?? "block",
+                        title: payload["title"] as? String ?? "Synced note",
+                        body: payload["body"] as? String ?? "",
+                        tags: tagged(payload["tags"] as? String ?? "", id),
+                        bookmarked: payload["bookmarked"] as? Bool ?? false,
+                        position: payload["position"] as? Int ?? 0,
+                        createdAt: (payload["createdAt"] as? NSNumber)?.int64Value ?? remoteUpdated,
+                        updatedAt: remoteUpdated,
+                        deletedAt: (payload["deletedAt"] as? NSNumber)?.int64Value)
+                    items.append(item)
+                    localByFirebase[id] = localID
+                    inserted += 1
+                }
+                if let localID = localByFirebase[id] {
+                    let remoteHistory = (payload["history"] as? [[String: Any]] ?? []).compactMap { entry -> ScribeHistoryEntry? in
+                        guard let title = entry["title"] as? String, let body = entry["body"] as? String,
+                              let savedAt = (entry["savedAt"] as? NSNumber)?.int64Value else { return nil }
+                        return ScribeHistoryEntry(title: title, body: body, savedAt: savedAt)
+                    }
+                    var byDate = Dictionary(uniqueKeysWithValues: (snapshots[localID] ?? []).map { ($0.savedAt, $0) })
+                    remoteHistory.forEach { byDate[$0.savedAt] = $0 }
+                    snapshots[localID] = byDate.values.sorted { $0.savedAt > $1.savedAt }.prefix(30).map { $0 }
+                }
+                madeProgress = true
+            }
+            pending = remaining
+        }
+        if !pending.isEmpty {
+            throw NSError(domain: "ScribeFirebase", code: 6,
+                userInfo: [NSLocalizedDescriptionKey: "Firebase sync paused because one or more parent notebook records are missing."])
+        }
+        persist()
+
+        var records: [[String: Any]] = []
+        let ids = Dictionary(uniqueKeysWithValues: items.compactMap { item in firebaseID(item.tags).map { (item.id, $0) } })
+        for item in items {
+            guard let id = ids[item.id] else { continue }
+            let parentFirebase = item.parentId.flatMap { ids[$0] }
+            let history = (snapshots[item.id] ?? []).map { ["title": $0.title, "body": $0.body, "savedAt": $0.savedAt] as [String: Any] }
+            var payload: [String: Any] = [
+                "kind": item.kind, "title": item.title, "body": item.body,
+                "tags": tagged(item.tags, id), "bookmarked": item.bookmarked,
+                "position": item.position, "createdAt": item.createdAt,
+                "updatedAt": item.updatedAt, "deletedAt": item.deletedAt as Any? ?? NSNull(),
+                "parentFirebaseId": parentFirebase as Any? ?? NSNull(), "history": history
+            ]
+            if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)), data.count <= 400_000 {
+                payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
+                payload["attachmentBase64"] = data.base64EncodedString()
+            }
+            records.append(["id": id, "updatedAt": item.updatedAt, "payload": payload])
+        }
+        var uploaded = 0
+        for start in stride(from: 0, to: records.count, by: 100) {
+            let batch = Array(records[start..<min(start + 100, records.count)])
+            let result = try await ScribeFirebaseClient.requestLibrary(projectId: projectId, idToken: idToken,
+                method: "POST", body: ["records": batch])
+            uploaded += result["saved"] as? Int ?? 0
+        }
+        return "Firebase sync complete: \(inserted) added, \(changed) updated, \(uploaded) uploaded."
     }
 
     public func disableCloudSync() {
