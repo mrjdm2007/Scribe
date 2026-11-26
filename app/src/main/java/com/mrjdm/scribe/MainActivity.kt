@@ -694,8 +694,10 @@ private fun TopicNotebook(
     var wordGoalDraft by remember(topic.id) { mutableStateOf(topic.tags.split(";").firstOrNull { it.startsWith("wordGoal:") }?.substringAfter(":") ?: "500") }
     var showTemplateMenu by remember { mutableStateOf(false) }
     var showReadingMode by remember { mutableStateOf(false) }
+    var saveStatus by remember { mutableStateOf("Saved") }
 
     LaunchedEffect(noteValue.text, topic.id) {
+        saveStatus = "Unsaved"
         delay(250)
         vm.update(liveTopic, body = noteValue.text)
     }
@@ -718,6 +720,19 @@ private fun TopicNotebook(
             Column(Modifier.weight(1f)) {
                 Text("TOPIC NOTEBOOK", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Text(topic.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            Text(saveStatus, color = Muted, fontSize = 10.sp)
+            TextButton(onClick = {
+                scope.launch {
+                    saveStatus = "Saving…"
+                    runCatching { vm.saveNow(liveTopic, noteValue.text) }
+                        .onSuccess { saveStatus = "Saved" }
+                        .onFailure { saveStatus = "Save failed" }
+                }
+            }) {
+                Icon(Icons.Rounded.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Save")
             }
             IconButton(onClick = { showReadingMode = true }) { Icon(Icons.Rounded.MenuBook, "Open reading mode", tint = Gold) }
             val noteWords = noteValue.text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
