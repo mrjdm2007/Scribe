@@ -301,16 +301,18 @@ private fun readXlsx(zip: ZipFile): List<OfficeSheet> {
                     }
                     XmlPullParser.END_TAG -> when (parser.name) {
                         "c" -> {
-                            val column = columnIndex(cellRef).coerceIn(0, 39)
+                            val column = columnIndex(cellRef)
                             val displayed = when (cellType) {
                                 "s" -> sharedStrings.getOrNull(cellValue.toIntOrNull() ?: -1) ?: cellValue
                                 "inlineStr" -> cellValue
                                 else -> cellValue.ifBlank { if (formula.isNotBlank()) "=$formula" else "" }
                             }
-                            cells[column] = displayed
+                            // Keep a bounded number of columns, but never collapse later columns
+                            // onto the same final cell (which would silently overwrite data).
+                            if (column in 0..99) cells[column] = displayed
                         }
                         "row" -> if (cells.isNotEmpty()) {
-                            val max = minOf(cells.lastKey(), 39)
+                            val max = cells.lastKey()
                             rows += (0..max).map { cells[it].orEmpty() }
                         }
                     }
