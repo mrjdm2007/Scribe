@@ -28,17 +28,45 @@ Implemented in this branch:
 - Provider interface and environment-based provider selection.
 - Firebase Functions typecheck workflow.
 
-Not yet migrated:
+Native client integration now present in this branch:
 
-- Android Supabase email/password authentication and encrypted refresh-session handling.
-- Android Supabase PostgREST/Storage sync implementation.
-- macOS Supabase authentication, Keychain session and cloud sync.
-- macOS AI assistant client request path.
-- Import of existing Supabase users, notes, snapshots, tombstones and attachments.
-- Firebase App Check registration and enforcement.
-- Live Android/macOS two-device sync tests.
+- Android Firebase email/password account creation and sign-in through Firebase Identity Toolkit.
+- Android encrypted refresh-token storage, token rotation and six-hour WorkManager library sync.
+- macOS Firebase email/password account creation and sign-in, with refresh tokens stored in Keychain.
+- macOS six-hour sync while the app is open.
+- Shared `studyLibrary` Cloud Function: paginated Firestore pull, stable Firebase item IDs, parent hierarchy, soft-delete state, version history and last-writer-wins updates.
+- Shared `studyAttachments` Cloud Function: authenticated Firebase Storage upload/download for attachments up to 20 MB.
+- Android and macOS Scribe Intelligence now call the authenticated Firebase `studyAssistant` function; Gemini credentials remain server-side.
+- Android learning-tip notifications now request tips from Firebase and require a connected Firebase session.
+- Android has a Firebase-powered AI assistant screen; macOS AI assistant uses the same backend.
 
-Do not remove the Supabase project, SQL schema, Edge Function, or secrets while these items remain. The current app builds still use the legacy backend.
+Still pending before production cutover:
+
+- Set the real Firebase Web API key and project ID in each app's Cloud Sync settings.
+- Enable Email/Password Authentication, create Firestore and Storage, enable Vertex AI, configure billing and deploy the functions/rules.
+- Migrate any records that exist only in Supabase and verify attachment checksums; Firebase sync uploads the local library but does not import remote-only Supabase data automatically.
+- Attachments larger than 20 MB remain local. Firebase App Check registration/enforcement is also still pending.
+- Run live Android/macOS two-device tests with the actual Firebase project and inspect deployed function logs.
+
+Keep Supabase available until the live round-trip and remote-data migration checks pass. The Firebase Functions typecheck/build workflow has passed; the native app CI results must be checked against the latest commit before release.
+
+## Native client configuration
+
+Both native apps use Firebase Authentication REST endpoints and authenticated Cloud Functions, so no service-account file or client-side Gemini key is needed.
+
+1. In Firebase Console, open **Project settings → General** and copy the **Project ID** and **Web API key**.
+2. Under **Authentication → Sign-in method**, enable **Email/Password**.
+3. Create the Firestore database and the default Cloud Storage bucket.
+4. Enable Vertex AI API and grant the Cloud Functions runtime service account permission to invoke Vertex AI.
+5. Deploy the functions and rules:
+   ```sh
+   firebase deploy --project <FIREBASE_PROJECT_ID> --only firestore:rules,storage:rules,functions
+   ```
+6. On Android and macOS, open **Settings → Firebase cloud sync**, enter the Web API key and Project ID, then create an account or sign in with the same Firebase account on both devices.
+
+The function URLs use the `asia-south1` region. The Android library worker syncs periodically while online; macOS syncs periodically while the app is open. Sync remains local-first and does not delete local records when a cloud request fails.
+
+The app currently embeds small attachments in the Firestore record payload only for backward-compatible small records; new attachment uploads use the authenticated `studyAttachments` function and Firebase Storage, with a 20 MB per-file limit. Larger attachments remain local and should be copied using the full Scribe backup workflow until larger-file support is added.
 
 ## Google Cloud project setup
 
