@@ -285,7 +285,7 @@ struct ScribeMacRoot: View {
         .sheet(isPresented: $showingReadingMode) {
             if let item = store.selected {
                 ScribeReadingMode(title: item.title, bodyText: item.body,
-                    attachments: store.children(of: item.id), allItems: store.items)
+                    attachments: store.children(of: item.id), store: store)
             }
         }
     }
