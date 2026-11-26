@@ -1,6 +1,17 @@
 import SwiftUI
 import AppKit
 import ScribeCore
+
+private func tagsForFlashcardDeck(_ tags: String, deck: String) -> String {
+    var retained: [String] = []
+    for component in tags.split(separator: ";") {
+        let value = String(component)
+        if value.hasPrefix("deck:") || value.hasPrefix("subject:") { continue }
+        retained.append(value)
+    }
+    retained.append("deck:" + deck)
+    return retained.joined(separator: ";")
+}
 import UniformTypeIdentifiers
 import WebKit
 
@@ -244,15 +255,13 @@ struct ScribeMacRoot: View {
                 availableDecks: Array(Set(store.items.filter { $0.kind == "flashcard" && $0.deletedAt == nil }.map(flashcardDeckName))).sorted(),
                 onRename: { name, cards in
                     cards.forEach { card in
-                        let retained = card.tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("deck:") && !$0.hasPrefix("subject:") }
-                        store.update(card, tags: (retained + ["deck:" + name]).joined(separator: ";"))
+                        store.update(card, tags: tagsForFlashcardDeck(card.tags, deck: name))
                     }
                     flashcardDeckFilter = name
                 },
                 onMerge: { target, cards in
                     cards.forEach { card in
-                        let retained = card.tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("deck:") && !$0.hasPrefix("subject:") }
-                        store.update(card, tags: (retained + ["deck:" + target]).joined(separator: ";"))
+                        store.update(card, tags: tagsForFlashcardDeck(card.tags, deck: target))
                     }
                     flashcardDeckFilter = target
                 },
