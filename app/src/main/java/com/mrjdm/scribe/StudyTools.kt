@@ -291,20 +291,21 @@ private fun UnitConverter() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("ENGINEERING & SCIENTIFIC CONVERTER", color = ToolMuted, fontSize = 10.sp, letterSpacing = 1.sp)
         Text("Real electrical, mechanical and scientific quantities with correct conversion factors.", color = ToolMuted, fontSize = 12.sp)
-        groups.keys.toList().chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { category ->
-                    FilterChip(
-                        selected = group == category,
-                        onClick = {
-                            group = category
-                            val next = groups.getValue(category)
-                            from = next.first().symbol
-                            to = next.getOrElse(1) { next.first() }.symbol
-                        },
-                        label = { Text(category, fontSize = 10.sp) }
-                    )
-                }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            groups.keys.forEach { category ->
+                FilterChip(
+                    selected = group == category,
+                    onClick = {
+                        group = category
+                        val next = groups.getValue(category)
+                        from = next.first().symbol
+                        to = next.getOrElse(1) { next.first() }.symbol
+                    },
+                    label = { Text(category, fontSize = 10.sp) }
+                )
             }
         }
         OutlinedTextField(
