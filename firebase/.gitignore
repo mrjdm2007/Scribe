@@ -1,0 +1,6 @@
+# Firebase local state and generated Functions output
+.firebase/
+firebase/functions/node_modules/
+firebase/functions/lib/
+firebase/functions/.env.*
+!firebase/functions/.env.example
