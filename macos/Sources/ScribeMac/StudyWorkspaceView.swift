@@ -69,6 +69,7 @@ struct StudyWorkspaceView: View {
         }
         .padding(26)
         .onAppear(perform: load)
+        .onChange(of: store.items) { _ in load() }
         .onChange(of: reflectionWins) { _ in saveReflection() }
         .onChange(of: reflectionChallenges) { _ in saveReflection() }
         .onChange(of: reflectionNext) { _ in saveReflection() }
