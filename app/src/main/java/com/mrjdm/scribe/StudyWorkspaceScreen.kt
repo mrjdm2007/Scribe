@@ -76,17 +76,17 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
 
     LaunchedEffect(Unit) {
         runCatching {
-            val e = JSONArray(store.read("exams"))
+            val e = JSONArray(store.read("exams").ifBlank { "[]" })
             for (i in 0 until e.length()) {
                 val o = e.getJSONObject(i); val tasksJson = o.optJSONArray("tasks") ?: JSONArray()
                 val tasks = buildList { for (j in 0 until tasksJson.length()) { val t = tasksJson.getJSONObject(j); add(WorkspaceTask(t.optString("id"), t.optString("title"), t.optBoolean("done"), t.optString("notes"))) } }
                 exams.add(WorkspaceExam(o.optString("id"), o.optString("title"), o.optString("subject"), o.optString("date"), o.optString("notes"), tasks))
             }
-            val f = JSONArray(store.read("focus"))
+            val f = JSONArray(store.read("focus").ifBlank { "[]" })
             for (i in 0 until f.length()) { val o = f.getJSONObject(i); focus.add(WorkspaceFocus(o.optString("id"), o.optString("subject"), o.optString("topic"), o.optInt("minutes"), o.optInt("planned"), o.optInt("interruptions"), o.optString("date"))) }
-            val foldersJson = JSONArray(store.read("folders"))
+            val foldersJson = JSONArray(store.read("folders").ifBlank { "[]" })
             for (i in 0 until foldersJson.length()) { val o = foldersJson.getJSONObject(i); folders.add(WorkspaceFolder(o.optString("id"), o.optString("name"))) }
-            val links = JSONObject(store.read("bookmark_folder_links"))
+            val links = JSONObject(store.read("bookmark_folder_links").ifBlank { "{}" })
             folderLinks = links.keys().asSequence().associate { (it.toLongOrNull() ?: 0L) to links.optString(it) }.filterKeys { it > 0L }
         }
         notificationEnabled = store.bool("notifications_enabled", false)
