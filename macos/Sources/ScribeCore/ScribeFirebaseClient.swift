@@ -96,6 +96,18 @@ public enum ScribeFirebaseClient {
         return (idToken, next)
     }
 
+    public static func studyAssistant(payload: [String: Any]) async throws -> [String: Any] {
+        guard let session = ScribeFirebaseSessionVault.load() else {
+            throw NSError(domain: "ScribeFirebase", code: 7,
+                userInfo: [NSLocalizedDescriptionKey: "Connect a Firebase account in Settings before using Scribe Intelligence."])
+        }
+        let (idToken, refreshedSession) = try await refreshed(session)
+        try ScribeFirebaseSessionVault.save(refreshedSession)
+        let url = URL(string: "https://asia-south1-\\(session.projectId).cloudfunctions.net/studyAssistant")!
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        return try await jsonRequest(url, method: "POST", body: body, token: idToken)
+    }
+
     public static func requestLibrary(projectId: String, idToken: String, method: String,
                                        body: [String: Any]? = nil) async throws -> [String: Any] {
         let url = URL(string: "https://asia-south1-\(projectId).cloudfunctions.net/studyLibrary")!
