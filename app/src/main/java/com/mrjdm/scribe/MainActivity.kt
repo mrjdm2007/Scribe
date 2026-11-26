@@ -126,7 +126,6 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         if (navigationReady) savedStackIds = stack.joinToString(",") { it.id.toString() }
     }
     var tab by remember { mutableStateOf("Library") }
-    var showMoreNavigation by rememberSaveable { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
     var createKind by remember { mutableStateOf("course") }
     var editItem by remember { mutableStateOf<ScribeItem?>(null) }
@@ -310,7 +309,6 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             if (tab != "Library" || current != null) {
                 TopAppBar(
@@ -340,28 +338,18 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         bottomBar = {
             if (!isWide) NavigationBar(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).scribeGlass(RoundedCornerShape(22.dp)),
-                containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp,
-                windowInsets = WindowInsets.navigationBars
+                containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp
             ) {
-                listOf("Library", "Saved", "Study", "AI", "More").forEach { label ->
-                    val icon = when(label) {
-                        "Library" -> Icons.Rounded.AutoStories
-                        "Saved" -> Icons.Rounded.Bookmark
-                        "Study" -> Icons.Rounded.School
-                        "AI" -> Icons.Rounded.AutoAwesome
-                        else -> Icons.Rounded.MoreHoriz
-                    }
-                    val selected = if (label == "More") tab in listOf("Workspace", "Tools", "Settings") else tab == label
-                    NavigationBarItem(selected = selected, onClick = {
-                        if (label == "More") showMoreNavigation = true
-                        else { tab = label; stack = emptyList() }
-                    }, icon = { Icon(icon, contentDescription = label) }, label = { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
+                listOf("Library", "Saved", "Study", "AI", "Workspace", "Tools", "Settings").forEach { label ->
+                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "AI" -> Icons.Rounded.AutoAwesome; "Workspace" -> Icons.Rounded.Insights; else -> Icons.Rounded.Settings }
+                    NavigationBarItem(selected = tab == label, onClick = { tab = label; stack = emptyList() },
+                        icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
             }
         }
     ) { padding ->
-        Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.075f), Color.Transparent), radius = 1050f))) {
+        Row(Modifier.fillMaxSize().padding(padding).animateContentSize().background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.075f), Color.Transparent), radius = 1050f))) {
             if (isWide) {
                 NavigationRail(
                     modifier = Modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp).scribeGlass(RoundedCornerShape(20.dp)),
@@ -375,9 +363,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 }
             }
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp)) {
+            Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp).animateContentSize()) {
             Spacer(Modifier.height(18.dp))
-            Column(Modifier.weight(1f).fillMaxWidth().then(if ((tab == "Library" && current == null && searchQuery.isBlank()) || tab == "Settings") Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 "Library" -> {
                     if (current?.kind == "page") {
@@ -469,7 +457,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                                     }
                                 }
                             }
-                            LazyColumn(contentPadding = PaddingValues(bottom = 176.dp)) { items(filteredSearchResults, key = { it.id }) { item ->
+                            LazyColumn { items(filteredSearchResults, key = { it.id }) { item ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(checked = item.id in bulkSelectedIds, onCheckedChange = { checked ->
                                         bulkSelectedIds = if (checked) bulkSelectedIds + item.id else bulkSelectedIds - item.id
@@ -556,41 +544,6 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
             }
             }
-            }
-        }
-    }
-
-    if (showMoreNavigation) {
-        ModalBottomSheet(
-            onDismissRequest = { showMoreNavigation = false },
-            containerColor = Color(0xFF1B1D22),
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ) {
-            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-                Text("MORE", color = Gold, fontSize = 10.sp, letterSpacing = 2.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-                listOf(
-                    Triple("Workspace", Icons.Rounded.Insights, "Study dashboard and progress"),
-                    Triple("Tools", Icons.Rounded.Functions, "Academic and engineering tools"),
-                    Triple("Settings", Icons.Rounded.Settings, "Sync, backups and preferences")
-                ).forEach { (label, icon, description) ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable {
-                            tab = label
-                            stack = emptyList()
-                            showMoreNavigation = false
-                        }.padding(horizontal = 24.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(icon, contentDescription = null, tint = if (tab == label) Gold else Muted)
-                        Spacer(Modifier.width(18.dp))
-                        Column {
-                            Text(label, fontWeight = FontWeight.SemiBold,
-                                color = if (tab == label) Gold else MaterialTheme.colorScheme.onSurface)
-                            Text(description, color = Muted, fontSize = 12.sp)
-                        }
-                    }
-                }
             }
         }
     }
@@ -874,7 +827,7 @@ private fun TopicNotebook(
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 6.dp, bottom = 160.dp)
+            contentPadding = PaddingValues(top = 6.dp, bottom = 100.dp)
         ) {
             item {
                 Card(
@@ -1054,7 +1007,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                 TextButton(onClick = { showAdd = true }) { Icon(Icons.Rounded.Add, null); Text("Add content") }
             }
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 160.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
             items(blocks, key = { it.id }) { block ->
                 BlockCard(block, onClick = {
                     val blockType = block.tags.substringAfter("type:", "").substringBefore(";").substringBefore(",")
@@ -1144,7 +1097,7 @@ private fun BlockCard(item: ScribeItem, onClick: () -> Unit, onBookmark: () -> U
 
 @Composable
 private fun ItemList(items: List<ScribeItem>, onClick: (ScribeItem) -> Unit, onBookmark: (ScribeItem) -> Unit, onEdit: (ScribeItem) -> Unit, onDelete: (ScribeItem) -> Unit, onDuplicate: (ScribeItem) -> Unit = {}, onMove: (ScribeItem, Int) -> Unit = { _, _ -> }, onMergePage: (ScribeItem) -> Unit = {}, onSplitPage: (ScribeItem) -> Unit = {}) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 176.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
         items(items, key = { it.id }) { item ->
             var menuExpanded by remember(item.id) { mutableStateOf(false) }
             Card(colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp), border = BorderStroke(0.dp, Color.Transparent), modifier = Modifier.fillMaxWidth().scribeGlass(RoundedCornerShape(16.dp)).clickable { onClick(item) }) {
