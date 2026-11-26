@@ -12,11 +12,12 @@ export class GeminiVertexProvider implements AIProvider {
     }
 
     this.client = new GoogleGenAI({
-      vertexai: true,
+      enterprise: true,
+      apiVersion: "v1",
       project,
       location: process.env.GOOGLE_CLOUD_LOCATION ?? "asia-south1"
     });
-    this.model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+    this.model = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
   }
 
   async generate(input: GenerateInput): Promise<string> {
