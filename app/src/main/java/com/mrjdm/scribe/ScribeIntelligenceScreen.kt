@@ -26,8 +26,8 @@ import java.util.Locale
 @Composable
 internal fun ScribeIntelligenceScreen(vm: ScribeViewModel) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val chatPreferences = remember(context) {
+    val context: android.content.Context = LocalContext.current
+    val chatPreferences: android.content.SharedPreferences = remember(context) {
         context.getSharedPreferences("scribe_chat_preferences", android.content.Context.MODE_PRIVATE)
     }
     var notes by remember { mutableStateOf<List<ScribeItem>>(emptyList()) }
