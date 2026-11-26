@@ -7,12 +7,10 @@ private struct ScribeAIContext: Encodable {
     let content: String
 }
 
-/// Calls the authenticated Supabase Edge Function; provider credentials remain server-side.
+/// Calls the authenticated Firebase Cloud Function; Gemini credentials remain on the server.
 struct ScribeIntelligenceView: View {
     @ObservedObject var store: ScribeStore
     private var items: [ScribeItem] { store.items }
-    @AppStorage("scribe.supabase.url") private var supabaseURL = ""
-    @AppStorage("scribe.supabase.anonKey") private var anonKey = ""
     @State private var question = ""
     @State private var answer = ""
     @State private var errorMessage = ""
@@ -115,55 +113,18 @@ struct ScribeIntelligenceView: View {
     }
 
     @MainActor private func ask() async {
-        let base = supabaseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard base.hasPrefix("https://"), !anonKey.isEmpty else {
-            errorMessage = "Add your Supabase project URL and anon key in Scribe Settings first."
-            return
-        }
         let studentMessage = question
         let priorTurns = conversation.suffix(8).joined(separator: "\n\n")
         let conversationPrompt = (priorTurns.isEmpty ? "" : priorTurns + "\n\n") + "STUDENT: " + studentMessage
         busy = true; errorMessage = ""; answer = ""
         defer { busy = false }
         do {
-            guard let session = ScribeCloudSessionVault.load(),
-                  session.url.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == base,
-                  session.anonKey == anonKey else {
-                errorMessage = "Sign in to Scribe Cloud and sync once before using Scribe Intelligence."
-                return
-            }
-            let refreshURL = URL(string: base + "/auth/v1/token?grant_type=refresh_token")!
-            var refreshRequest = URLRequest(url: refreshURL)
-            refreshRequest.httpMethod = "POST"
-            refreshRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            refreshRequest.setValue(anonKey, forHTTPHeaderField: "apikey")
-            refreshRequest.httpBody = try JSONSerialization.data(withJSONObject: ["refresh_token": session.refreshToken])
-            let (refreshData, refreshResponse) = try await URLSession.shared.data(for: refreshRequest)
-            let refreshStatus = (refreshResponse as? HTTPURLResponse)?.statusCode ?? 0
-            let refreshed = (try? JSONSerialization.jsonObject(with: refreshData)) as? [String: Any] ?? [:]
-            guard (200..<300).contains(refreshStatus), let accessToken = refreshed["access_token"] as? String else {
-                throw NSError(domain: "ScribeAI", code: refreshStatus, userInfo: [NSLocalizedDescriptionKey: "Your Scribe Cloud session expired. Sign in again in Settings."])
-            }
-            if let nextRefresh = refreshed["refresh_token"] as? String {
-                try ScribeCloudSessionVault.save(ScribeSavedCloudSession(url: base, anonKey: anonKey, email: session.email, refreshToken: nextRefresh))
-            }
-            let url = URL(string: base + "/functions/v1/study-assistant")!
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue(anonKey, forHTTPHeaderField: "apikey")
-            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             let payload: [String: Any] = [
-                "question": conversationPrompt, "mode": mode,
+                "question": conversationPrompt,
+                "mode": mode,
                 "note_context": try JSONSerialization.jsonObject(with: JSONEncoder().encode(relevantNotes))
             ]
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            let (data, response) = try await URLSession.shared.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
-            guard (200..<300).contains(status) else {
-                throw NSError(domain: "ScribeAI", code: status, userInfo: [NSLocalizedDescriptionKey: object["error"] as? String ?? "Study assistant request failed (HTTP \(status))."])
-            }
+            let object = try await ScribeFirebaseClient.studyAssistant(payload: payload)
             answer = object["answer"] as? String ?? "The assistant returned an empty response."
             conversation.append("Student: " + studentMessage)
             conversation.append("Scribe: " + answer)
