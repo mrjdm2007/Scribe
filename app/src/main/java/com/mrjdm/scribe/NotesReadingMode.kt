@@ -7,6 +7,7 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +55,7 @@ fun NotesReadingMode(
         })
     }
     val context = LocalContext.current
+    var readerWebView by remember { mutableStateOf<WebView?>(null) }
     val safeTitle = JSONObject.quote(title)
     val safeMarkdown = JSONObject.quote(markdown).replace("<", "\\u003C")
 
@@ -117,7 +119,7 @@ fun NotesReadingMode(
             }
             if (headings.isNotEmpty()) {
                 Row(
-                    Modifier.fillMaxWidth().background(Color(0xFF141619)).horizontalScrollCompat(),
+                    Modifier.fillMaxWidth().background(Color(0xFF141619)).horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     headings.take(8).forEachIndexed { index, heading ->
@@ -127,7 +129,6 @@ fun NotesReadingMode(
                     }
                 }
             }
-            var readerWebView by remember { mutableStateOf<WebView?>(null) }
             key(paper, fontSize, readingWidth, markdown) {
                 AndroidView(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -164,7 +165,6 @@ fun NotesReadingMode(
     }
 }
 
-private fun Modifier.horizontalScrollCompat(): Modifier = this
 
 private fun readerHtml(title: String, markdown: String, paper: ReaderPaper, fontSize: Float, width: Float): String {
     val safeBackground = paper.background
