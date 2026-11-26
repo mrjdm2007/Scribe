@@ -221,19 +221,35 @@ internal class ScribeFirebaseClient(
                 val remoteUpdated = payload.optLong("updatedAt", row.optLong("updatedAt"))
                 val current = localByFirebase[id]
                 if (current != null) {
-                    if (remoteUpdated > current.updatedAt) {
+                    val remoteFingerprint = payload.optString("attachmentFingerprint")
+                    val localFingerprint = current.tags.split(";")
+                        .firstOrNull { it.startsWith("firebase_attachment_fingerprint:") }
+                        ?.substringAfter("firebase_attachment_fingerprint:").orEmpty()
+                    val remoteRecordIsNewer = remoteUpdated > current.updatedAt
+                    val attachmentChanged = remoteFingerprint.isNotBlank() && remoteFingerprint != localFingerprint
+                    if (remoteRecordIsNewer || attachmentChanged) {
+                        val restoredUri = restoreAttachment(payload, id, current.uri, current.tags)
+                        val baseTags = if (remoteRecordIsNewer) payload.optString("tags", current.tags) else current.tags
+                        val cleanTags = baseTags.split(";").filter {
+                            it.isNotBlank() && !it.startsWith("firebase_attachment_fingerprint:")
+                        }
+                        val nextTags = (cleanTags + listOf("firebase_id:$id") +
+                            remoteFingerprint.takeIf { it.isNotBlank() }?.let { "firebase_attachment_fingerprint:$it" }.orEmpty())
+                            .joinToString(";")
                         val updated = current.copy(
-                            parentId = parentLocal,
-                            kind = payload.optString("kind", current.kind),
-                            title = payload.optString("title", current.title),
-                            body = payload.optString("body", current.body),
-                            uri = restoreAttachment(payload, id, current.uri, current.tags),
-                            tags = tagged(payload.optString("tags", current.tags), id) + payload.optString("attachmentFingerprint").takeIf { it.isNotBlank() }?.let { ";firebase_attachment_fingerprint:$it" }.orEmpty(),
-                            bookmarked = payload.optBoolean("bookmarked", current.bookmarked),
-                            position = payload.optInt("position", current.position),
-                            createdAt = payload.optLong("createdAt", current.createdAt),
-                            updatedAt = remoteUpdated,
-                            deletedAt = if (payload.isNull("deletedAt")) null else payload.optLong("deletedAt")
+                            parentId = if (remoteRecordIsNewer) parentLocal else current.parentId,
+                            kind = if (remoteRecordIsNewer) payload.optString("kind", current.kind) else current.kind,
+                            title = if (remoteRecordIsNewer) payload.optString("title", current.title) else current.title,
+                            body = if (remoteRecordIsNewer) payload.optString("body", current.body) else current.body,
+                            uri = restoredUri,
+                            tags = nextTags,
+                            bookmarked = if (remoteRecordIsNewer) payload.optBoolean("bookmarked", current.bookmarked) else current.bookmarked,
+                            position = if (remoteRecordIsNewer) payload.optInt("position", current.position) else current.position,
+                            createdAt = if (remoteRecordIsNewer) payload.optLong("createdAt", current.createdAt) else current.createdAt,
+                            updatedAt = if (remoteRecordIsNewer) remoteUpdated else current.updatedAt,
+                            deletedAt = if (remoteRecordIsNewer) {
+                                if (payload.isNull("deletedAt")) null else payload.optLong("deletedAt")
+                            } else current.deletedAt
                         )
                         dao.update(updated)
                         localByFirebase[id] = updated
