@@ -376,7 +376,9 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                             row.forEachIndexed { columnIndex, cell ->
                                 Surface(
                                     Modifier.width(132.dp).heightIn(min = 42.dp),
-                                    color = if (rowIndex == 0) Color(0xFFE7E4DD) else Paper,
+                                    // Do not infer header styling from row/column position:
+                                    // ordinary workbooks often store data in the first row and column.
+                                    color = Paper,
                                     shape = RoundedCornerShape(1.dp)
                                 ) {
                                     Text(
@@ -384,7 +386,7 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                                         Modifier.clickable { selectedCell = Triple(rowIndex, columnIndex, cell) }
                                             .padding(horizontal = 9.dp, vertical = 10.dp),
                                         color = Ink, fontSize = 12.sp, lineHeight = 17.sp,
-                                        fontWeight = if (rowIndex == 0 || columnIndex == 0) FontWeight.Medium else FontWeight.Normal
+                                        fontWeight = FontWeight.Normal
                                     )
                                 }
                             }
