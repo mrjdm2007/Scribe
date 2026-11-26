@@ -179,7 +179,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                 }
                 store.write("folders", folderArray.toString())
                 val links = objectValue.optJSONObject("links") ?: JSONObject()
-                folderLinks = links.keys().asSequence().associate { (it.toLongOrNull() ?: 0L) to links.optString(it) }.filterKeys { it > 0L }
+                folderLinks = links.keys().asSequence().associate { it to links.optString(it) }
                 store.write("bookmark_folder_links", links.toString())
             }
         }
