@@ -181,7 +181,7 @@ struct ScribeMacRoot: View {
                 showingIntegrityReport = true
             }
         }
-        .fileImporter(isPresented: $showingPDFImport, allowedContentTypes: [.pdf, .image, .plainText]) { result in
+        .fileImporter(isPresented: $showingPDFImport, allowedContentTypes: [.pdf, .image, .plainText] + ["docx", "xlsx", "pptx", "doc", "xls", "ppt", "rtf", "csv", "odt", "ods", "odp"].compactMap { UTType(filenameExtension: $0) }) { result in
             guard case .success(let source) = result else { return }
             let access = source.startAccessingSecurityScopedResource()
             defer { if access { source.stopAccessingSecurityScopedResource() } }
@@ -191,10 +191,11 @@ struct ScribeMacRoot: View {
             let destination = root.appendingPathComponent(UUID().uuidString + "-" + source.lastPathComponent)
             if (try? FileManager.default.copyItem(at: source, to: destination)) != nil {
                 let ext = source.pathExtension.lowercased()
-                let typeTag = ext == "pdf" ? "pdf" : (["png", "jpg", "jpeg", "heic", "webp", "gif"].contains(ext) ? "image" : "text")
-                let body = typeTag == "text" ? ((try? String(contentsOf: destination, encoding: .utf8)) ?? "") : "\(typeTag.capitalized) attachment"
+                let officeExtensions = ["docx", "xlsx", "pptx", "doc", "xls", "ppt", "odt", "ods", "odp"]
+                let typeTag = ext == "pdf" ? "pdf" : (["png", "jpg", "jpeg", "heic", "webp", "gif"].contains(ext) ? "image" : (officeExtensions.contains(ext) ? "office" : "text"))
+                let body = typeTag == "text" ? ((try? String(contentsOf: destination, encoding: .utf8)) ?? "") : (typeTag == "office" ? "Office document · \(ext.uppercased())" : "\(typeTag.capitalized) attachment")
                 store.create(kind: "block", title: source.lastPathComponent, parentId: store.selectedID,
-                    body: body, tags: typeTag == "pdf" ? "type:pdf;ocr:pending" : "type:\(typeTag)",
+                    body: body, tags: typeTag == "pdf" ? "type:pdf;ocr:pending" : (typeTag == "office" ? "type:office;format:\(ext)" : "type:\(typeTag)"),
                     uri: destination.path, switchToLibrary: false)
                 if typeTag == "pdf", let imported = store.selected {
                     let importedID = imported.id
@@ -617,6 +618,8 @@ struct ScribeMacRoot: View {
                                         }
                                     }
                                 }
+                            } else if block.tags.contains("type:office"), !block.uri.isEmpty {
+                                ScribeOfficePreview(url: URL(fileURLWithPath: block.uri)).frame(minHeight: 420)
                             } else if block.tags.contains("type:image"), let image = NSImage(contentsOfFile: block.uri) {
                                 Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 240)
                             } else {
