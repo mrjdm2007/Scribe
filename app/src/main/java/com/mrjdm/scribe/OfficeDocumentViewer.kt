@@ -4,6 +4,7 @@ import com.mrjdm.scribe.data.ScribeItem
 import android.util.Xml
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -633,10 +634,10 @@ private fun readXlsx(zip: ZipFile): List<OfficeSheet> {
                             // Keep original worksheet row positions. Sparse sheets often contain
                             // blank rows; dropping them makes every later value appear on the wrong row.
                             val targetIndex = (sourceRow - 1).coerceAtMost(499)
-                            while (rows.size < targetIndex) rows += emptyList()
+                            while (rows.size < targetIndex) rows.add(emptyList())
                             if (rows.size < 500) {
                                 val max = cells.keys.lastOrNull()
-                                rows += if (max == null) emptyList() else (0..max).map { cells[it].orEmpty() }
+                                rows.add(if (max == null) emptyList() else (0..max).map { cells[it].orEmpty() })
                             }
                         }
                     }
