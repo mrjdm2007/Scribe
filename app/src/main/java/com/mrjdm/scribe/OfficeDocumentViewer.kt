@@ -125,6 +125,8 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
     var searchVisible by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     var pageTone by remember { mutableIntStateOf(0) }
+    var useSerif by remember { mutableStateOf(true) }
+    var relaxedSpacing by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -160,6 +162,12 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
             }
             TextButton(onClick = { pageTone = (pageTone + 1) % 3 }) {
                 Text(listOf("Paper", "Sepia", "Night")[pageTone], color = ReaderAccent, fontSize = 11.sp)
+            }
+            TextButton(onClick = { useSerif = !useSerif }) {
+                Text(if (useSerif) "Serif" else "Sans", color = ReaderAccent, fontSize = 11.sp)
+            }
+            TextButton(onClick = { relaxedSpacing = !relaxedSpacing }) {
+                Text(if (relaxedSpacing) "Relaxed" else "Compact", color = ReaderAccent, fontSize = 11.sp)
             }
             IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchText = "" }) {
                 Icon(if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
@@ -234,7 +242,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                             bottom = if (headingLevel != null || isTitle) 5.dp else 2.dp
                         ),
                         color = pageInk,
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = if (useSerif) FontFamily.Serif else FontFamily.SansSerif,
                         fontSize = when {
                             isTitle -> (fontSize + 10).sp
                             headingLevel == 1 -> (fontSize + 7).sp
@@ -243,7 +251,7 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
                             else -> fontSize.sp
                         },
                         fontWeight = if (headingLevel != null || isTitle || isSubtitle) FontWeight.SemiBold else FontWeight.Normal,
-                        lineHeight = (fontSize + 11).sp
+                        lineHeight = (fontSize + if (relaxedSpacing) 15 else 8).sp
                     )
                 }
             }
@@ -295,6 +303,10 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("${sheet?.rows?.size ?: 0} rows", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = {
+                val tsv = sheet?.rows.orEmpty().joinToString("\n") { row -> row.joinToString("\t") }
+                clipboard.setText(AnnotatedString(tsv))
+            }) { Text("Copy sheet", color = ReaderAccent, fontSize = 11.sp) }
             if (searchText.isNotBlank()) {
                 Text("${matchingRows.size} matches", color = ReaderAccent, fontSize = 10.sp)
             }
@@ -424,6 +436,7 @@ private fun PresentationReadingSurface(
         return
     }
     val slide = slides.getOrNull(selectedSlide)
+    val clipboard = LocalClipboardManager.current
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().background(ReaderBar).horizontalScroll(rememberScrollState())
@@ -497,6 +510,11 @@ private fun PresentationReadingSurface(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Slide ${selectedSlide + 1} of ${slides.size}", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = {
+                clipboard.setText(AnnotatedString(slide?.paragraphs.orEmpty().joinToString("\n\n")))
+            }, enabled = !slide?.paragraphs.isNullOrEmpty()) {
+                Text("Copy slide", color = ReaderAccent, fontSize = 11.sp)
+            }
             IconButton(onClick = { textSize = (textSize - 1).coerceAtLeast(12) }, enabled = textSize > 12) {
                 Icon(Icons.Rounded.Remove, contentDescription = "Decrease slide text size", tint = ReaderAccent)
             }
