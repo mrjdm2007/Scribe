@@ -630,7 +630,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 let rawName = payload["attachmentName"] as? String ?? "attachment"
                 let safeName = URL(fileURLWithPath: rawName).lastPathComponent.replacingOccurrences(of: "/", with: "_")
-                let destination = folder.appendingPathComponent("firebase_\\(id)_\\(safeName)")
+                let destination = folder.appendingPathComponent("firebase_\(id)_\(safeName)")
                 try data.write(to: destination, options: .atomic)
                 return destination.path
             } catch { return currentURI }
