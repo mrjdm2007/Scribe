@@ -143,10 +143,13 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
             val all = dao.allItems()
             suspend fun remove(id: Long) {
                 all.filter { it.parentId == id }.forEach { remove(it.id) }
-                all.firstOrNull { it.id == id }?.tags?.split(";")
-                    ?.firstOrNull { it.startsWith("cloud_id:") }
+                val deletedTags = all.firstOrNull { it.id == id }?.tags.orEmpty().split(";")
+                deletedTags.firstOrNull { it.startsWith("cloud_id:") }
                     ?.substringAfter("cloud_id:")?.takeIf { it.isNotBlank() }
                     ?.let { dao.enqueueCloudDeletion(CloudDeletion(it)) }
+                deletedTags.firstOrNull { it.startsWith("firebase_id:") }
+                    ?.substringAfter("firebase_id:")?.takeIf { it.isNotBlank() }
+                    ?.let { ScribeFirebaseSession.queueDeletion(getApplication(), it) }
                 dao.deleteSnapshotsForItem(id)
                 dao.deleteId(id)
             }
