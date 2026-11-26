@@ -100,6 +100,7 @@ internal fun OfficeDocumentViewer(item: ScribeItem, onDismiss: () -> Unit) {
                             "docx" -> WordReadingSurface(document.paragraphs)
                             "xlsx" -> SpreadsheetReadingSurface(document.sheets, selectedSheet) { selectedSheet = it }
                             "pptx" -> PresentationReadingSurface(document.slides, selectedSlide,
+                                onSelectSlide = { selectedSlide = it },
                                 onPrevious = { selectedSlide = (selectedSlide - 1).coerceAtLeast(0) },
                                 onNext = { selectedSlide = (selectedSlide + 1).coerceAtMost(document.slides.lastIndex) })
                         }
@@ -290,14 +291,50 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
 
 @Composable
 private fun PresentationReadingSurface(
-    slides: List<OfficeSlide>, selectedSlide: Int, onPrevious: () -> Unit, onNext: () -> Unit
+    slides: List<OfficeSlide>,
+    selectedSlide: Int,
+    onSelectSlide: (Int) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
 ) {
+    var textSize by remember { mutableIntStateOf(16) }
     if (slides.isEmpty()) {
         EmptyDocumentMessage("No readable slides were found.")
         return
     }
     val slide = slides.getOrNull(selectedSlide)
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().background(ReaderBar).horizontalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            slides.forEachIndexed { index, _ ->
+                FilterChip(
+                    selected = selectedSlide == index,
+                    onClick = { onSelectSlide(index) },
+                    label = { Text((index + 1).toString()) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFF34302A),
+                        selectedLabelColor = ReaderAccent,
+                        labelColor = Color(0xFFE2E0DA)
+                    )
+                )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 12.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Slide ${selectedSlide + 1} of ${slides.size}", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            IconButton(onClick = { textSize = (textSize - 1).coerceAtLeast(12) }, enabled = textSize > 12) {
+                Icon(Icons.Rounded.Remove, contentDescription = "Decrease slide text size", tint = ReaderAccent)
+            }
+            Text("A", color = Color(0xFFE8E6E1), fontSize = 13.sp)
+            IconButton(onClick = { textSize = (textSize + 1).coerceAtMost(30) }, enabled = textSize < 30) {
+                Icon(Icons.Rounded.Add, contentDescription = "Increase slide text size", tint = ReaderAccent)
+            }
+        }
         Box(Modifier.weight(1f).fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
             Surface(
                 Modifier.fillMaxWidth().aspectRatio(16f / 10f),
@@ -309,14 +346,17 @@ private fun PresentationReadingSurface(
                     }
                 } else {
                     Column(
-                        Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp),
+                        Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp)
+                            .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.Center
                     ) {
                         slide.paragraphs.forEachIndexed { index, paragraph ->
                             Text(
-                                paragraph, color = Ink, fontSize = if (index == 0) 22.sp else 15.sp,
+                                paragraph, color = Ink,
+                                fontSize = if (index == 0) (textSize + 6).sp else textSize.sp,
                                 fontWeight = if (index == 0) FontWeight.SemiBold else FontWeight.Normal,
-                                lineHeight = 22.sp, modifier = Modifier.padding(vertical = 5.dp)
+                                lineHeight = (textSize + 7).sp,
+                                modifier = Modifier.padding(vertical = 5.dp)
                             )
                         }
                     }
@@ -330,7 +370,6 @@ private fun PresentationReadingSurface(
             TextButton(onClick = onPrevious, enabled = selectedSlide > 0) {
                 Icon(Icons.Rounded.ChevronLeft, null); Text("Previous")
             }
-            Text("${selectedSlide + 1} / ${slides.size}", color = ReaderMuted, fontSize = 12.sp)
             TextButton(onClick = onNext, enabled = selectedSlide < slides.lastIndex) {
                 Text("Next"); Icon(Icons.Rounded.ChevronRight, null)
             }
