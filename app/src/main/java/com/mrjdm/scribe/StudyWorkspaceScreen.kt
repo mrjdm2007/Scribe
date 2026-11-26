@@ -1,6 +1,12 @@
 package com.mrjdm.scribe
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -47,6 +53,13 @@ private class WorkspaceStore(context: Context) {
 @Composable
 fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.ScribeViewModel) {
     val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) {
+            notificationEnabled = false
+            store.setBool("notifications_enabled", false)
+            LearningTipScheduler.cancel(context)
+        }
+    }
     val store = remember { WorkspaceStore(context) }
     val allItems by vm.observeAllItems().collectAsState(initial = emptyList())
     fun mirrorWorkspaceRecord(kind: String, title: String, body: String) {
@@ -332,7 +345,14 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             }
             "Reminders" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("ANDROID LEARNING REMINDERS", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · saved preferences", color = WorkspaceMuted, fontSize = 12.sp) }; Switch(notificationEnabled, { notificationEnabled = it; store.setBool("notifications_enabled", it); persistNotificationPreferences(); LearningTipScheduler.update(context) }) }
+                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · saved preferences", color = WorkspaceMuted, fontSize = 12.sp) }; Switch(notificationEnabled, {
+                    notificationEnabled = it
+                    store.setBool("notifications_enabled", it)
+                    persistNotificationPreferences()
+                    if (it && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else LearningTipScheduler.update(context)
+                }) }
                 Text("Reminder interval")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4).forEach { h -> FilterChip(selected = interval == h, onClick = { interval = h; store.setInt("notification_interval", h); persistNotificationPreferences(); LearningTipScheduler.update(context) }, label = { Text("$h h") }) } }
                 OutlinedTextField(quietStart, { quietStart = it; store.write("quiet_start", it); persistNotificationPreferences() }, label = { Text("Quiet hours start (HH:mm)") }, singleLine = true)
