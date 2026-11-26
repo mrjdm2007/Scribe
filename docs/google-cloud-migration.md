@@ -16,6 +16,10 @@ The new backend foundation lives in `firebase/`:
 ## Current implementation status
 
 Implemented in this branch:
+- Structured JSON response mode for AI-generated flashcards, mind maps and hourly learning tips. The function validates and bounds generated fields before returning them; raw answer text remains present for compatibility.
+- Generated structured artifacts are automatically saved under the signed-in user's `users/{uid}/study_artifacts` Firestore collection.
+- `studyArtifacts` HTTPS endpoint lists the latest 50 saved artifacts and allows an authenticated owner to delete an artifact by ID.
+- The AI response includes an `artifact_id` when a structured artifact is persisted.
 
 - Firebase project configuration and owner-scoped Firestore/Storage rules.
 - Node.js 22 Cloud Functions project.
@@ -79,6 +83,15 @@ The deployed endpoint is:
 ```
 https://asia-south1-<FIREBASE_PROJECT_ID>.cloudfunctions.net/studyAssistant
 ```
+
+### Saved study artifact API
+
+The `studyArtifacts` endpoint accepts the same Firebase ID-token bearer authentication:
+
+- `GET /studyArtifacts` returns the latest 50 saved artifacts for the signed-in user.
+- `DELETE /studyArtifacts?id=<artifact_id>` deletes only that user's artifact.
+
+The Firestore rules also permit the authenticated owner to read and delete their own `users/{uid}/study_artifacts` documents directly. These endpoints are ready for client integration; the Android and macOS UIs do not call them yet.
 
 Clients must send:
 
