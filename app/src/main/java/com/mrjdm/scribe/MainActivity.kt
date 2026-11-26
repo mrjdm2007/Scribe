@@ -1410,9 +1410,10 @@ private fun openOfficeDocument(context: Context, item: ScribeItem) {
     }
     runCatching {
         val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(contentUri, mimeType)
-            .setClipData(ClipData.newRawUri(item.title, contentUri))
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(contentUri, mimeType).apply {
+            clipData = ClipData.newRawUri(item.title, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
         context.startActivity(Intent.createChooser(viewIntent, "Open document"))
     }.onFailure {
         android.widget.Toast.makeText(context, "No compatible document viewer was found. Install an Office-compatible viewer to open this file.", android.widget.Toast.LENGTH_LONG).show()
