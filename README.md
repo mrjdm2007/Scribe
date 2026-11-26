@@ -52,6 +52,12 @@ gradle :app:assembleDebug
 
 GitHub Actions publishes a smaller `scribe-release-apk` artifact. It is signed with the temporary debug signing key for testing; create a private release keystore before publishing a Play Store build.
 
+## Google Cloud backend migration
+
+A Firebase / Google Cloud backend foundation is now available in [firebase/](firebase/README.md), with the staged migration plan in [docs/google-cloud-migration.md](docs/google-cloud-migration.md). It includes owner-scoped Firestore and Storage rules, an authenticated Cloud Functions study-assistant endpoint, Gemini through Vertex AI, per-user AI usage limits and CI typechecking.
+
+**Important:** the Android and macOS clients still use the existing Supabase authentication and sync implementation at this stage. The new Firebase backend is not yet deployed or connected to the clients. Keep the Supabase project and its data until Firebase sign-in, sync, attachments, AI requests and two-device round trips have all been verified. No existing user data or Supabase resources have been removed.
+
 ## Supabase cloud sync setup
 
 1. Create a Supabase project and enable email/password authentication.
