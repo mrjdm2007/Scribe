@@ -36,9 +36,10 @@ import java.util.zip.ZipFile
 
 private data class OfficeSheet(val name: String, val rows: List<List<String>>)
 private data class OfficeSlide(val paragraphs: List<String>)
+private data class OfficeParagraph(val text: String, val style: String = "")
 private data class OfficeDocument(
     val type: String,
-    val paragraphs: List<String> = emptyList(),
+    val paragraphs: List<OfficeParagraph> = emptyList(),
     val sheets: List<OfficeSheet> = emptyList(),
     val slides: List<OfficeSlide> = emptyList()
 )
@@ -112,13 +113,13 @@ internal fun OfficeDocumentViewer(item: ScribeItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun WordReadingSurface(paragraphs: List<String>) {
+private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
     var fontSize by remember { mutableIntStateOf(16) }
     var searchVisible by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     val visibleParagraphs = remember(paragraphs, searchText) {
         if (searchText.isBlank()) paragraphs
-        else paragraphs.filter { it.contains(searchText, ignoreCase = true) }
+        else paragraphs.filter { it.text.contains(searchText, ignoreCase = true) }
     }
     if (paragraphs.isEmpty()) {
         EmptyDocumentMessage("No readable text was found in this document.")
@@ -457,23 +458,33 @@ private fun parserFor(zip: ZipFile, path: String, consume: (XmlPullParser) -> Un
     }
 }
 
-private fun readDocx(zip: ZipFile): List<String> {
-    val paragraphs = mutableListOf<String>()
+private fun readDocx(zip: ZipFile): List<OfficeParagraph> {
+    val paragraphs = mutableListOf<OfficeParagraph>()
     var current = StringBuilder()
     var inParagraph = false
+    var paragraphStyle = ""
     parserFor(zip, "word/document.xml") { parser ->
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
                 XmlPullParser.START_TAG -> when (parser.name) {
-                    "p" -> { current = StringBuilder(); inParagraph = true }
+                    "p" -> {
+                        current = StringBuilder()
+                        inParagraph = true
+                        paragraphStyle = ""
+                    }
+                    "pStyle" -> if (inParagraph) {
+                        paragraphStyle = parser.getAttributeValue(
+                            "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "val"
+                        ) ?: parser.getAttributeValue(null, "w:val").orEmpty()
+                    }
                     "t" -> if (inParagraph) current.append(parser.nextText())
                     "tab" -> if (inParagraph) current.append('\t')
                     "br" -> if (inParagraph) current.append('\n')
                 }
                 XmlPullParser.END_TAG -> if (parser.name == "p" && inParagraph) {
                     val text = current.toString().trim()
-                    if (text.isNotEmpty()) paragraphs += text
+                    if (text.isNotEmpty()) paragraphs += OfficeParagraph(text, paragraphStyle)
                     inParagraph = false
                 }
             }
