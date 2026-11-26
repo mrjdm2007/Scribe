@@ -139,7 +139,8 @@ export const studyAssistant = onRequest(
 
     try {
       const rawNotes = Array.isArray(request.body?.note_context)
-        ? request.body.note_context as NoteContext[]
+        ? request.body.note_context.filter((note: unknown): note is NoteContext =>
+            !!note && typeof note === "object" && !Array.isArray(note))
         : [];
       const context = buildContext(rawNotes);
       try {
@@ -271,6 +272,164 @@ export const studyAssistant = onRequest(
     }
   }
 );
+
+
+/**
+ * Owner-scoped persistent AI conversation history.
+ *
+ * GET /studyConversations                 -> latest 30 conversations
+ * GET /studyConversations?id=<uuid>       -> one conversation and messages
+ * POST /studyConversations                -> append one user/assistant message
+ * DELETE /studyConversations?id=<uuid>    -> delete one conversation
+ *
+ * Messages are capped to the newest 80 per conversation. Each message is
+ * bounded before storage to keep Firestore document sizes predictable.
+ */
+export const studyConversations = onRequest(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    maxInstances: 3,
+    cors: true
+  },
+  async (request, response) => {
+    if (request.method === "OPTIONS") {
+      response.status(204).send("");
+      return;
+    }
+    if (!["GET", "POST", "DELETE"].includes(request.method)) {
+      response.status(405).json({ error: "Use GET, POST or DELETE." });
+      return;
+    }
+
+    const authorization = request.header("authorization") ?? "";
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    if (!match) {
+      response.status(401).json({ error: "Sign in to Scribe first." });
+      return;
+    }
+
+    let uid: string;
+    try {
+      uid = (await getAuth().verifyIdToken(match[1], true)).uid;
+    } catch {
+      response.status(401).json({ error: "Your Firebase session is invalid or expired. Sign in again." });
+      return;
+    }
+
+    const collection = db.collection("users").doc(uid).collection("study_conversations");
+    const conversationId = asText(request.query.id ?? request.body?.conversationId, 80);
+    if (conversationId && !/^[a-f0-9-]{36}$/i.test(conversationId)) {
+      response.status(400).json({ error: "A valid conversation ID is required." });
+      return;
+    }
+
+    try {
+      if (request.method === "DELETE") {
+        if (!conversationId) {
+          response.status(400).json({ error: "conversationId is required." });
+          return;
+        }
+        await collection.doc(conversationId).delete();
+        response.status(200).json({ deleted: true, conversation_id: conversationId });
+        return;
+      }
+
+      if (request.method === "GET") {
+        if (conversationId) {
+          const snapshot = await collection.doc(conversationId).get();
+          if (!snapshot.exists) {
+            response.status(404).json({ error: "Conversation not found." });
+            return;
+          }
+          response.status(200).json({
+            conversation: { id: snapshot.id, ...snapshot.data() }
+          });
+          return;
+        }
+
+        const snapshot = await collection.orderBy("updatedAt", "desc").limit(30).get();
+        response.status(200).json({
+          conversations: snapshot.docs.map(document => {
+            const data = document.data();
+            return {
+              id: document.id,
+              title: data.title ?? "New conversation",
+              mode: data.mode ?? "notes",
+              activeDocumentId: data.activeDocumentId ?? null,
+              messageCount: Array.isArray(data.messages) ? data.messages.length : 0,
+              createdAt: data.createdAt,
+              updatedAt: data.updatedAt
+            };
+          })
+        });
+        return;
+      }
+
+      const role = request.body?.message?.role;
+      const messageText = asText(request.body?.message?.content, 4_000);
+      const mode = asText(request.body?.mode, 40) || "notes";
+      const activeDocumentId = asText(request.body?.activeDocumentId, 160) || null;
+      if (!["user", "assistant"].includes(role) || !messageText) {
+        response.status(400).json({
+          error: "A message with role 'user' or 'assistant' and non-empty content up to 4,000 characters is required."
+        });
+        return;
+      }
+      if (!supportedModes.has(mode)) {
+        response.status(400).json({ error: "Unsupported study mode." });
+        return;
+      }
+
+      const id = conversationId || crypto.randomUUID();
+      const ref = collection.doc(id);
+      const now = new Date();
+      const message = {
+        id: crypto.randomUUID(),
+        role,
+        content: messageText,
+        createdAt: now
+      };
+
+      await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(ref);
+        const existing = snapshot.exists ? snapshot.data() ?? {} : {};
+        const messages = Array.isArray(existing.messages) ? existing.messages : [];
+        const nextMessages = [...messages, message].slice(-80);
+        const firstUserMessage = nextMessages.find(
+          (item: unknown) => !!item && typeof item === "object"
+            && (item as { role?: unknown }).role === "user"
+        ) as { content?: unknown } | undefined;
+        const title = asText(existing.title, 120)
+          || asText(firstUserMessage?.content, 120)
+          || "New conversation";
+
+        transaction.set(ref, {
+          title,
+          mode,
+          activeDocumentId,
+          messages: nextMessages,
+          createdAt: existing.createdAt ?? now,
+          updatedAt: now
+        }, { merge: true });
+      });
+
+      response.status(200).json({
+        conversation_id: id,
+        message,
+        message_limit: 80
+      });
+    } catch (error) {
+      console.error("Scribe conversation operation failed", {
+        uid,
+        error: error instanceof Error ? error.message : "unknown"
+      });
+      response.status(500).json({ error: "Conversation history is temporarily unavailable." });
+    }
+  }
+);
+
 
 
 /**
