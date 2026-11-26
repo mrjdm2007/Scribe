@@ -164,7 +164,8 @@ internal class ScribeFirebaseClient(
             while (iterator.hasNext()) {
                 val row = iterator.next()
                 val id = row.optString("id")
-                val payload = row.optJSONObject("payload")\n                if (payload == null) { iterator.remove(); continue }
+                val payload = row.optJSONObject("payload")
+                if (payload == null) { iterator.remove(); continue }
                 val parentFirebase = payload.optString("parentFirebaseId").takeIf { it.isNotBlank() && it != "null" }
                 if (parentFirebase != null && !localByFirebase.containsKey(parentFirebase)) continue
                 val parentLocal = parentFirebase?.let { localByFirebase[it]?.id }
