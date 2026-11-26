@@ -1126,7 +1126,9 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                     if (blockType == "pdf") {
                         previewPdf = block
                     } else if (blockType == "office") {
-                        previewOffice = block
+                        val format = block.tags.substringAfter("format:", "").substringBefore(";").lowercase(Locale.ROOT)
+                        if (format in setOf("docx", "xlsx", "pptx")) previewOffice = block
+                        else openOfficeDocument(context, block)
                     } else if (block.tags.contains("type:crosslink")) {
                         val targetId = block.tags.substringAfter("target:", "").substringBefore(",").toLongOrNull()
                         scope.launch { targetId?.let { vm.get(it)?.let(onOpenTopic) } }
