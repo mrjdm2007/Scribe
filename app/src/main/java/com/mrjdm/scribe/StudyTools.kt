@@ -126,7 +126,7 @@ fun StudyHub(vm: ScribeViewModel) {
         }
         Spacer(Modifier.height(12.dp))
         Text("All flashcards", style = MaterialTheme.typography.titleMedium)
-        LazyColumn(contentPadding = PaddingValues(bottom = 90.dp)) {
+        LazyColumn(contentPadding = PaddingValues(bottom = 150.dp)) {
             items(cards, key = { it.id }) { card ->
                 ListItem(headlineContent = { Text(card.title) }, supportingContent = { Text("Interval: ${tagLong(card.tags, "interval").coerceAtLeast(1)} day(s)", color = ToolMuted) },
                     leadingContent = { Icon(Icons.Rounded.Style, null, tint = ToolGold) },
