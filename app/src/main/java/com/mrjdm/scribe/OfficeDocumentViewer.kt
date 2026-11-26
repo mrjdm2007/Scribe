@@ -1,5 +1,7 @@
 package com.mrjdm.scribe
 
+import com.mrjdm.scribe.data.ScribeItem
+
 import android.util.Xml
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
