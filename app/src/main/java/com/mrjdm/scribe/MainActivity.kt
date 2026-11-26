@@ -1007,7 +1007,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 90.dp)) {
             items(blocks, key = { it.id }) { block ->
                 BlockCard(block, onClick = {
-                    val blockType = block.tags.substringAfter("type:", "").substringBefore(",")
+                    val blockType = block.tags.substringAfter("type:", "").substringBefore(";").substringBefore(",")
                     if (blockType == "pdf") {
                         previewPdf = block
                     } else if (blockType == "office") {
