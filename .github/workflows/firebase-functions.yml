@@ -1,0 +1,40 @@
+name: Firebase Functions
+
+on:
+  push:
+    branches:
+      - main
+      - feature/scribe-complete-study-suite
+    paths:
+      - "firebase/**"
+      - "firebase.json"
+      - ".github/workflows/firebase-functions.yml"
+  pull_request:
+    paths:
+      - "firebase/**"
+      - "firebase.json"
+      - ".github/workflows/firebase-functions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firebase/functions
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
