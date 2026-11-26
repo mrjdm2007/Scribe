@@ -1,7 +1,6 @@
 package com.mrjdm.scribe
 
 import com.mrjdm.scribe.data.ScribeItem
-
 import android.util.Xml
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -19,10 +18,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
@@ -38,140 +40,210 @@ private data class OfficeDocument(
     val slides: List<OfficeSlide> = emptyList()
 )
 
-private const val OfficeGold = 0xFFD5B98C
-private const val OfficeMuted = 0xFF96938D
+private val ReaderBackground = Color(0xFF111216)
+private val ReaderBar = Color(0xFF191A1F)
+private val ReaderMuted = Color(0xFF9B9DA5)
+private val ReaderAccent = Color(0xFFD5B98C)
+private val Paper = Color(0xFFFAF9F6)
+private val Ink = Color(0xFF242424)
 
 @Composable
 internal fun OfficeDocumentViewer(item: ScribeItem, onDismiss: () -> Unit) {
-    val result by produceState<Pair<OfficeDocument?, String>?>(null, item.uri, item.tags) {
+    val type = item.tags.substringAfter("type:", "").substringBefore(",")
+    val result by produceState<Pair<OfficeDocument?, String>?>(null, item.uri, type) {
         value = withContext(Dispatchers.IO) {
-            runCatching { readOfficeDocument(File(item.uri), item.tags.substringAfter("type:", "").substringBefore(",")) }
+            runCatching { readOfficeDocument(File(item.uri), type) }
                 .fold({ it to "" }, { null to (it.localizedMessage ?: "This document could not be opened.") })
         }
     }
     var selectedSheet by remember(item.id) { mutableIntStateOf(0) }
     var selectedSlide by remember(item.id) { mutableIntStateOf(0) }
-    val gold = Color(OfficeGold)
-    val muted = Color(OfficeMuted)
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF17191D))
-        ) {
-            Column(Modifier.fillMaxSize().padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = ReaderBackground) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Column(Modifier.weight(1f)) {
-                        Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(item.title, color = Color(0xFFF3F1EC), fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium, maxLines = 1)
                         Text(
-                            when (item.tags.substringAfter("type:", "").substringBefore(",")) {
-                                "docx" -> "WORD DOCUMENT · READ ONLY"
-                                "xlsx" -> "EXCEL WORKBOOK · READ ONLY"
-                                else -> "POWERPOINT PRESENTATION · READ ONLY"
+                            when (type) {
+                                "docx" -> "WORD DOCUMENT"
+                                "xlsx" -> "EXCEL WORKBOOK"
+                                "pptx" -> "POWERPOINT PRESENTATION"
+                                else -> "DOCUMENT"
                             },
-                            color = muted, fontSize = 10.sp, letterSpacing = 1.sp
+                            color = ReaderMuted, fontSize = 9.sp, letterSpacing = 1.25.sp
                         )
                     }
-                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Close document") }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close document", tint = Color(0xFFE8E6E1))
+                    }
                 }
-                HorizontalDivider(color = Color(0xFF33363B))
+                HorizontalDivider(color = Color(0xFF2A2B30))
                 when {
                     result == null -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = gold)
+                        CircularProgressIndicator(color = ReaderAccent)
                     }
-                    result?.first == null -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text(result?.second ?: "This document could not be opened.", color = muted)
+                    result?.first == null -> Box(Modifier.weight(1f).fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
+                        Text(result?.second ?: "This document could not be opened.", color = ReaderMuted, textAlign = TextAlign.Center)
                     }
                     else -> {
                         val document = result!!.first!!
                         when (document.type) {
-                            "docx" -> {
-                                if (document.paragraphs.isEmpty()) {
-                                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        Text("No readable text was found in this document.", color = muted)
-                                    }
-                                } else {
-                                    LazyColumn(
-                                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                                        contentPadding = PaddingValues(vertical = 12.dp),
-                                        verticalArrangement = Arrangement.spacedBy(9.dp)
-                                    ) {
-                                        items(document.paragraphs) { paragraph ->
-                                            Text(paragraph, color = Color(0xFFE6E2DA), fontSize = 14.sp, lineHeight = 21.sp)
-                                        }
-                                    }
-                                }
-                            }
-                            "xlsx" -> {
-                                if (document.sheets.isEmpty()) {
-                                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        Text("No readable worksheets were found.", color = muted)
-                                    }
-                                } else {
-                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        document.sheets.forEachIndexed { index, sheet ->
-                                            FilterChip(
-                                                selected = selectedSheet == index,
-                                                onClick = { selectedSheet = index },
-                                                label = { Text(sheet.name, maxLines = 1) }
-                                            )
-                                        }
-                                    }
-                                    val sheet = document.sheets.getOrNull(selectedSheet.coerceIn(document.sheets.indices))
-                                    if (sheet != null) {
-                                        Text("${sheet.name} · ${sheet.rows.size} rows", color = muted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 7.dp))
-                                        LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                                            items(sheet.rows) { row ->
-                                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                                                    row.forEachIndexed { index, cell ->
-                                                        Surface(
-                                                            modifier = Modifier.width(126.dp).heightIn(min = 38.dp),
-                                                            color = if (index == 0) Color(0xFF292721) else Color(0xFF202226)
-                                                        ) {
-                                                            Text(cell, Modifier.padding(horizontal = 8.dp, vertical = 9.dp), color = Color(0xFFE6E2DA), fontSize = 12.sp, maxLines = 5)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            else -> {
-                                val slide = document.slides.getOrNull(selectedSlide)
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                    IconButton(enabled = selectedSlide > 0, onClick = { selectedSlide-- }) { Icon(Icons.Rounded.ChevronLeft, "Previous slide", tint = gold) }
-                                    Text("SLIDE ${selectedSlide + 1} OF ${document.slides.size}", color = muted, fontSize = 11.sp, letterSpacing = 1.sp)
-                                    IconButton(enabled = selectedSlide < document.slides.lastIndex, onClick = { selectedSlide++ }) { Icon(Icons.Rounded.ChevronRight, "Next slide", tint = gold) }
-                                }
-                                if (slide == null || slide.paragraphs.isEmpty()) {
-                                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        Text("No readable text on this slide.", color = muted)
-                                    }
-                                } else {
-                                    Column(
-                                        Modifier.weight(1f).fillMaxWidth().background(Color(0xFFF4F1EA), RoundedCornerShape(10.dp)).padding(18.dp),
-                                        verticalArrangement = Arrangement.spacedBy(13.dp)
-                                    ) {
-                                        slide.paragraphs.forEachIndexed { index, paragraph ->
-                                            Text(
-                                                paragraph,
-                                                color = Color(0xFF222222),
-                                                fontSize = if (index == 0) 21.sp else 15.sp,
-                                                fontWeight = if (index == 0) FontWeight.SemiBold else FontWeight.Normal,
-                                                lineHeight = 23.sp
-                                            )
-                                        }
-                                    }
-                                }
+                            "docx" -> WordReadingSurface(document.paragraphs)
+                            "xlsx" -> SpreadsheetReadingSurface(document.sheets, selectedSheet) { selectedSheet = it }
+                            "pptx" -> PresentationReadingSurface(document.slides, selectedSlide,
+                                onPrevious = { selectedSlide = (selectedSlide - 1).coerceAtLeast(0) },
+                                onNext = { selectedSlide = (selectedSlide + 1).coerceAtMost(document.slides.lastIndex) })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WordReadingSurface(paragraphs: List<String>) {
+    if (paragraphs.isEmpty()) {
+        EmptyDocumentMessage("No readable text was found in this document.")
+        return
+    }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        item {
+            Column(
+                Modifier.fillMaxWidth().background(Paper, RoundedCornerShape(3.dp))
+                    .padding(horizontal = 24.dp, vertical = 30.dp),
+                verticalArrangement = Arrangement.spacedBy(15.dp)
+            ) {
+                paragraphs.forEachIndexed { index, paragraph ->
+                    val looksLikeHeading = paragraph.length < 90 && !paragraph.endsWith(".") && index < 12
+                    Text(
+                        paragraph, color = Ink, fontFamily = FontFamily.Serif,
+                        fontSize = if (looksLikeHeading) 18.sp else 16.sp,
+                        fontWeight = if (looksLikeHeading) FontWeight.SemiBold else FontWeight.Normal,
+                        lineHeight = if (looksLikeHeading) 25.sp else 27.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: Int, onSheetSelected: (Int) -> Unit) {
+    if (sheets.isEmpty()) {
+        EmptyDocumentMessage("No readable worksheets were found.")
+        return
+    }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().background(ReaderBar).horizontalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            sheets.forEachIndexed { index, sheet ->
+                FilterChip(
+                    selected = selectedSheet == index,
+                    onClick = { onSheetSelected(index) },
+                    label = { Text(sheet.name, maxLines = 1) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFF34302A),
+                        selectedLabelColor = ReaderAccent,
+                        labelColor = Color(0xFFE2E0DA)
+                    )
+                )
+            }
+        }
+        val sheet = sheets.getOrNull(selectedSheet.coerceIn(0, sheets.lastIndex))
+        if (sheet != null) {
+            LazyColumn(
+                Modifier.weight(1f).fillMaxWidth().background(Color(0xFFF1F0EC)),
+                contentPadding = PaddingValues(10.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                items(sheet.rows) { row ->
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                        row.forEachIndexed { index, cell ->
+                            Surface(
+                                Modifier.width(132.dp).heightIn(min = 42.dp),
+                                color = if (index == 0) Color(0xFFE7E4DD) else Paper,
+                                shape = RoundedCornerShape(1.dp)
+                            ) {
+                                Text(cell, Modifier.padding(horizontal = 9.dp, vertical = 10.dp), color = Ink,
+                                    fontSize = 12.sp, lineHeight = 17.sp,
+                                    fontWeight = if (index == 0) FontWeight.Medium else FontWeight.Normal)
                             }
                         }
                     }
                 }
-                Text("Read-only preview · Files stay stored in Scribe", color = muted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun PresentationReadingSurface(
+    slides: List<OfficeSlide>, selectedSlide: Int, onPrevious: () -> Unit, onNext: () -> Unit
+) {
+    if (slides.isEmpty()) {
+        EmptyDocumentMessage("No readable slides were found.")
+        return
+    }
+    val slide = slides.getOrNull(selectedSlide)
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+        Box(Modifier.weight(1f).fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
+            Surface(
+                Modifier.fillMaxWidth().aspectRatio(16f / 10f),
+                color = Paper, shape = RoundedCornerShape(3.dp), shadowElevation = 3.dp
+            ) {
+                if (slide == null || slide.paragraphs.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No readable text on this slide.", color = ReaderMuted)
+                    }
+                } else {
+                    Column(
+                        Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        slide.paragraphs.forEachIndexed { index, paragraph ->
+                            Text(
+                                paragraph, color = Ink, fontSize = if (index == 0) 22.sp else 15.sp,
+                                fontWeight = if (index == 0) FontWeight.SemiBold else FontWeight.Normal,
+                                lineHeight = 22.sp, modifier = Modifier.padding(vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 16.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TextButton(onClick = onPrevious, enabled = selectedSlide > 0) {
+                Icon(Icons.Rounded.ChevronLeft, null); Text("Previous")
+            }
+            Text("\${selectedSlide + 1} / \${slides.size}", color = ReaderMuted, fontSize = 12.sp)
+            TextButton(onClick = onNext, enabled = selectedSlide < slides.lastIndex) {
+                Text("Next"); Icon(Icons.Rounded.ChevronRight, null)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyDocumentMessage(message: String) {
+    Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
+        Text(message, color = ReaderMuted, textAlign = TextAlign.Center)
     }
 }
 
