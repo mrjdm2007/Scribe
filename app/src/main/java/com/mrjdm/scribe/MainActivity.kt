@@ -129,6 +129,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         if (navigationReady) savedStackIds = stack.joinToString(",") { it.id.toString() }
     }
     var tab by remember { mutableStateOf("Library") }
+    var showMoreNavigation by rememberSaveable { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
     var createKind by remember { mutableStateOf("course") }
     var editItem by remember { mutableStateOf<ScribeItem?>(null) }
@@ -312,6 +313,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             if (tab != "Library" || current != null) {
                 TopAppBar(
@@ -341,18 +343,28 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         bottomBar = {
             if (!isWide) NavigationBar(
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).scribeGlass(RoundedCornerShape(22.dp)),
-                containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp
+                containerColor = Color.Transparent, contentColor = Gold, tonalElevation = 0.dp,
+                windowInsets = WindowInsets.navigationBars
             ) {
-                listOf("Library", "Saved", "Study", "AI", "Workspace", "Tools", "Settings").forEach { label ->
-                    val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "AI" -> Icons.Rounded.AutoAwesome; "Workspace" -> Icons.Rounded.Insights; else -> Icons.Rounded.Settings }
-                    NavigationBarItem(selected = tab == label, onClick = { hapticView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK); tab = label; stack = emptyList() },
-                        icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
+                listOf("Library", "Saved", "Study", "AI", "More").forEach { label ->
+                    val icon = when (label) {
+                        "Library" -> Icons.Rounded.AutoStories
+                        "Saved" -> Icons.Rounded.Bookmark
+                        "Study" -> Icons.Rounded.School
+                        "AI" -> Icons.Rounded.AutoAwesome
+                        else -> Icons.Rounded.MoreHoriz
+                    }
+                    val selected = if (label == "More") tab in listOf("Workspace", "Tools", "Settings") else tab == label
+                    NavigationBarItem(selected = selected, onClick = {
+                        hapticView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        if (label == "More") showMoreNavigation = true else { tab = label; stack = emptyList() }
+                    }, icon = { Icon(icon, contentDescription = label) }, label = { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
             }
         }
     ) { padding ->
-        Row(Modifier.fillMaxSize().padding(padding).animateContentSize().background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.075f), Color.Transparent), radius = 1050f))) {
+        Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.075f), Color.Transparent), radius = 1050f))) {
             if (isWide) {
                 NavigationRail(
                     modifier = Modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp).scribeGlass(RoundedCornerShape(20.dp)),
@@ -366,9 +378,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 }
             }
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp).animateContentSize()) {
+            Column(Modifier.widthIn(max = if (isWide) 1320.dp else Dp.Unspecified).fillMaxWidth().fillMaxHeight().padding(horizontal = if (isWide) 28.dp else 20.dp)) {
             Spacer(Modifier.height(18.dp))
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Column(Modifier.weight(1f).fillMaxWidth().then(if ((tab == "Library" && current == null && searchQuery.isBlank()) || tab == "Settings") Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
             when (tab) {
                 "Library" -> {
                     if (current?.kind == "page") {
@@ -558,6 +570,22 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             containerColor = Color(0xFF202125))
     }
 
+    if (showMoreNavigation) {
+        ModalBottomSheet(onDismissRequest = { showMoreNavigation = false }, containerColor = Color(0xFF1B1D22), contentColor = MaterialTheme.colorScheme.onSurface) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                Text("MORE", color = Gold, fontSize = 10.sp, letterSpacing = 2.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                listOf(Triple("Workspace", Icons.Rounded.Insights, "Study dashboard and progress"), Triple("Tools", Icons.Rounded.Functions, "Academic and engineering tools"), Triple("Settings", Icons.Rounded.Settings, "Sync, backups and preferences")).forEach { (label, icon, description) ->
+                    Row(Modifier.fillMaxWidth().clickable {
+                        tab = label; stack = emptyList(); showMoreNavigation = false
+                    }.padding(horizontal = 24.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(icon, null, tint = Gold); Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) { Text(label, fontWeight = FontWeight.Medium); Text(description, color = Muted, fontSize = 12.sp) }
+                        Icon(Icons.Rounded.ChevronRight, null, tint = Muted)
+                    }
+                }
+            }
+        }
+    }
     if (showCreate) CreateDialog(createKind, onDismiss = { showCreate = false }) { name, tags ->
         vm.add(current?.id, createKind, name, tags = tags) { id ->
             scope.launch { val item = vm.get(id); if (item != null) stack = stack + item }
