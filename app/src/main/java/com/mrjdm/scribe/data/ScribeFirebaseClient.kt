@@ -3,6 +3,14 @@ package com.mrjdm.scribe.data
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -39,7 +47,13 @@ internal object ScribeFirebaseSession {
         val token = p.getString("refresh_token", null) ?: return null
         return FirebaseSavedSession(key, project, p.getString("email", "").orEmpty(), token)
     }
-    fun clear(context: Context) { prefs(context).edit().clear().apply() }
+    fun clear(context: Context) { prefs(context).edit().clear().apply(); WorkManager.getInstance(context).cancelUniqueWork("scribe-firebase-library-sync") }
+    fun schedule(context: Context) {
+        val request = PeriodicWorkRequestBuilder<ScribeFirebaseSyncWorker>(6, TimeUnit.HOURS)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork("scribe-firebase-library-sync", ExistingPeriodicWorkPolicy.UPDATE, request)
+    }
 }
 
 /** Firebase Identity Toolkit + authenticated Cloud Functions REST client. */
@@ -113,14 +127,15 @@ internal class ScribeFirebaseClient(
         withContext(Dispatchers.IO) {
             val tokens = authenticate(email, password, createAccount)
             ScribeFirebaseSession.save(context, apiKey, projectId, email.trim(), tokens.refreshToken)
-            syncWithToken(tokens.idToken, tokens.refreshToken)
+            ScribeFirebaseSession.schedule(context)
+            syncWithToken(tokens.idToken, tokens.refreshToken, projectId)
         }
 
     suspend fun syncSaved(): String = withContext(Dispatchers.IO) {
         val saved = ScribeFirebaseSession.read(context) ?: error("No Firebase account is connected.")
         val tokens = refresh(saved)
         ScribeFirebaseSession.save(context, saved.apiKey, saved.projectId, saved.email, tokens.refreshToken)
-        syncWithToken(tokens.idToken, tokens.refreshToken)
+        syncWithToken(tokens.idToken, tokens.refreshToken, saved.projectId)
     }
 
     private suspend fun syncWithToken(idToken: String, refreshToken: String): String {
@@ -149,7 +164,7 @@ internal class ScribeFirebaseClient(
             while (iterator.hasNext()) {
                 val row = iterator.next()
                 val id = row.optString("id")
-                val payload = row.optJSONObject("payload") ?: run { iterator.remove(); continue }
+                val payload = row.optJSONObject("payload")\n                if (payload == null) { iterator.remove(); continue }
                 val parentFirebase = payload.optString("parentFirebaseId").takeIf { it.isNotBlank() && it != "null" }
                 if (parentFirebase != null && !localByFirebase.containsKey(parentFirebase)) continue
                 val parentLocal = parentFirebase?.let { localByFirebase[it]?.id }
@@ -205,7 +220,7 @@ internal class ScribeFirebaseClient(
         for (item in local) {
             val id = ids[item.id] ?: firebaseId(item.tags) ?: UUID.randomUUID().toString().lowercase()
             ids[item.id] = id
-            val parentFirebase = item.parentId?.let { ids[it] }
+            val parentFirebase = item.parentId?.let { parentId -> local.firstOrNull { it.id == parentId }?.tags?.let(::firebaseId) }
             val history = JSONArray()
             dao.snapshots(item.id).first().forEach { snapshot ->
                 history.put(JSONObject().put("title", snapshot.title).put("body", snapshot.body).put("savedAt", snapshot.savedAt))
@@ -239,3 +254,4 @@ internal class ScribeFirebaseClient(
         return "Firebase sync complete: $inserted added, $changed updated, $uploaded uploaded."
     }
 }
+\ninternal class ScribeFirebaseSyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {\n    override suspend fun doWork(): Result = try {\n        val saved = ScribeFirebaseSession.read(applicationContext) ?: return Result.success()\n        ScribeFirebaseClient(applicationContext, ScribeDatabase.get(applicationContext).dao(), saved.apiKey, saved.projectId).syncSaved()\n        Result.success()\n    } catch (_: Throwable) { Result.retry() }\n}\n
