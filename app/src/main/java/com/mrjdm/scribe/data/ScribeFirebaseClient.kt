@@ -48,6 +48,21 @@ internal object ScribeFirebaseSession {
         return FirebaseSavedSession(key, project, p.getString("email", "").orEmpty(), token)
     }
     fun clear(context: Context) { prefs(context).edit().clear().apply(); WorkManager.getInstance(context).cancelUniqueWork("scribe-firebase-library-sync"); LearningTipScheduler.cancel(context) }
+    fun queueDeletion(context: Context, id: String) {
+        val preferences = context.getSharedPreferences("scribe_firebase_pending_deletes", Context.MODE_PRIVATE)
+        val pending = preferences.getStringSet("ids", emptySet()).orEmpty().toMutableSet()
+        pending.add(id)
+        preferences.edit().putStringSet("ids", pending).apply()
+    }
+    fun pendingDeletions(context: Context): Set<String> =
+        context.getSharedPreferences("scribe_firebase_pending_deletes", Context.MODE_PRIVATE)
+            .getStringSet("ids", emptySet()).orEmpty().toSet()
+    fun completeDeletion(context: Context, id: String) {
+        val preferences = context.getSharedPreferences("scribe_firebase_pending_deletes", Context.MODE_PRIVATE)
+        val pending = preferences.getStringSet("ids", emptySet()).orEmpty().toMutableSet()
+        pending.remove(id)
+        preferences.edit().putStringSet("ids", pending).apply()
+    }
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<ScribeFirebaseSyncWorker>(6, TimeUnit.HOURS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
@@ -194,6 +209,11 @@ internal class ScribeFirebaseClient(
 
     private suspend fun syncWithToken(idToken: String, refreshToken: String, targetProjectId: String): String {
         val root = "https://asia-south1-$targetProjectId.cloudfunctions.net/studyLibrary"
+        for (deletedId in ScribeFirebaseSession.pendingDeletions(context)) {
+            val encodedId = java.net.URLEncoder.encode(deletedId, "UTF-8")
+            request("$root?id=$encodedId", "DELETE", token = idToken)
+            ScribeFirebaseSession.completeDeletion(context, deletedId)
+        }
         val remote = JSONArray()
         var cursor = ""
         do {
