@@ -156,6 +156,18 @@ internal class ScribeFirebaseClient(
         fun firebaseId(tags: String) = tags.split(";").firstOrNull { it.startsWith("firebase_id:") }?.substringAfter("firebase_id:")?.takeIf { it.isNotBlank() }
         fun tagged(tags: String, id: String): String =
             (tags.split(";").filter { it.isNotBlank() && !it.startsWith("firebase_id:") } + "firebase_id:$id").joinToString(";")
+        fun restoreAttachment(payload: JSONObject, id: String, currentUri: String): String {
+            if (currentUri.isNotBlank() && File(currentUri).isFile) return currentUri
+            val encoded = payload.optString("attachmentBase64")
+            if (encoded.isBlank()) return currentUri
+            return runCatching {
+                val folder = File(context.filesDir, "attachments").apply { mkdirs() }
+                val name = payload.optString("attachmentName", "attachment").substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
+                val target = File(folder, "firebase_${id}_${name}")
+                target.writeBytes(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
+                target.absolutePath
+            }.getOrDefault(currentUri)
+        }
         val ids = mutableMapOf<Long, String>()
         local.forEach { item ->
             val id = firebaseId(item.tags) ?: UUID.randomUUID().toString().lowercase()
@@ -188,6 +200,7 @@ internal class ScribeFirebaseClient(
                             kind = payload.optString("kind", current.kind),
                             title = payload.optString("title", current.title),
                             body = payload.optString("body", current.body),
+                            uri = restoreAttachment(payload, id, current.uri),
                             tags = tagged(payload.optString("tags", current.tags), id),
                             bookmarked = payload.optBoolean("bookmarked", current.bookmarked),
                             position = payload.optInt("position", current.position),
@@ -202,7 +215,7 @@ internal class ScribeFirebaseClient(
                 } else {
                     val created = ScribeItem(parentId = parentLocal, kind = payload.optString("kind", "block"),
                         title = payload.optString("title", "Synced note"), body = payload.optString("body"),
-                        tags = tagged(payload.optString("tags"), id), bookmarked = payload.optBoolean("bookmarked"),
+                        uri = restoreAttachment(payload, id, ""), tags = tagged(payload.optString("tags"), id), bookmarked = payload.optBoolean("bookmarked"),
                         position = payload.optInt("position"), createdAt = payload.optLong("createdAt", System.currentTimeMillis()),
                         updatedAt = remoteUpdated, deletedAt = if (payload.isNull("deletedAt")) null else payload.optLong("deletedAt"))
                     val localId = dao.insert(created)
