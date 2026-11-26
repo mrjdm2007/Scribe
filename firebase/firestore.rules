@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All user-owned Scribe data is isolated beneath its Firebase Auth UID.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Usage accounting is server-managed only. Admin SDK access from Cloud
+    // Functions bypasses these client rules.
+    match /scribe_ai_usage/{userId}/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Deny access to any collection not explicitly covered above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
