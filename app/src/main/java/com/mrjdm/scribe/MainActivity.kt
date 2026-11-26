@@ -140,17 +140,18 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
     var showCloudSync by remember { mutableStateOf(false) }
-    var cloudUrl by remember { mutableStateOf(ScribeCloudConfig.SUPABASE_URL) }
-    var cloudKey by remember { mutableStateOf(ScribeCloudConfig.SUPABASE_ANON_KEY) }
+    var firebaseApiKey by remember { mutableStateOf("") }
+    var firebaseProjectId by remember { mutableStateOf("") }
+    var createFirebaseAccount by remember { mutableStateOf(false) }
     var cloudEmail by remember { mutableStateOf("") }
     var cloudPassword by remember { mutableStateOf("") }
     var cloudStatus by remember { mutableStateOf("") }
     var cloudBusy by remember { mutableStateOf(false) }
     var trashSelectedIds by remember { mutableStateOf(setOf<Long>()) }
     LaunchedEffect(Unit) {
-        val cloudPrefs = context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE)
-        cloudUrl = cloudPrefs.getString("url", ScribeCloudConfig.SUPABASE_URL).orEmpty()
-        cloudKey = cloudPrefs.getString("anon_key", ScribeCloudConfig.SUPABASE_ANON_KEY).orEmpty()
+        val firebasePrefs = context.getSharedPreferences("scribe_firebase_config", Context.MODE_PRIVATE)
+        firebaseApiKey = firebasePrefs.getString("api_key", "").orEmpty()
+        firebaseProjectId = firebasePrefs.getString("project_id", "").orEmpty()
     }
     var integrityReport by remember { mutableStateOf<String?>(null) }
     val current = stack.lastOrNull()
@@ -525,7 +526,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     SettingsRow(Icons.Rounded.CloudUpload, "Export full backup", "Save courses, notes and organisation as JSON") { backupLauncher.launch("Scribe-backup.json") }
                     SettingsRow(Icons.Rounded.CloudDownload, "Restore backup", "Replace this library from a Scribe backup") { restoreLauncher.launch(arrayOf("application/json", "text/*")) }
                     SettingsRow(Icons.Rounded.DeleteSweep, "Recently deleted", "Restore or permanently remove deleted notes") { showTrash = true }
-                    SettingsRow(Icons.Rounded.CloudUpload, "Cloud sync", "Connect your Supabase project and sync across devices") { showCloudSync = true }
+                    SettingsRow(Icons.Rounded.CloudUpload, "Firebase cloud sync", "Sign in with Firebase to sync your Scribe library across devices") { showCloudSync = true }
                     SettingsRow(Icons.Rounded.VerifiedUser, "Check library integrity", "Find missing attachments and duplicate entries") {
                         scope.launch {
                             val all = vm.all()
@@ -596,14 +597,15 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
 
     if (showCloudSync) AlertDialog(
         onDismissRequest = { if (!cloudBusy) showCloudSync = false },
-        title = { Text("Supabase cloud sync") },
+        title = { Text("Firebase cloud sync") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
-                Text("Sign in once to enable automatic sync every 6 hours when this device is online. Your password is never saved; the refresh session is encrypted on this device.", color = Muted, fontSize = 12.sp)
-                OutlinedTextField(cloudUrl, { cloudUrl = it }, label = { Text("Project URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(cloudKey, { cloudKey = it }, label = { Text("Anon / publishable key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Use the Firebase Web API key and Project ID from Firebase Project settings. Firebase Authentication (Email/Password), Firestore and the deployed studyLibrary Cloud Function must be enabled. Your password is never saved; the refresh token is encrypted on this device.", color = Muted, fontSize = 12.sp)
+                OutlinedTextField(firebaseApiKey, { firebaseApiKey = it }, label = { Text("Firebase Web API key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(firebaseProjectId, { firebaseProjectId = it }, label = { Text("Firebase project ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(cloudEmail, { cloudEmail = it }, label = { Text("Account email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(cloudPassword, { cloudPassword = it }, label = { Text("Account password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                TextButton(onClick = { createFirebaseAccount = !createFirebaseAccount }) { Text(if (createFirebaseAccount) "I already have an account · Sign in" else "New here? Create a Firebase account") }
                 if (cloudStatus.isNotBlank()) Text(cloudStatus, color = if (cloudStatus.startsWith("Sync failed")) Color(0xFFE49A91) else Gold, fontSize = 12.sp)
                 if (cloudBusy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Gold)
             }
@@ -611,17 +613,16 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(enabled = !cloudBusy, onClick = {
-                ScribeCloudSession.clear(context)
-                cloudStatus = "Automatic sync disabled."
+                ScribeFirebaseSession.clear(context)
+                cloudStatus = "Firebase automatic sync disabled. Your local notes are unchanged."
             }) { Text("Disable auto sync") }
             TextButton(enabled = !cloudBusy, onClick = {
-                val cleanUrl = cloudUrl.trim().trimEnd('/')
-                context.getSharedPreferences("scribe_cloud", Context.MODE_PRIVATE).edit()
-                    .putString("url", cleanUrl).putString("anon_key", cloudKey.trim()).apply()
+                context.getSharedPreferences("scribe_firebase_config", Context.MODE_PRIVATE).edit()
+                    .putString("api_key", firebaseApiKey.trim()).putString("project_id", firebaseProjectId.trim()).apply()
                 cloudBusy = true
                 cloudStatus = "Connecting and syncing…"
                 scope.launch {
-                    val result = runCatching { vm.syncSupabase(cleanUrl, cloudKey.trim(), cloudEmail.trim(), cloudPassword) }
+                    val result = runCatching { vm.syncFirebase(firebaseApiKey.trim(), firebaseProjectId.trim(), cloudEmail.trim(), cloudPassword, createFirebaseAccount) }
                     cloudStatus = result.fold({ it }, { "Sync failed: ${it.localizedMessage ?: "Unknown error"}" })
                     cloudPassword = ""
                     cloudBusy = false
