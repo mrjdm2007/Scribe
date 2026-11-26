@@ -34,7 +34,10 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-private val WorkspaceGold = androidx.compose.ui.graphics.Color(0xFFD5B98C)\nprivate val WorkspaceMuted = androidx.compose.ui.graphics.Color(0xFF96938D)\n\nprivate data class WorkspaceTask(val id: String, val title: String, val done: Boolean = false, val notes: String = "")
+private val WorkspaceGold = androidx.compose.ui.graphics.Color(0xFFD5B98C)
+private val WorkspaceMuted = androidx.compose.ui.graphics.Color(0xFF96938D)
+
+private data class WorkspaceTask(val id: String, val title: String, val done: Boolean = false, val notes: String = "")
 private data class WorkspaceExam(val id: String, val title: String, val subject: String, val date: String, val notes: String, val tasks: List<WorkspaceTask>)
 private data class WorkspaceFocus(val id: String, val subject: String, val topic: String, val minutes: Int, val planned: Int, val interruptions: Int, val date: String)
 private data class WorkspaceFolder(val id: String, val name: String)
