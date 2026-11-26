@@ -59,6 +59,10 @@ class ScribeViewModel(app: Application) : AndroidViewModel(app) {
         ScribeSupabaseSync(getApplication(), dao).sync(url, anonKey, email, password)
     suspend fun syncFirebase(apiKey: String, projectId: String, email: String, password: String, createAccount: Boolean): String =
         ScribeFirebaseClient(getApplication(), dao, apiKey.trim(), projectId.trim()).signInAndSync(email, password, createAccount)
+    suspend fun askFirebaseAI(question: String, mode: String, noteContext: org.json.JSONArray): org.json.JSONObject {
+        val saved = ScribeFirebaseSession.read(getApplication()) ?: error("Connect a Firebase account in Settings first.")
+        return ScribeFirebaseClient(getApplication(), dao, saved.apiKey, saved.projectId).studyAssistant(question, mode, noteContext)
+    }
     suspend fun syncSavedFirebase(): String {
         val saved = ScribeFirebaseSession.read(getApplication()) ?: error("No Firebase account is connected.")
         return ScribeFirebaseClient(getApplication(), dao, saved.apiKey, saved.projectId).syncSaved()
