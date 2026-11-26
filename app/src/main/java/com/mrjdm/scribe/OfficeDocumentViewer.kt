@@ -183,9 +183,19 @@ private fun WordReadingSurface(paragraphs: List<String>) {
 
 @Composable
 private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: Int, onSheetSelected: (Int) -> Unit) {
+    var searchVisible by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
     if (sheets.isEmpty()) {
         EmptyDocumentMessage("No readable worksheets were found.")
         return
+    }
+    val sheet = sheets.getOrNull(selectedSheet.coerceIn(0, sheets.lastIndex))
+    val matchingRows = remember(sheet, searchText) {
+        val rows = sheet?.rows.orEmpty()
+        if (searchText.isBlank()) rows.mapIndexed { index, row -> index to row }
+        else rows.mapIndexedNotNull { index, row ->
+            if (row.any { it.contains(searchText, ignoreCase = true) }) index to row else null
+        }
     }
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -193,11 +203,11 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            sheets.forEachIndexed { index, sheet ->
+            sheets.forEachIndexed { index, item ->
                 FilterChip(
                     selected = selectedSheet == index,
-                    onClick = { onSheetSelected(index) },
-                    label = { Text(sheet.name, maxLines = 1) },
+                    onClick = { onSheetSelected(index); searchText = "" },
+                    label = { Text(item.name, maxLines = 1) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = Color(0xFF34302A),
                         selectedLabelColor = ReaderAccent,
@@ -206,24 +216,69 @@ private fun SpreadsheetReadingSurface(sheets: List<OfficeSheet>, selectedSheet: 
                 )
             }
         }
-        val sheet = sheets.getOrNull(selectedSheet.coerceIn(0, sheets.lastIndex))
+        Row(
+            Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("${sheet?.rows?.size ?: 0} rows", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            if (searchText.isNotBlank()) {
+                Text("${matchingRows.size} matches", color = ReaderAccent, fontSize = 10.sp)
+            }
+            IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchText = "" }) {
+                Icon(if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                    contentDescription = if (searchVisible) "Close worksheet search" else "Search worksheet",
+                    tint = Color(0xFFE8E6E1))
+            }
+        }
+        if (searchVisible) {
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp),
+                singleLine = true,
+                placeholder = { Text("Find in this worksheet") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = ReaderAccent, unfocusedBorderColor = Color(0xFF45464A),
+                    focusedTextColor = Color(0xFFF3F1EC), unfocusedTextColor = Color(0xFFF3F1EC),
+                    cursorColor = ReaderAccent
+                )
+            )
+        }
         if (sheet != null) {
-            LazyColumn(
-                Modifier.weight(1f).fillMaxWidth().background(Color(0xFFF1F0EC)),
-                contentPadding = PaddingValues(10.dp),
-                verticalArrangement = Arrangement.spacedBy(1.dp)
-            ) {
-                items(sheet.rows) { row ->
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                        row.forEachIndexed { index, cell ->
+            if (matchingRows.isEmpty()) {
+                EmptyDocumentMessage("No matching cells were found in this worksheet.")
+            } else {
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth().background(Color(0xFFF1F0EC)),
+                    contentPadding = PaddingValues(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    items(matchingRows, key = { it.first }) { (rowIndex, row) ->
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
                             Surface(
-                                Modifier.width(132.dp).heightIn(min = 42.dp),
-                                color = if (index == 0) Color(0xFFE7E4DD) else Paper,
-                                shape = RoundedCornerShape(1.dp)
+                                Modifier.width(48.dp).heightIn(min = 42.dp),
+                                color = Color(0xFFE0DED8), shape = RoundedCornerShape(1.dp)
                             ) {
-                                Text(cell, Modifier.padding(horizontal = 9.dp, vertical = 10.dp), color = Ink,
-                                    fontSize = 12.sp, lineHeight = 17.sp,
-                                    fontWeight = if (index == 0) FontWeight.Medium else FontWeight.Normal)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text((rowIndex + 1).toString(), color = ReaderMuted, fontSize = 11.sp)
+                                }
+                            }
+                            row.forEachIndexed { columnIndex, cell ->
+                                Surface(
+                                    Modifier.width(132.dp).heightIn(min = 42.dp),
+                                    color = if (rowIndex == 0) Color(0xFFE7E4DD) else Paper,
+                                    shape = RoundedCornerShape(1.dp)
+                                ) {
+                                    Text(
+                                        cell,
+                                        Modifier.padding(horizontal = 9.dp, vertical = 10.dp),
+                                        color = Ink, fontSize = 12.sp, lineHeight = 17.sp,
+                                        fontWeight = if (rowIndex == 0 || columnIndex == 0) FontWeight.Medium else FontWeight.Normal
+                                    )
+                                }
                             }
                         }
                     }
