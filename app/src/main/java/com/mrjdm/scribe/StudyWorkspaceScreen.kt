@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mrjdm.scribe.data.ScribeItem
+import com.mrjdm.scribe.data.LearningTipScheduler
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
@@ -103,6 +104,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
         reflectionChallenges = store.read("reflection_challenges")
         reflectionNext = store.read("reflection_next")
         loaded = true
+        LearningTipScheduler.update(context)
     }
 
     LaunchedEffect(allItems, loaded) {
@@ -330,12 +332,12 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             }
             "Reminders" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("ANDROID LEARNING REMINDERS", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · saved preferences", color = WorkspaceMuted, fontSize = 12.sp) }; Switch(notificationEnabled, { notificationEnabled = it; store.setBool("notifications_enabled", it); persistNotificationPreferences() }) }
+                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · saved preferences", color = WorkspaceMuted, fontSize = 12.sp) }; Switch(notificationEnabled, { notificationEnabled = it; store.setBool("notifications_enabled", it); persistNotificationPreferences(); LearningTipScheduler.update(context) }) }
                 Text("Reminder interval")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4).forEach { h -> FilterChip(selected = interval == h, onClick = { interval = h; store.setInt("notification_interval", h); persistNotificationPreferences() }, label = { Text("$h h") }) } }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4).forEach { h -> FilterChip(selected = interval == h, onClick = { interval = h; store.setInt("notification_interval", h); persistNotificationPreferences(); LearningTipScheduler.update(context) }, label = { Text("$h h") }) } }
                 OutlinedTextField(quietStart, { quietStart = it; store.write("quiet_start", it); persistNotificationPreferences() }, label = { Text("Quiet hours start (HH:mm)") }, singleLine = true)
                 OutlinedTextField(quietEnd, { quietEnd = it; store.write("quiet_end", it); persistNotificationPreferences() }, label = { Text("Quiet hours end (HH:mm)") }, singleLine = true)
-                Text("These preferences are saved locally. AI-generated topic tips and background delivery are not active yet. They require a configured AI service and Android scheduler; periodic work is approximate, not exact to the minute.", color = WorkspaceMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("Scribe uses your existing signed-in cloud session to generate short tips from notebook topics. WorkManager checks approximately every selected interval; Android may delay delivery because background work is not exact to the minute. Quiet hours are respected and a topic is not repeated on the same day.", color = WorkspaceMuted, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
     }
