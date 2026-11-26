@@ -12,6 +12,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -141,8 +142,8 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                         TextButton(onClick = { if (!aiBusy) { aiConversation.clear(); aiAnswer = ""; aiQuestion = "" } }) { Text("New chat") }
                         TextButton(onClick = { if (!aiBusy) aiOpen = false }) { Text("Close") }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("notes", "explain", "exam", "quiz", "research", "summary").forEach { mode ->
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup").forEach { mode ->
                             FilterChip(selected = aiMode == mode, onClick = { aiMode = mode }, label = { Text(mode.replaceFirstChar { it.uppercase() }, fontSize = 10.sp) })
                         }
                     }
