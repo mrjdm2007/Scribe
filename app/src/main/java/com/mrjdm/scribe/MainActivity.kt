@@ -709,7 +709,10 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
     var tags by remember(item.id) { mutableStateOf(item.tags) }
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val bodyBringIntoView = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
+    var bodyFocused by remember(item.id) { mutableStateOf(false) }
+    LaunchedEffect(bodyValue.selection, bodyValue.text.length, bodyFocused) {
+        if (bodyFocused) bodyBringIntoView.bringIntoView()
+    }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit ${item.kind}") }, text = {
         Column(
             Modifier.fillMaxWidth().heightIn(max = screenHeight * 0.62f).verticalScroll(rememberScrollState()).imePadding(),
@@ -727,7 +730,7 @@ private fun EditDialog(item: ScribeItem, onDismiss: () -> Unit, onSave: (String,
             OutlinedTextField(
                 bodyValue, { bodyValue = it },
                 modifier = Modifier.fillMaxWidth().bringIntoViewRequester(bodyBringIntoView).onFocusEvent { state ->
-                    if (state.isFocused) scope.launch { bodyBringIntoView.bringIntoView() }
+                    bodyFocused = state.isFocused
                 },
                 label = { Text("Description / content") }, minLines = 4, maxLines = 12, colors = fieldColors()
             )
