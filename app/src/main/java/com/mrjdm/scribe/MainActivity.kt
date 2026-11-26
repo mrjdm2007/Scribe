@@ -654,6 +654,7 @@ private fun TopicNotebook(
     var showWordGoalDialog by remember { mutableStateOf(false) }
     var wordGoalDraft by remember(topic.id) { mutableStateOf(topic.tags.split(";").firstOrNull { it.startsWith("wordGoal:") }?.substringAfter(":") ?: "500") }
     var showTemplateMenu by remember { mutableStateOf(false) }
+    var showReadingMode by remember { mutableStateOf(false) }
 
     LaunchedEffect(noteValue.text, topic.id) {
         delay(250)
@@ -679,6 +680,7 @@ private fun TopicNotebook(
                 Text("TOPIC NOTEBOOK", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Text(topic.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
+            IconButton(onClick = { showReadingMode = true }) { Icon(Icons.Rounded.MenuBook, "Open reading mode", tint = Gold) }
             val noteWords = noteValue.text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
             Column(horizontalAlignment = Alignment.End) {
                 Text("$noteWords words", color = Muted, fontSize = 10.sp)
@@ -848,6 +850,11 @@ private fun TopicNotebook(
             }
         }
     }
+    if (showReadingMode) NotesReadingMode(
+        title = topic.title,
+        markdown = noteValue.text + blocks.joinToString("\n\n") { block -> "\n## ${block.title}\n\n${block.body}" },
+        onDismiss = { showReadingMode = false }
+    )
     if (showAdd) AddBlockDialog(onDismiss = { showAdd = false }) { type, title, body, tags ->
         vm.add(topic.id, "block", title.ifBlank { type.replaceFirstChar { it.uppercase() } },
             body = body, tags = "type:$type,$tags")
@@ -897,6 +904,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
     var editBlock by remember { mutableStateOf<ScribeItem?>(null) }
     var previewPdf by remember { mutableStateOf<ScribeItem?>(null) }
     var pageTitle by remember(page.id) { mutableStateOf(page.title) }
+    var showReadingMode by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, null) }
@@ -904,6 +912,7 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
                 Text("NOTE PAGE", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Text(page.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
+            IconButton(onClick = { showReadingMode = true }) { Icon(Icons.Rounded.MenuBook, "Open reading mode", tint = Gold) }
             IconButton(onClick = onHistory) { Icon(Icons.Rounded.History, null, tint = Muted) }
             IconButton(onClick = onExport) { Icon(Icons.Rounded.PictureAsPdf, null, tint = Muted) }
         }
@@ -978,6 +987,11 @@ private fun PageEditor(page: ScribeItem, vm: ScribeViewModel, onBack: () -> Unit
             }
         }
     }
+    if (showReadingMode) NotesReadingMode(
+        title = page.title,
+        markdown = blocks.filterNot { it.tags.contains("type:crosslink") }.joinToString("\n\n") { block -> "## ${block.title}\n\n${block.body}" },
+        onDismiss = { showReadingMode = false }
+    )
     if (showLinkPicker) AlertDialog(onDismissRequest = { showLinkPicker = false }, title = { Text("Link another topic") },
         text = {
             if (topics.isEmpty()) Text("Create a topic first, then you can link it here.")
