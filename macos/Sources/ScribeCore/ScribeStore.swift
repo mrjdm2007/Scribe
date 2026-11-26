@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 import UserNotifications
+import UniformTypeIdentifiers
 
 public func independentCopyTags(_ tags: String) -> String {
     tags.split(separator: ";").map(String.init)
@@ -650,20 +651,6 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
             let nextTags = (cleanTags + (fingerprint.isEmpty ? [] : ["firebase_attachment_fingerprint:" + fingerprint])).joined(separator: ";")
             return (destination.path, nextTags)
         }
-        func restoreFirebaseAttachment(_ payload: [String: Any], id: String, currentURI: String) -> String {
-            if !currentURI.isEmpty && FileManager.default.fileExists(atPath: currentURI) { return currentURI }
-            guard let encoded = payload["attachmentBase64"] as? String,
-                  let data = Data(base64Encoded: encoded) else { return currentURI }
-            let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
-            do {
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                let rawName = payload["attachmentName"] as? String ?? "attachment"
-                let safeName = URL(fileURLWithPath: rawName).lastPathComponent.replacingOccurrences(of: "/", with: "_")
-                let destination = folder.appendingPathComponent("firebase_\(id)_\(safeName)")
-                try data.write(to: destination, options: .atomic)
-                return destination.path
-            } catch { return currentURI }
-        }
 
         for index in items.indices {
             if firebaseID(items[index].tags) == nil {
@@ -704,8 +691,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                             kind: payload["kind"] as? String ?? items[index].kind,
                             title: payload["title"] as? String ?? items[index].title,
                             body: payload["body"] as? String ?? items[index].body,
-                            uri: restoreFirebaseAttachment(payload, id: id, currentURI: items[index].uri),
-                            tags: tagged(payload["tags"] as? String ?? items[index].tags, id),
+                            uri: restoredAttachment.0,
+                            tags: tagged(payload["tags"] as? String ?? items[index].tags, id) + (restoredAttachment.1.split(separator: ";").first(where: { $0.hasPrefix("firebase_attachment_fingerprint:") }).map { ";" + String($0) } ?? ""),
                             bookmarked: payload["bookmarked"] as? Bool ?? items[index].bookmarked,
                             position: payload["position"] as? Int ?? items[index].position,
                             createdAt: (payload["createdAt"] as? NSNumber)?.int64Value ?? items[index].createdAt,
@@ -720,8 +707,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                         kind: payload["kind"] as? String ?? "block",
                         title: payload["title"] as? String ?? "Synced note",
                         body: payload["body"] as? String ?? "",
-                        uri: restoreFirebaseAttachment(payload, id: id, currentURI: ""),
-                        tags: tagged(payload["tags"] as? String ?? "", id),
+                        uri: restoredAttachment.0,
+                        tags: tagged(payload["tags"] as? String ?? "", id) + ((payload["attachmentFingerprint"] as? String).map { ";firebase_attachment_fingerprint:" + $0 } ?? ""),
                         bookmarked: payload["bookmarked"] as? Bool ?? false,
                         position: payload["position"] as? Int ?? 0,
                         createdAt: (payload["createdAt"] as? NSNumber)?.int64Value ?? remoteUpdated,
