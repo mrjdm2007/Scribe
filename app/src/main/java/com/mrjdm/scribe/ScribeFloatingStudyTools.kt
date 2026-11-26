@@ -143,12 +143,12 @@ fun ScribeFloatingStudyTools(item: ScribeItem?, vm: ScribeViewModel) {
                         TextButton(onClick = { if (!aiBusy) aiOpen = false }) { Text("Close") }
                     }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup").forEach { mode ->
+                        listOf("notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup", "compare", "glossary", "formula_sheet", "study_plan", "lesson", "misconception", "mnemonics", "case_study").forEach { mode ->
                             FilterChip(selected = aiMode == mode, onClick = { aiMode = mode }, label = { Text(mode.replaceFirstChar { it.uppercase() }, fontSize = 10.sp) })
                         }
                     }
                     OutlinedTextField(aiQuestion, { aiQuestion = it }, modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Ask about your notes or a topic") }, minLines = 2, maxLines = 4)
+                        label = { Text("Ask, compare concepts, make a formula sheet or plan revision") }, minLines = 2, maxLines = 4)
                     Button(enabled = aiQuestion.isNotBlank() && !aiBusy, onClick = {
                         aiBusy = true; aiError = ""; aiAnswer = ""
                         val studentMessage = aiQuestion
