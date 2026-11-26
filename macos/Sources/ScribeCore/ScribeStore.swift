@@ -621,6 +621,35 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         func tagged(_ tags: String, _ id: String) -> String {
             (tags.split(separator: ";").map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("firebase_id:") } + ["firebase_id:" + id]).joined(separator: ";")
         }
+        func restoreFirebaseAttachment(_ payload: [String: Any], id: String, currentURI: String,
+                                       currentTags: String) async throws -> (String, String) {
+            guard let attachmentID = payload["attachmentId"] as? String, !attachmentID.isEmpty else {
+                return (currentURI, currentTags)
+            }
+            let fingerprint = payload["attachmentFingerprint"] as? String ?? ""
+            let localFingerprint = currentTags.split(separator: ";")
+                .first(where: { $0.hasPrefix("firebase_attachment_fingerprint:") })
+                .map { String($0.dropFirst("firebase_attachment_fingerprint:".count)) } ?? ""
+            if !currentURI.isEmpty && FileManager.default.fileExists(atPath: currentURI)
+                && !fingerprint.isEmpty && fingerprint == localFingerprint {
+                return (currentURI, currentTags)
+            }
+            let result = try await ScribeFirebaseClient.requestAttachment(
+                projectId: projectId, idToken: idToken, method: "GET", id: attachmentID)
+            guard let encoded = result["base64"] as? String, let data = Data(base64Encoded: encoded) else {
+                return (currentURI, currentTags)
+            }
+            let folder = fileURL.deletingLastPathComponent().appendingPathComponent("attachments", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let rawName = result["name"] as? String ?? "attachment"
+            let safeName = URL(fileURLWithPath: rawName).lastPathComponent.replacingOccurrences(of: "/", with: "_")
+            let destination = folder.appendingPathComponent("firebase_\\(id)_\\(safeName)")
+            try data.write(to: destination, options: .atomic)
+            let cleanTags = currentTags.split(separator: ";").map(String.init)
+                .filter { !$0.hasPrefix("firebase_attachment_fingerprint:") }
+            let nextTags = (cleanTags + (fingerprint.isEmpty ? [] : ["firebase_attachment_fingerprint:" + fingerprint])).joined(separator: ";")
+            return (destination.path, nextTags)
+        }
         func restoreFirebaseAttachment(_ payload: [String: Any], id: String, currentURI: String) -> String {
             if !currentURI.isEmpty && FileManager.default.fileExists(atPath: currentURI) { return currentURI }
             guard let encoded = payload["attachmentBase64"] as? String,
@@ -669,6 +698,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                 let remoteUpdated = (payload["updatedAt"] as? NSNumber)?.int64Value ?? (row["updatedAt"] as? NSNumber)?.int64Value ?? 0
                 if let localID = localByFirebase[id], let index = items.firstIndex(where: { $0.id == localID }) {
                     if remoteUpdated > items[index].updatedAt {
+                        let restoredAttachment = try await restoreFirebaseAttachment(payload, id: id,
+                            currentURI: items[index].uri, currentTags: items[index].tags)
                         items[index] = ScribeItem(id: localID, parentId: parentID,
                             kind: payload["kind"] as? String ?? items[index].kind,
                             title: payload["title"] as? String ?? items[index].title,
@@ -684,6 +715,7 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                     }
                 } else {
                     let localID = (items.map(\.id).max() ?? 0) + 1
+                    let restoredAttachment = try await restoreFirebaseAttachment(payload, id: id, currentURI: "", currentTags: "")
                     let item = ScribeItem(id: localID, parentId: parentID,
                         kind: payload["kind"] as? String ?? "block",
                         title: payload["title"] as? String ?? "Synced note",
@@ -732,9 +764,25 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
                 "updatedAt": item.updatedAt, "deletedAt": item.deletedAt as Any? ?? NSNull(),
                 "parentFirebaseId": parentFirebase as Any? ?? NSNull(), "history": history
             ]
-            if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)), data.count <= 400_000 {
-                payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
-                payload["attachmentBase64"] = data.base64EncodedString()
+            if !item.uri.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: item.uri)) {
+                if data.count <= 20 * 1024 * 1024 {
+                    let fingerprint = "\\(data.count)_\\((try? FileManager.default.attributesOfItem(atPath: item.uri)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)"
+                    let previous = item.tags.split(separator: ";").first(where: { $0.hasPrefix("firebase_attachment_fingerprint:") })
+                        .map { String($0.dropFirst("firebase_attachment_fingerprint:".count)) } ?? ""
+                    if previous != fingerprint {
+                        let name = URL(fileURLWithPath: item.uri).lastPathComponent
+                        let mime = UTType(filenameExtension: URL(fileURLWithPath: item.uri).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+                        _ = try await ScribeFirebaseClient.requestAttachment(projectId: projectId, idToken: idToken,
+                            method: "POST", id: id, body: ["id": id, "name": name, "contentType": mime, "base64": data.base64EncodedString()])
+                        if let index = items.firstIndex(where: { $0.id == item.id }) {
+                            let clean = items[index].tags.split(separator: ";").map(String.init).filter { !$0.hasPrefix("firebase_attachment_fingerprint:") }
+                            items[index].tags = (clean + ["firebase_attachment_fingerprint:" + fingerprint]).joined(separator: ";")
+                        }
+                    }
+                    payload["attachmentId"] = id
+                    payload["attachmentName"] = URL(fileURLWithPath: item.uri).lastPathComponent
+                    payload["attachmentFingerprint"] = fingerprint
+                } else { payload["attachmentOmitted"] = true }
             }
             records.append(["id": id, "updatedAt": item.updatedAt, "payload": payload])
         }
