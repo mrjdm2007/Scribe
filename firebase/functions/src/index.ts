@@ -495,6 +495,217 @@ export const studyConversations = onRequest(
 
 
 /**
+ * Learning progress API: session history, quiz analytics, topic mastery,
+ * spaced-review scheduling and personal study goals.
+ *
+ * GET returns a dashboard snapshot for the authenticated owner.
+ * POST accepts one of: session, quiz, review or goal.
+ */
+export const studyProgress = onRequest(
+  {
+    region: "asia-south1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    maxInstances: 3,
+    cors: true
+  },
+  async (request, response) => {
+    if (request.method === "OPTIONS") {
+      response.status(204).send("");
+      return;
+    }
+    if (request.method !== "GET" && request.method !== "POST") {
+      response.status(405).json({ error: "Use GET to read progress or POST to record progress." });
+      return;
+    }
+
+    const authorization = request.header("authorization") ?? "";
+    const match = authorization.match(/^Bearer\\s+(.+)$/i);
+    if (!match) {
+      response.status(401).json({ error: "Sign in to Scribe first." });
+      return;
+    }
+
+    let uid: string;
+    try {
+      uid = (await getAuth().verifyIdToken(match[1], true)).uid;
+    } catch {
+      response.status(401).json({ error: "Your Firebase session is invalid or expired. Sign in again." });
+      return;
+    }
+
+    const userRef = db.collection("users").doc(uid);
+    const topics = userRef.collection("topic_progress");
+    const goals = userRef.collection("study_goals");
+    const sessions = userRef.collection("study_sessions");
+    const safeKey = (value: unknown, max = 100) =>
+      asText(value, max).toLocaleLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
+
+    try {
+      if (request.method === "GET") {
+        const [topicSnapshot, goalSnapshot, sessionSnapshot] = await Promise.all([
+          topics.limit(300).get(),
+          goals.limit(50).get(),
+          sessions.orderBy("createdAt", "desc").limit(30).get()
+        ]);
+        const topicItems = topicSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const now = Date.now();
+        const dueReviews = topicItems
+          .filter((item: any) => item.nextReviewAt && item.nextReviewAt.toMillis() <= now)
+          .sort((a: any, b: any) => a.nextReviewAt.toMillis() - b.nextReviewAt.toMillis());
+        const weakTopics = topicItems
+          .filter((item: any) => Number(item.attempts ?? 0) > 0)
+          .sort((a: any, b: any) => Number(a.mastery ?? 0) - Number(b.mastery ?? 0))
+          .slice(0, 10);
+        response.status(200).json({
+          topics: topicItems,
+          goals: goalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          recentSessions: sessionSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+          dueReviews,
+          weakTopics
+        });
+        return;
+      }
+
+      const body = request.body ?? {};
+      const action = asText(body.action, 30);
+      const now = new Date();
+
+      if (action === "session") {
+        const durationMinutes = Number(body.durationMinutes);
+        const subject = asText(body.subject, 100);
+        const topic = asText(body.topic, 160);
+        if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 600) {
+          response.status(400).json({ error: "Session duration must be between 1 and 600 whole minutes." });
+          return;
+        }
+        if (!subject) {
+          response.status(400).json({ error: "A subject is required for a study session." });
+          return;
+        }
+        const sessionRef = sessions.doc();
+        const day = now.toISOString().slice(0, 10);
+        const dailyRef = userRef.collection("study_daily").doc(day);
+        await db.runTransaction(async transaction => {
+          transaction.create(sessionRef, {
+            subject, topic: topic || null, durationMinutes,
+            startedAt: body.startedAt ? new Date(body.startedAt) : null,
+            createdAt: now
+          });
+          const daily = await transaction.get(dailyRef);
+          transaction.set(dailyRef, {
+            date: day,
+            studyMinutes: Number(daily.get("studyMinutes") ?? 0) + durationMinutes,
+            sessions: Number(daily.get("sessions") ?? 0) + 1,
+            updatedAt: now
+          }, { merge: true });
+        });
+        response.status(201).json({ session_id: sessionRef.id, durationMinutes });
+        return;
+      }
+
+      if (action === "quiz" || action === "review") {
+        const topicName = asText(body.topic, 160);
+        const topicKey = safeKey(topicName);
+        if (!topicName || !topicKey) {
+          response.status(400).json({ error: "A valid topic name is required." });
+          return;
+        }
+        const topicRef = topics.doc(topicKey);
+        let result: Record<string, unknown> = {};
+        await db.runTransaction(async transaction => {
+          const snapshot = await transaction.get(topicRef);
+          const previous = snapshot.exists ? snapshot.data() ?? {} : {};
+          const attempts = Number(previous.attempts ?? 0);
+          let mastery = Math.max(0, Math.min(100, Number(previous.mastery ?? 0)));
+          let correct = Number(previous.correct ?? 0);
+          let total = Number(previous.total ?? 0);
+          let intervalDays = Number(previous.intervalDays ?? 1);
+
+          if (action === "quiz") {
+            const questions = Number(body.total);
+            const answersCorrect = Number(body.correct);
+            if (!Number.isInteger(questions) || questions < 1 || questions > 200
+              || !Number.isInteger(answersCorrect) || answersCorrect < 0 || answersCorrect > questions) {
+              throw new Error("INVALID_QUIZ_RESULT");
+            }
+            correct += answersCorrect;
+            total += questions;
+            const score = answersCorrect / questions;
+            mastery = Math.round(Math.max(0, Math.min(100, mastery * 0.65 + score * 100 * 0.35 + (attempts === 0 ? score * 20 : 0))));
+            intervalDays = score >= 0.9 ? Math.min(30, Math.max(2, intervalDays * 2)) : score >= 0.7 ? Math.max(1, intervalDays) : 1;
+            result = { score: Math.round(score * 100), correct: answersCorrect, total: questions };
+          } else {
+            const rating = asText(body.rating, 10);
+            if (!["again", "hard", "good", "easy"].includes(rating)) {
+              throw new Error("INVALID_REVIEW_RATING");
+            }
+            const adjustments: Record<string, number> = { again: -15, hard: -5, good: 8, easy: 15 };
+            mastery = Math.max(0, Math.min(100, mastery + adjustments[rating]));
+            intervalDays = rating === "again" ? 1 : rating === "hard" ? Math.max(1, Math.ceil(intervalDays * 1.2)) : rating === "good" ? Math.max(2, intervalDays * 2) : Math.max(4, intervalDays * 3);
+            result = { rating, mastery };
+          }
+
+          const nextReviewAt = new Date(now.getTime() + intervalDays * 86_400_000);
+          transaction.set(topicRef, {
+            name: topicName,
+            mastery,
+            attempts: attempts + 1,
+            correct,
+            total,
+            accuracy: total > 0 ? Math.round(correct / total * 100) : null,
+            intervalDays,
+            lastReviewedAt: now,
+            nextReviewAt,
+            updatedAt: now
+          }, { merge: true });
+          result = { ...result, mastery, intervalDays, nextReviewAt };
+        });
+        response.status(200).json({ topic: topicKey, ...result });
+        return;
+      }
+
+      if (action === "goal") {
+        const goalType = asText(body.goalType, 30);
+        const allowedTypes = new Set(["daily_minutes", "weekly_sessions", "target_topics"]);
+        const target = Number(body.target);
+        const label = asText(body.label, 100);
+        if (!allowedTypes.has(goalType) || !Number.isInteger(target) || target < 1 || target > 10_000) {
+          response.status(400).json({ error: "Choose a supported goal and a whole-number target from 1 to 10,000." });
+          return;
+        }
+        const goalRef = goals.doc(goalType);
+        await goalRef.set({
+          type: goalType,
+          label: label || goalType.replace(/_/g, " "),
+          target,
+          active: body.active !== false,
+          updatedAt: now,
+          createdAt: (await goalRef.get()).get("createdAt") ?? now
+        }, { merge: true });
+        response.status(200).json({ goal_id: goalType, target });
+        return;
+      }
+
+      response.status(400).json({ error: "Supported actions are session, quiz, review and goal." });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      if (reason === "INVALID_QUIZ_RESULT" || reason === "INVALID_REVIEW_RATING") {
+        response.status(400).json({ error: reason === "INVALID_QUIZ_RESULT"
+          ? "Quiz results must contain 1–200 questions and a valid correct-answer count."
+          : "Review rating must be again, hard, good or easy." });
+        return;
+      }
+      console.error("Scribe progress operation failed", {
+        uid, error: reason || "unknown"
+      });
+      response.status(500).json({ error: "Learning progress is temporarily unavailable." });
+    }
+  }
+);
+
+
+/**
  * Lists and deletes generated study artifacts for the authenticated user.
  * The same data is also readable through the Firestore SDK under the
  * owner-scoped users/{uid}/study_artifacts collection.
