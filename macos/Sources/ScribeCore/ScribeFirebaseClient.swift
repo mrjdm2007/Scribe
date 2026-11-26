@@ -116,7 +116,7 @@ public enum ScribeFirebaseClient {
         }
         let (idToken, refreshedSession) = try await refreshed(session)
         try ScribeFirebaseSessionVault.save(refreshedSession)
-        let url = URL(string: "https://asia-south1-\\(session.projectId).cloudfunctions.net/studyConversations")!
+        let url = URL(string: "https://asia-south1-\(session.projectId).cloudfunctions.net/studyConversations")!
         func append(_ id: String?, role: String, content: String) async throws -> [String: Any] {
             var body: [String: Any] = [
                 "mode": mode,
@@ -142,7 +142,7 @@ public enum ScribeFirebaseClient {
         }
         let (idToken, refreshedSession) = try await refreshed(session)
         try ScribeFirebaseSessionVault.save(refreshedSession)
-        var components = URLComponents(string: "https://asia-south1-\\(session.projectId).cloudfunctions.net/studyConversations")!
+        var components = URLComponents(string: "https://asia-south1-\(session.projectId).cloudfunctions.net/studyConversations")!
         components.queryItems = [URLQueryItem(name: "id", value: id)]
         return try await jsonRequest(components.url!, method: "GET", token: idToken)
     }
