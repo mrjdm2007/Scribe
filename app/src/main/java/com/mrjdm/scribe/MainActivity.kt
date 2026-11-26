@@ -611,7 +611,7 @@ private fun ScribeApp(initialDocumentUri: Uri? = null, vm: ScribeViewModel = vie
 
     incomingDocument?.let { shared ->
         if (shared.tags.contains("type:pdf")) {
-            PdfViewerDialog(shared, vm, onDismiss = { incomingDocument = null })
+            PdfViewerDialog(shared, vm, readOnly = true, onDismiss = { incomingDocument = null })
         } else {
             OfficeDocumentViewer(shared, onDismiss = { incomingDocument = null })
         }
@@ -1539,7 +1539,7 @@ private fun openOfficeDocument(context: Context, item: ScribeItem) {
 private data class PdfHandle(val descriptor: ParcelFileDescriptor, val renderer: PdfRenderer)
 
 @Composable
-private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: () -> Unit) {
+private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, readOnly: Boolean = false, onDismiss: () -> Unit) {
     val handle = remember(item.uri) {
         runCatching {
             val descriptor = ParcelFileDescriptor.open(File(item.uri), ParcelFileDescriptor.MODE_READ_ONLY)
@@ -1672,6 +1672,7 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                 } else {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Gold) }
                 }
+                if (!readOnly) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Annotate", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     listOf("Highlight", "Underline", "Note", "Markup").forEach { kind ->
@@ -1736,6 +1737,7 @@ private fun PdfViewerDialog(item: ScribeItem, vm: ScribeViewModel, onDismiss: ()
                         }
                         }
                     }
+                }
                 }
                 HorizontalDivider(color = Color(0xFF33363B))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
