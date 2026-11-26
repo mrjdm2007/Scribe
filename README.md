@@ -17,7 +17,7 @@ Scribe is a native, offline-first Android notebook designed around Course → Ch
 - Bookmarks, revision-tag filtering, a searchable multiple-choice question bank, mixed practice sessions and offline flashcards with Again / Good / Easy spaced-repetition scheduling.
 - Local study reminders with reboot rescheduling and automatic archival after notification delivery.
 - A foreground focus timer with 15 / 25 / 45 / 60-minute sessions, weekly study totals, a 60-minute daily goal, consecutive-day study streaks and recent-session history on Android and macOS.
-- Native Study Workspace screens on Android and macOS for exam planning, editable syllabus checklists, subject-specific focus logs, bookmark folders and weekly reflections. Android additionally schedules AI learning tips through WorkManager using the existing signed-in cloud session. It respects quiet hours, avoids repeating a topic during the same local day, and uses approximate periodic delivery. Workspace records use the existing notebook sync model when cloud sync is configured; the separate Firebase workspace endpoints are not yet the clients' active backend.
+- Native Study Workspace screens on Android and macOS for exam planning, editable syllabus checklists, subject-specific focus logs, bookmark folders and weekly reflections. Android additionally schedules Firebase-powered AI learning tips through WorkManager. It respects quiet hours, avoids repeating a topic during the same local day, and uses approximate periodic delivery. Workspace records sync as notebook records through the shared Firebase library endpoint.
 - Tested spaced-repetition intervals: Again resets, Hard advances gently, Good doubles and Easy triples the interval (capped at one year).
 - Quick capture notes routed into a visible Quick Notes course and Inbox chapter.
 - Formula source pad with symbol keyboard and saved formula collection.
@@ -55,13 +55,13 @@ GitHub Actions publishes a smaller `scribe-release-apk` artifact. It is signed w
 
 ## Google Cloud backend migration
 
-A Firebase / Google Cloud backend foundation is now available in [firebase/](firebase/README.md), with the staged migration plan in [docs/google-cloud-migration.md](docs/google-cloud-migration.md). It includes owner-scoped Firestore and Storage rules, an authenticated Cloud Functions study-assistant endpoint, Gemini through Vertex AI, per-user AI usage limits and CI typechecking.
+Firebase / Google Cloud integration is now implemented in both native clients. Android and macOS support Firebase email/password sign-in, encrypted refresh-token storage, Firestore notebook sync, Firebase Storage attachments (up to 20 MB), and the authenticated Gemini study-assistant Cloud Function. Android also has an AI assistant screen and Firebase-backed learning-tip notifications. See [firebase/](firebase/README.md) and [the migration/deployment guide](docs/google-cloud-migration.md).
 
-**Important:** the Android and macOS clients still use the existing Supabase authentication and sync implementation at this stage. The new Firebase backend is not yet deployed or connected to the clients. Keep the Supabase project and its data until Firebase sign-in, sync, attachments, AI requests and two-device round trips have all been verified. No existing user data or Supabase resources have been removed.
+**Important:** the Firebase client code is committed but still requires your Firebase Web API key and Project ID, enabled Email/Password Authentication, Firestore/Storage setup, Vertex AI permissions and Cloud Functions deployment. Live sync and AI cannot work until that project setup is completed. Supabase remains available as a legacy fallback; do not delete its data until you have verified Firebase two-device sync and migrated any cloud-only Supabase records.
 
 ## Legacy Supabase cloud sync (temporary during migration)
 
-**This section describes the currently connected legacy backend only.** Do not create a new Supabase project for a fresh Scribe setup if you are starting the Google Cloud migration. Existing installs continue to use Supabase until Firebase authentication and sync are integrated into both clients and verified. See [the Google Cloud migration guide](docs/google-cloud-migration.md).
+**This section describes the legacy Supabase fallback only.** New installations should configure Firebase using the Firebase cloud sync section in each app. Keep existing Supabase resources until all records and attachments have been migrated and Firebase has passed a two-device round trip. See [the Google Cloud migration guide](docs/google-cloud-migration.md).
 
 1. Create a Supabase project and enable email/password authentication.
 2. Run [supabase/schema.sql](supabase/schema.sql) in the Supabase SQL editor.
