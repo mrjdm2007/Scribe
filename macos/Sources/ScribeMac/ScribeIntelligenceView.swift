@@ -18,6 +18,7 @@ struct ScribeIntelligenceView: View {
     @State private var busy = false
     @State private var conversation: [String] = []
     @State private var savedFlashcards = 0
+    @AppStorage("scribe.firebase.activeConversationID") private var activeConversationID = ""
     private let modes = ["notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup", "compare", "glossary", "formula_sheet", "study_plan", "lesson", "misconception", "mnemonics", "case_study"]
 
     private func notebookPath(for item: ScribeItem) -> String {
@@ -56,7 +57,7 @@ struct ScribeIntelligenceView: View {
                     Text("Your study assistant").font(.title2.bold())
                 }
                 Spacer()
-                Button("New chat") { conversation = []; question = ""; answer = ""; errorMessage = ""; savedFlashcards = 0 }
+                Button("New chat") { conversation = []; question = ""; answer = ""; errorMessage = ""; savedFlashcards = 0; activeConversationID = "" }
                     .buttonStyle(.borderless).disabled(busy)
                 if busy { ProgressView() }
             }
@@ -91,6 +92,22 @@ struct ScribeIntelligenceView: View {
                     .foregroundStyle(answer.isEmpty ? .secondary : .primary)
             }.frame(maxHeight: .infinity)
         }.padding(20).frame(minWidth: 520, minHeight: 500)
+            .task { await restoreConversation() }
+    }
+
+    @MainActor private func restoreConversation() async {
+        guard !activeConversationID.isEmpty, conversation.isEmpty else { return }
+        do {
+            let response = try await ScribeFirebaseClient.loadConversation(id: activeConversationID)
+            let details = response["conversation"] as? [String: Any]
+            let messages = details?["messages"] as? [[String: Any]] ?? []
+            conversation = messages.compactMap { message in
+                guard let content = message["content"] as? String, !content.isEmpty else { return nil }
+                return ((message["role"] as? String) == "assistant" ? "Scribe: " : "Student: ") + content
+            }.suffix(16).map { $0 }
+        } catch {
+            errorMessage = "Saved conversation could not be restored: " + error.localizedDescription
+        }
     }
 
     private func saveGeneratedFlashcards() -> Int {
@@ -126,6 +143,13 @@ struct ScribeIntelligenceView: View {
             ]
             let object = try await ScribeFirebaseClient.studyAssistant(payload: payload)
             answer = object["answer"] as? String ?? "The assistant returned an empty response."
+            do {
+                activeConversationID = try await ScribeFirebaseClient.saveConversationTurn(
+                    conversationID: activeConversationID.isEmpty ? nil : activeConversationID,
+                    mode: mode, userMessage: studentMessage, assistantMessage: answer)
+            } catch {
+                errorMessage = "Answer generated, but conversation history could not sync: " + error.localizedDescription
+            }
             conversation.append("Student: " + studentMessage)
             conversation.append("Scribe: " + answer)
             if conversation.count > 16 { conversation.removeFirst(conversation.count - 16) }
