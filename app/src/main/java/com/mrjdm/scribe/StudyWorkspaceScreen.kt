@@ -439,7 +439,7 @@ private fun MetricTile(label: String, value: String, modifier: Modifier = Modifi
         Text(detail, color = WorkspaceMuted, fontSize = 12.sp)
     }
 }
-@Composable private fun examCountdown(value: String): String {
+private fun examCountdown(value: String): String {
     val parsed = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(value) }.getOrNull() ?: return "Date: $value"
     val today = java.time.LocalDate.now()
     val examDay = java.time.Instant.ofEpochMilli(parsed.time).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
