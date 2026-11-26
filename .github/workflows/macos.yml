@@ -1,7 +1,7 @@
 name: Scribe macOS CI
 on:
   push:
-    branches: ["main", "feature/**"]
+    branches: ["main", "feature/**", "fix/share-intents-engineering-units"]
     paths: ["macos/**", ".github/workflows/macos.yml"]
   pull_request:
     branches: ["main"]
