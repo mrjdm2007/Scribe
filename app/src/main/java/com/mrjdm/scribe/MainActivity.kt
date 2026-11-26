@@ -113,7 +113,9 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                 val mime = context.contentResolver.getType(uri).orEmpty()
                 val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
                 val file = File(context.filesDir, "attachments").apply { mkdirs() }
-                val target = File(file, "${System.currentTimeMillis()}_${name.substringAfterLast(':').replace('/', '_')}")
+                val safeName = name.substringAfterLast(':').substringAfterLast('/').substringAfterLast('\\')
+                    .replace(Regex("[^A-Za-z0-9._-]"), "_").trim('.').take(120).ifBlank { "Attachment" }
+                val target = File(file, "${System.currentTimeMillis()}_$safeName")
                 val copied = runCatching {
                     val input = context.contentResolver.openInputStream(uri) ?: error("Unable to open selected file")
                     input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
