@@ -84,14 +84,7 @@ struct StudyWorkspaceView: View {
         let weekMinutes = sessions.filter { Date(timeIntervalSince1970: Double($0.createdAt) / 1000) >= weekStart }
             .reduce(0) { $0 + minutes(from: $1) }
         let todayMinutes = ScribeStudyProgress.minutesStudied(on: Date(), sessions: sessions)
-        let daysWithSessions = Set(sessions.filter { minutes(from: $0) > 0 }.map { Calendar.current.startOfDay(for: Date(timeIntervalSince1970: Double($0.createdAt) / 1000)) })
-        var streak = 0
-        var cursor = Calendar.current.startOfDay(for: Date())
-        while daysWithSessions.contains(cursor) && streak < 365 {
-            streak += 1
-            cursor = Calendar.current.date(byAdding: .day, value: -1, to: cursor) ?? cursor
-            if streak == 365 { break }
-        }
+        let streak = ScribeStudyProgress.currentStreakDays(sessions: sessions)
         let done = exams.reduce(0) { $0 + $1.tasks.filter(\.done).count }
         let total = exams.reduce(0) { $0 + $1.tasks.count }
         return ScrollView {
