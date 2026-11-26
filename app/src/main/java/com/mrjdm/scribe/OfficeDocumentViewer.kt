@@ -464,7 +464,7 @@ private fun PresentationReadingSurface(
             }
         }
         LinearProgressIndicator(
-            progress = { (selectedSlide + 1).toFloat() / slides.size.coerceAtLeast(1) },
+            progress = (selectedSlide + 1).toFloat() / slides.size.coerceAtLeast(1),
             modifier = Modifier.fillMaxWidth().height(2.dp),
             color = ReaderAccent,
             trackColor = Color(0xFF303137)
