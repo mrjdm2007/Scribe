@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -24,6 +25,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -124,6 +127,11 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
     var pageTone by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    val readingProgress = remember(listState.layoutInfo) {
+        val total = paragraphs.size.coerceAtLeast(1)
+        ((listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.plus(1) ?: 0).toFloat() / total).coerceIn(0f, 1f)
+    }
     val pageBackground = when (pageTone) { 1 -> Color(0xFFF1E7D4); 2 -> Color(0xFF202126); else -> Paper }
     val pageInk = if (pageTone == 2) Color(0xFFE7E4DD) else Ink
     val headings = remember(paragraphs) { paragraphs.mapIndexedNotNull { index, p ->
@@ -145,6 +153,9 @@ private fun WordReadingSurface(paragraphs: List<OfficeParagraph>) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("${paragraphs.size} paragraphs", color = ReaderMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = { clipboard.setText(AnnotatedString(paragraphs.joinToString("\\n\\n") { it.text })) }) {
+                Text("Copy all", color = ReaderAccent, fontSize = 11.sp)
+            }
             TextButton(onClick = { pageTone = (pageTone + 1) % 3 }) {
                 Text(listOf("Paper", "Sepia", "Night")[pageTone], color = ReaderAccent, fontSize = 11.sp)
             }
