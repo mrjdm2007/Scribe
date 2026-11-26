@@ -27,7 +27,8 @@ export class GeminiVertexProvider implements AIProvider {
       config: {
         systemInstruction: input.systemInstruction,
         temperature: 0.35,
-        maxOutputTokens: input.maxOutputTokens
+        maxOutputTokens: input.maxOutputTokens,
+        ...(input.responseMimeType ? { responseMimeType: input.responseMimeType } : {})
       }
     });
 
