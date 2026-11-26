@@ -44,9 +44,15 @@ private class WorkspaceStore(context: Context) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
+fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.ScribeViewModel) {
     val context = LocalContext.current
     val store = remember { WorkspaceStore(context) }
+    val allItems by vm.observeAllItems().collectAsState(initial = emptyList())
+    fun mirrorWorkspaceRecord(kind: String, title: String, body: String) {
+        val existing = allItems.firstOrNull { it.kind == kind && it.title == title && it.deletedAt == null }
+        if (existing != null) vm.update(existing, body = body)
+        else vm.add(null, kind, title, body = body, tags = "workspace")
+    }
     var section by remember { mutableStateOf("Overview") }
     val sections = listOf("Overview", "Exams", "Focus", "Bookmarks", "Reflect", "Reminders")
     val exams = remember { mutableStateListOf<WorkspaceExam>() }
@@ -106,15 +112,24 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
             put("tasks", JSONArray().also { a -> e.tasks.forEach { t -> a.put(JSONObject().put("id", t.id).put("title", t.title).put("done", t.done).put("notes", t.notes)) } })
         }) }
         store.write("exams", array.toString())
+        mirrorWorkspaceRecord("study_workspace_exams", "Exam planner", array.toString())
     }
     fun persistFocus() {
         val array = JSONArray()
         focus.forEach { f -> array.put(JSONObject().put("id", f.id).put("subject", f.subject).put("topic", f.topic).put("minutes", f.minutes).put("planned", f.planned).put("interruptions", f.interruptions).put("date", f.date)) }
         store.write("focus", array.toString())
+        mirrorWorkspaceRecord("study_workspace_focus", "Focus session log", array.toString())
     }
     fun persistFolders() {
         store.write("folders", JSONArray().also { a -> folders.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name)) } }.toString())
-        store.write("bookmark_folder_links", JSONObject().also { o -> folderLinks.forEach { (id, folder) -> o.put(id.toString(), folder) } }.toString())
+        val linksJson = JSONObject().also { o -> folderLinks.forEach { (id, folder) -> o.put(id.toString(), folder) } }
+        store.write("bookmark_folder_links", linksJson.toString())
+        val folderArray = JSONArray().also { a -> folders.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name)) } }
+        mirrorWorkspaceRecord("study_workspace_bookmarks", "Bookmark folders", JSONObject().put("folders", folderArray).put("links", linksJson).toString())
+    }
+    fun persistReflection() {
+        val body = JSONObject().put("wins", reflectionWins).put("challenges", reflectionChallenges).put("nextWeek", reflectionNext).toString()
+        mirrorWorkspaceRecord("study_workspace_reflection", "Weekly reflection", body)
     }
 
     LaunchedEffect(timerRunning) {
@@ -243,9 +258,9 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
             }
             "Reflect" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("WEEKLY REFLECTION", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp)
-                OutlinedTextField(reflectionWins, { reflectionWins = it; store.write("reflection_wins", it) }, modifier = Modifier.fillMaxWidth(), label = { Text("What went well?") }, minLines = 3)
-                OutlinedTextField(reflectionChallenges, { reflectionChallenges = it; store.write("reflection_challenges", it) }, modifier = Modifier.fillMaxWidth(), label = { Text("What was challenging?") }, minLines = 3)
-                OutlinedTextField(reflectionNext, { reflectionNext = it; store.write("reflection_next", it) }, modifier = Modifier.fillMaxWidth(), label = { Text("Priorities for next week") }, minLines = 3)
+                OutlinedTextField(reflectionWins, { reflectionWins = it; store.write("reflection_wins", it); persistReflection() }, modifier = Modifier.fillMaxWidth(), label = { Text("What went well?") }, minLines = 3)
+                OutlinedTextField(reflectionChallenges, { reflectionChallenges = it; store.write("reflection_challenges", it); persistReflection() }, modifier = Modifier.fillMaxWidth(), label = { Text("What was challenging?") }, minLines = 3)
+                OutlinedTextField(reflectionNext, { reflectionNext = it; store.write("reflection_next", it); persistReflection() }, modifier = Modifier.fillMaxWidth(), label = { Text("Priorities for next week") }, minLines = 3)
                 Text("Saved automatically on this device.", color = WorkspaceMuted, fontSize = 12.sp)
             }
             "Reminders" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
