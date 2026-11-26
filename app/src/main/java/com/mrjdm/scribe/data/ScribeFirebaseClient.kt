@@ -131,6 +131,16 @@ internal class ScribeFirebaseClient(
             syncWithToken(tokens.idToken, tokens.refreshToken, projectId)
         }
 
+    suspend fun studyAssistant(question: String, mode: String, noteContext: JSONArray): JSONObject =
+        withContext(Dispatchers.IO) {
+            val saved = ScribeFirebaseSession.read(context) ?: error("Connect a Firebase account in Settings before using Scribe Intelligence.")
+            val tokens = refresh(saved)
+            ScribeFirebaseSession.save(context, saved.apiKey, saved.projectId, saved.email, tokens.refreshToken)
+            val body = JSONObject().put("question", question).put("mode", mode).put("note_context", noteContext)
+            request("https://asia-south1-${saved.projectId}.cloudfunctions.net/studyAssistant",
+                "POST", body.toString(), tokens.idToken)
+        }
+
     suspend fun syncSaved(): String = withContext(Dispatchers.IO) {
         val saved = ScribeFirebaseSession.read(context) ?: error("No Firebase account is connected.")
         val tokens = refresh(saved)
