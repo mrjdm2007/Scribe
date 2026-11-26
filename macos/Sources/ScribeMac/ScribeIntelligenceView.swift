@@ -9,7 +9,8 @@ private struct ScribeAIContext: Encodable {
 
 /// Calls the authenticated Supabase Edge Function; provider credentials remain server-side.
 struct ScribeIntelligenceView: View {
-    let items: [ScribeItem]
+    @ObservedObject var store: ScribeStore
+    private var items: [ScribeItem] { store.items }
     @AppStorage("scribe.supabase.url") private var supabaseURL = ""
     @AppStorage("scribe.supabase.anonKey") private var anonKey = ""
     @State private var question = ""
@@ -18,6 +19,7 @@ struct ScribeIntelligenceView: View {
     @State private var mode = "notes"
     @State private var busy = false
     @State private var conversation: [String] = []
+    @State private var savedFlashcards = 0
     private let modes = ["notes", "explain", "exam", "quiz", "research", "summary", "flashcards", "mindmap", "socratic", "teach", "revise", "memorise", "practice", "test", "followup", "compare", "glossary", "formula_sheet", "study_plan", "lesson", "misconception", "mnemonics", "case_study"]
 
     private func notebookPath(for item: ScribeItem) -> String {
@@ -56,7 +58,7 @@ struct ScribeIntelligenceView: View {
                     Text("Your study assistant").font(.title2.bold())
                 }
                 Spacer()
-                Button("New chat") { conversation = []; question = ""; answer = ""; errorMessage = "" }
+                Button("New chat") { conversation = []; question = ""; answer = ""; errorMessage = ""; savedFlashcards = 0 }
                     .buttonStyle(.borderless).disabled(busy)
                 if busy { ProgressView() }
             }
@@ -76,6 +78,14 @@ struct ScribeIntelligenceView: View {
                     .disabled(question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
             }
             if !errorMessage.isEmpty { Text(errorMessage).foregroundStyle(.red).font(.callout) }
+            if mode == "flashcards" && !answer.isEmpty {
+                HStack {
+                    Button(savedFlashcards > 0 ? "Saved \(savedFlashcards) flashcards" : "Save generated flashcards to library") {
+                        savedFlashcards = saveGeneratedFlashcards()
+                    }.disabled(savedFlashcards > 0)
+                    if savedFlashcards == 0 { Text("Cards are stored in your Scribe flashcard library.").font(.caption).foregroundStyle(.secondary) }
+                }
+            }
             ScrollView {
                 Text(answer.isEmpty ? "Scribe can search your notes, explain difficult concepts, prepare exam questions, quiz you and research topics. Answers distinguish notebook evidence from external research." : answer)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,6 +93,25 @@ struct ScribeIntelligenceView: View {
                     .foregroundStyle(answer.isEmpty ? .secondary : .primary)
             }.frame(maxHeight: .infinity)
         }.padding(20).frame(minWidth: 520, minHeight: 500)
+    }
+
+    private func saveGeneratedFlashcards() -> Int {
+        guard let start = answer.firstIndex(of: "{"),
+              let end = answer.lastIndex(of: "}"), start < end,
+              let data = String(answer[start...end]).data(using: .utf8),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let cards = object["flashcards"] as? [[String: Any]] else { return 0 }
+        var saved = 0
+        for card in cards {
+            let front = (card["front"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let back = (card["back"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !front.isEmpty, !back.isEmpty else { continue }
+            let source = (card["sourceTitle"] as? String ?? "").replacingOccurrences(of: ";", with: ",")
+            let tags = source.isEmpty ? "deck:AI generated" : "deck:AI generated;source_title:" + String(source.prefix(100))
+            store.create(kind: "flashcard", title: front, body: back, tags: tags, switchToLibrary: false)
+            saved += 1
+        }
+        return saved
     }
 
     @MainActor private func ask() async {
