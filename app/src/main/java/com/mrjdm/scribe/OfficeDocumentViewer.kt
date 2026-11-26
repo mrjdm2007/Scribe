@@ -298,6 +298,17 @@ private fun PresentationReadingSurface(
     onNext: () -> Unit
 ) {
     var textSize by remember { mutableIntStateOf(16) }
+    var searchVisible by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
+    val matchingSlides = remember(slides, searchText) {
+        if (searchText.isBlank()) emptyList()
+        else slides.mapIndexedNotNull { index, value ->
+            if (value.paragraphs.any { it.contains(searchText, ignoreCase = true) }) index else null
+        }
+    }
+    var activeMatch by remember(searchText, matchingSlides) {
+        mutableIntStateOf(matchingSlides.indexOf(selectedSlide).coerceAtLeast(0))
+    }
     if (slides.isEmpty()) {
         EmptyDocumentMessage("No readable slides were found.")
         return
@@ -320,6 +331,47 @@ private fun PresentationReadingSurface(
                         labelColor = Color(0xFFE2E0DA)
                     )
                 )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(if (searchText.isBlank()) "Find text across slides" else "${matchingSlides.size} matching slides",
+                color = ReaderMuted, fontSize = 10.sp, modifier = Modifier.weight(1f))
+            IconButton(onClick = { searchVisible = !searchVisible; if (!searchVisible) searchText = "" }) {
+                Icon(if (searchVisible) Icons.Rounded.Close else Icons.Rounded.Search,
+                    contentDescription = if (searchVisible) "Close slide search" else "Search all slides",
+                    tint = Color(0xFFE8E6E1))
+            }
+        }
+        if (searchVisible) {
+            Row(Modifier.fillMaxWidth().background(ReaderBar).padding(horizontal = 10.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = searchText, onValueChange = { searchText = it },
+                    modifier = Modifier.weight(1f), singleLine = true,
+                    placeholder = { Text("Search presentation") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ReaderAccent, unfocusedBorderColor = Color(0xFF45464A),
+                        focusedTextColor = Color(0xFFF3F1EC), unfocusedTextColor = Color(0xFFF3F1EC),
+                        cursorColor = ReaderAccent
+                    )
+                )
+                IconButton(
+                    enabled = matchingSlides.isNotEmpty(),
+                    onClick = {
+                        activeMatch = (activeMatch - 1).mod(matchingSlides.size)
+                        onSelectSlide(matchingSlides[activeMatch])
+                    }
+                ) { Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous search match", tint = ReaderAccent) }
+                IconButton(
+                    enabled = matchingSlides.isNotEmpty(),
+                    onClick = {
+                        activeMatch = (activeMatch + 1).mod(matchingSlides.size)
+                        onSelectSlide(matchingSlides[activeMatch])
+                    }
+                ) { Icon(Icons.Rounded.ChevronRight, contentDescription = "Next search match", tint = ReaderAccent) }
             }
         }
         Row(
