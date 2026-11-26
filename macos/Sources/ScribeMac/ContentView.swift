@@ -191,7 +191,7 @@ struct ScribeMacRoot: View {
             let destination = root.appendingPathComponent(UUID().uuidString + "-" + source.lastPathComponent)
             if (try? FileManager.default.copyItem(at: source, to: destination)) != nil {
                 let ext = source.pathExtension.lowercased()
-                let officeExtensions = ["docx", "xlsx", "pptx", "doc", "xls", "ppt", "odt", "ods", "odp"]
+                let officeExtensions = ["docx", "xlsx", "pptx", "doc", "xls", "ppt", "odt", "ods", "odp", "rtf", "csv"]
                 let typeTag = ext == "pdf" ? "pdf" : (["png", "jpg", "jpeg", "heic", "webp", "gif"].contains(ext) ? "image" : (officeExtensions.contains(ext) ? "office" : "text"))
                 let body = typeTag == "text" ? ((try? String(contentsOf: destination, encoding: .utf8)) ?? "") : (typeTag == "office" ? "Office document · \(ext.uppercased())" : "\(typeTag.capitalized) attachment")
                 store.create(kind: "block", title: source.lastPathComponent, parentId: store.selectedID,
