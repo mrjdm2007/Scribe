@@ -281,7 +281,7 @@ struct ScribeMacRoot: View {
         } message: { Text(integrityReport) }
         .preferredColorScheme(.dark)
         .overlay(alignment: .bottomTrailing) { ScribeFloatingStudyTimer(onAskAI: { showingIntelligence = true }) }
-        .sheet(isPresented: $showingIntelligence) { ScribeIntelligenceView(items: store.items) }
+        .sheet(isPresented: $showingIntelligence) { ScribeIntelligenceView(store: store) }
         .sheet(isPresented: $showingReadingMode) {
             if let item = store.selected {
                 ScribeReadingMode(title: item.title, bodyText: item.body,
