@@ -228,12 +228,26 @@ export const studyAssistant = onRequest(
         }
       }
 
-      const citations = artifact?.type === "flashcards" && Array.isArray(artifact.flashcards)
-        ? artifact.flashcards
-            .filter((card): card is Record<string, unknown> => !!card && typeof card === "object")
-            .filter(card => typeof card.sourceTitle === "string" && card.sourceTitle.length > 0)
-            .map(card => ({ title: card.sourceTitle, quote: card.sourceQuote ?? "" }))
-        : [];
+      const citationItems: Record<string, unknown>[] = [];
+      if (artifact?.type === "flashcards" && Array.isArray(artifact.flashcards)) {
+        citationItems.push(...artifact.flashcards.filter(
+          (item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item)
+        ));
+      } else if (artifact?.type === "mindmap" && Array.isArray(artifact.nodes)) {
+        citationItems.push(...artifact.nodes.filter(
+          (item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item)
+        ));
+      } else if (artifact?.type === "hourly_tip") {
+        citationItems.push(artifact);
+      }
+      const citations = citationItems
+        .filter(item => typeof item.sourceTitle === "string" && item.sourceTitle.length > 0)
+        .map(item => ({
+          title: asText(item.sourceTitle, 160),
+          quote: asText(item.sourceQuote, 500)
+        }))
+        .filter(item => item.title)
+        .slice(0, 100);
 
       const responseId = crypto.randomUUID();
       let artifactId: string | null = null;
@@ -483,12 +497,29 @@ export const studyArtifacts = onRequest(
         return;
       }
 
-      const snapshot = await collection.orderBy("createdAt", "desc").limit(50).get();
+      const requestedLimit = Number(request.query.limit ?? 30);
+      const pageSize = Number.isFinite(requestedLimit)
+        ? Math.max(1, Math.min(50, Math.floor(requestedLimit)))
+        : 30;
+      const cursor = asText(request.query.cursor, 80);
+      let query = collection.orderBy("createdAt", "desc").limit(pageSize + 1);
+      if (cursor) {
+        const cursorSnapshot = await collection.doc(cursor).get();
+        if (!cursorSnapshot.exists) {
+          response.status(400).json({ error: "The artifact page cursor is invalid or expired." });
+          return;
+        }
+        query = collection.orderBy("createdAt", "desc").startAfter(cursorSnapshot).limit(pageSize + 1);
+      }
+      const snapshot = await query.get();
+      const hasMore = snapshot.docs.length > pageSize;
+      const page = snapshot.docs.slice(0, pageSize);
       response.status(200).json({
-        artifacts: snapshot.docs.map(document => ({
+        artifacts: page.map(document => ({
           id: document.id,
           ...document.data()
-        }))
+        })),
+        next_cursor: hasMore ? page[page.length - 1]?.id ?? null : null
       });
     } catch (error) {
       console.error("Scribe study artifact operation failed", {
