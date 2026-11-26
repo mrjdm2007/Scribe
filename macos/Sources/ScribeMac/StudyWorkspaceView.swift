@@ -26,6 +26,7 @@ struct StudyWorkspaceView: View {
     @AppStorage("scribe.workspace.reflectionWins") private var reflectionWins = ""
     @AppStorage("scribe.workspace.reflectionChallenges") private var reflectionChallenges = ""
     @AppStorage("scribe.workspace.reflectionNext") private var reflectionNext = ""
+    @AppStorage("scribe.workspace.dailyGoalMinutes") private var dailyGoalMinutes = 120
     @State private var exams: [WorkspaceExamRecord] = []
     @State private var folders: [WorkspaceBookmarkFolder] = []
     @State private var folderLinks: [String: String] = [:]
@@ -39,6 +40,7 @@ struct StudyWorkspaceView: View {
     @State private var focusSubject = ""
     @State private var focusTopic = ""
     @State private var focusMinutes = 25
+    @State private var bookmarkSearch = ""
 
     private let sections = ["Overview", "Exams", "Focus", "Bookmarks", "Reflect"]
 
@@ -70,6 +72,7 @@ struct StudyWorkspaceView: View {
         .onChange(of: reflectionWins) { _ in saveReflection() }
         .onChange(of: reflectionChallenges) { _ in saveReflection() }
         .onChange(of: reflectionNext) { _ in saveReflection() }
+        .onChange(of: dailyGoalMinutes) { _ in saveDailyGoal() }
         .sheet(isPresented: $showingExamForm) { examForm }
         .sheet(isPresented: $showingFolderForm) { folderForm }
     }
@@ -80,6 +83,15 @@ struct StudyWorkspaceView: View {
         let weekStart = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()
         let weekMinutes = sessions.filter { Date(timeIntervalSince1970: Double($0.createdAt) / 1000) >= weekStart }
             .reduce(0) { $0 + minutes(from: $1) }
+        let todayMinutes = ScribeStudyProgress.minutesStudied(on: Date(), sessions: sessions)
+        let daysWithSessions = Set(sessions.filter { minutes(from: $0) > 0 }.map { Calendar.current.startOfDay(for: Date(timeIntervalSince1970: Double($0.createdAt) / 1000)) })
+        var streak = 0
+        var cursor = Calendar.current.startOfDay(for: Date())
+        while daysWithSessions.contains(cursor) && streak < 365 {
+            streak += 1
+            cursor = Calendar.current.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+            if streak == 365 { break }
+        }
         let done = exams.reduce(0) { $0 + $1.tasks.filter(\.done).count }
         let total = exams.reduce(0) { $0 + $1.tasks.count }
         return ScrollView {
@@ -89,13 +101,21 @@ struct StudyWorkspaceView: View {
                     metric("EXAMS PLANNED", "\(exams.count)")
                     metric("SYLLABUS", "\(done)/\(total)")
                     metric("BOOKMARKS", "\(store.items.filter { $0.bookmarked && $0.deletedAt == nil }.count)")
+                    metric("STREAK", "\(streak) days")
                 }
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack { Text("DAILY STUDY GOAL").font(.caption.bold()).foregroundStyle(.secondary); Spacer(); Text("\(todayMinutes) / \(dailyGoalMinutes) min").font(.headline) }
+                    ProgressView(value: min(1, Double(todayMinutes) / Double(max(1, dailyGoalMinutes))))
+                    Slider(value: Binding(get: { Double(dailyGoalMinutes) }, set: { dailyGoalMinutes = Int($0) }), in: 30...600, step: 15)
+                    Text("Your target is saved to the shared study workspace.").font(.caption).foregroundStyle(.secondary)
+                }.padding(14).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
                 Text("Upcoming exams").font(.title2.bold())
                 if exams.isEmpty { empty("No exams planned", "Add an exam and build a checklist from its syllabus.") }
                 ForEach(exams.sorted { $0.date < $1.date }.prefix(4)) { exam in
                     VStack(alignment: .leading, spacing: 5) {
                         Text(exam.title).font(.headline)
                         Text("\(exam.subject) · \(exam.date)").foregroundStyle(.secondary)
+                        Text(examCountdown(exam.date)).font(.caption).foregroundStyle(.secondary)
                         ProgressView(value: Double(exam.tasks.filter(\.done).count), total: Double(max(1, exam.tasks.count)))
                     }.padding(14).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
                 }
@@ -150,6 +170,11 @@ struct StudyWorkspaceView: View {
     private var focusView: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Focus session log").font(.title2.bold())
+            HStack(spacing: 6) {
+                ForEach([15, 25, 50, 90], id: \.self) { minutes in
+                    Button("\(minutes)m") { focusMinutes = minutes }.buttonStyle(focusMinutes == minutes ? .borderedProminent : .bordered)
+                }
+            }
             HStack {
                 TextField("Subject", text: $focusSubject).textFieldStyle(.roundedBorder)
                 TextField("Topic", text: $focusTopic).textFieldStyle(.roundedBorder)
@@ -183,8 +208,9 @@ struct StudyWorkspaceView: View {
                             Button(role: .destructive) { folders.removeAll { $0.id == folder.id }; folderLinks = folderLinks.filter { $0.value != folder.id.uuidString }; saveFolders() } label: { Image(systemName: "trash") }.buttonStyle(.borderless)
                         }.padding(10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     }
+                    TextField("Search saved notes", text: $bookmarkSearch).textFieldStyle(.roundedBorder)
                     Text("Saved notes").font(.title2.bold()).padding(.top, 8)
-                    ForEach(store.items.filter { $0.bookmarked && $0.deletedAt == nil }) { item in
+                    ForEach(store.items.filter { $0.bookmarked && $0.deletedAt == nil && (bookmarkSearch.isEmpty || $0.title.localizedCaseInsensitiveContains(bookmarkSearch) || $0.body.localizedCaseInsensitiveContains(bookmarkSearch)) }) { item in
                         HStack {
                             VStack(alignment: .leading) { Text(item.title); Text(item.kind.capitalized).font(.caption).foregroundStyle(.secondary) }
                             Spacer()
@@ -262,6 +288,10 @@ struct StudyWorkspaceView: View {
         let examBody = store.items.first { $0.kind == "study_workspace_exams" && $0.deletedAt == nil }?.body
         let bookmarkBody = store.items.first { $0.kind == "study_workspace_bookmarks" && $0.deletedAt == nil }?.body
         let reflectionBody = store.items.first { $0.kind == "study_workspace_reflection" && $0.deletedAt == nil }?.body
+        if let goalBody = store.items.first(where: { $0.kind == "study_workspace_daily_goal" && $0.deletedAt == nil })?.body,
+           let data = goalBody.data(using: .utf8),
+           let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           let minutes = object["minutes"] as? Int { dailyGoalMinutes = min(600, max(30, minutes)) }
         exams = (try? JSONDecoder().decode([WorkspaceExamRecord].self, from: Data((examBody ?? examsData).utf8))) ?? []
         if let bookmarkBody,
            let object = (try? JSONSerialization.jsonObject(with: Data(bookmarkBody.utf8))) as? [String: Any] {
@@ -318,6 +348,16 @@ struct StudyWorkspaceView: View {
         if let data = try? JSONSerialization.data(withJSONObject: object), let value = String(data: data, encoding: .utf8) {
             saveRecord(kind: "study_workspace_bookmarks", title: "Bookmark folders", body: value)
         }
+    }
+    private func saveDailyGoal() {
+        let body = "{\"minutes\":\(min(600, max(30, dailyGoalMinutes)))}"
+        saveRecord(kind: "study_workspace_daily_goal", title: "Daily study goal", body: body)
+    }
+    private func examCountdown(_ value: String) -> String {
+        let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .gregorian); formatter.dateFormat = "yyyy-MM-dd"; formatter.isLenient = false
+        guard let date = formatter.date(from: value) else { return "Date: " + value }
+        let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: date)).day ?? 0
+        if days < 0 { return "Date passed" }; if days == 0 { return "Today" }; if days == 1 { return "Tomorrow" }; return "\(days) days remaining"
     }
     private func saveReflection() {
         let object = ["wins": reflectionWins, "challenges": reflectionChallenges, "nextWeek": reflectionNext]
