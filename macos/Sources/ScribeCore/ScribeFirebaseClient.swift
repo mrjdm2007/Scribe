@@ -109,9 +109,13 @@ public enum ScribeFirebaseClient {
     }
 
     public static func requestLibrary(projectId: String, idToken: String, method: String,
-                                       body: [String: Any]? = nil) async throws -> [String: Any] {
-        let url = URL(string: "https://asia-south1-\(projectId).cloudfunctions.net/studyLibrary")!
+                                       body: [String: Any]? = nil, cursor: String? = nil) async throws -> [String: Any] {
+        var components = URLComponents(string: "https://asia-south1-\\(projectId).cloudfunctions.net/studyLibrary")!
+        if method == "GET" {
+            components.queryItems = [URLQueryItem(name: "limit", value: "500")]
+            if let cursor { components.queryItems?.append(URLQueryItem(name: "cursor", value: cursor)) }
+        }
         let data = try body.map { try JSONSerialization.data(withJSONObject: $0) }
-        return try await jsonRequest(url, method: method, body: data, token: idToken)
+        return try await jsonRequest(components.url!, method: method, body: data, token: idToken)
     }
 }
