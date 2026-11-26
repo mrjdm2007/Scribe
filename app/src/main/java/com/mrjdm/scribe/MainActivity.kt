@@ -698,8 +698,11 @@ private fun TopicNotebook(
 
     LaunchedEffect(noteValue.text, topic.id) {
         saveStatus = "Unsaved"
-        delay(250)
-        vm.update(liveTopic, body = noteValue.text)
+        delay(500)
+        saveStatus = "Saving…"
+        runCatching { vm.saveNow(liveTopic, noteValue.text) }
+            .onSuccess { saveStatus = "Saved" }
+            .onFailure { saveStatus = "Save failed" }
     }
 
     val matchingLines = remember(searchQuery, noteValue.text) {
