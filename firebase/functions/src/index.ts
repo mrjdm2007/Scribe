@@ -1216,7 +1216,13 @@ export const studyLibrary = onRequest(
           response.status(400).json({ error: "A valid library record ID is required." });
           return;
         }
-        await collection.doc(id).delete();
+        const recordRef = collection.doc(id);
+        const existing = await recordRef.get();
+        const attachmentId = existing.get("payload.attachmentId");
+        if (typeof attachmentId === "string" && attachmentId) {
+          await getStorage().bucket().file("users/" + uid + "/attachments/" + attachmentId).delete({ ignoreNotFound: true });
+        }
+        await recordRef.delete();
         response.status(200).json({ deleted: true, id });
         return;
       }
