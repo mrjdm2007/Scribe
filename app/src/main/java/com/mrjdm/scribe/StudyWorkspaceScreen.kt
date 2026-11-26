@@ -147,17 +147,20 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
     LaunchedEffect(allItems, loaded) {
         if (!loaded) return@LaunchedEffect
         val goalRecord = allItems.firstOrNull { it.kind == "study_workspace_daily_goal" && it.deletedAt == null }
-        if (!store.contains("daily_goal_minutes") && goalRecord != null) {
+        if (goalRecord != null) {
             runCatching {
                 val minutes = JSONObject(goalRecord.body).optInt("minutes", 120).coerceIn(30, 600)
-                dailyGoalMinutes = minutes
-                store.setInt("daily_goal_minutes", minutes)
+                if (dailyGoalMinutes != minutes) {
+                    dailyGoalMinutes = minutes
+                    store.setInt("daily_goal_minutes", minutes)
+                }
             }
         }
         val examRecord = allItems.firstOrNull { it.kind == "study_workspace_exams" && it.deletedAt == null }
-        if (store.read("exams").isBlank() && examRecord != null) {
+        if (examRecord != null && store.read("exams") != examRecord.body) {
             runCatching {
                 val array = JSONArray(examRecord.body)
+                exams.clear()
                 for (i in 0 until array.length()) {
                     val o = array.getJSONObject(i)
                     val tasksJson = o.optJSONArray("tasks") ?: JSONArray()
@@ -173,9 +176,10 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             }
         }
         val focusRecord = allItems.firstOrNull { it.kind == "study_workspace_focus" && it.deletedAt == null }
-        if (store.read("focus").isBlank() && focusRecord != null) {
+        if (focusRecord != null && store.read("focus") != focusRecord.body) {
             runCatching {
                 val array = JSONArray(focusRecord.body)
+                focus.clear()
                 for (i in 0 until array.length()) {
                     val o = array.getJSONObject(i)
                     focus.add(WorkspaceFocus(o.optString("id"), o.optString("subject"), o.optString("topic"), o.optInt("minutes"), o.optInt("planned"), o.optInt("interruptions"), o.optString("date")))
@@ -184,9 +188,10 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             }
         }
         val bookmarkRecord = allItems.firstOrNull { it.kind == "study_workspace_bookmarks" && it.deletedAt == null }
-        if (store.read("folders").isBlank() && bookmarkRecord != null) {
+        if (bookmarkRecord != null && store.read("bookmark_record_body") != bookmarkRecord.body) {
             runCatching {
                 val objectValue = JSONObject(bookmarkRecord.body)
+                folders.clear()
                 val folderArray = objectValue.optJSONArray("folders") ?: JSONArray()
                 for (i in 0 until folderArray.length()) {
                     val folder = folderArray.getJSONObject(i)
@@ -196,6 +201,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                 val links = objectValue.optJSONObject("links") ?: JSONObject()
                 folderLinks = links.keys().asSequence().associate { it to links.optString(it) }
                 store.write("bookmark_folder_links", links.toString())
+                store.write("bookmark_record_body", bookmarkRecord.body)
             }
         }
         // Import focus sessions created on macOS or another Android device from the shared notebook.
@@ -226,7 +232,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
             store.write("focus", merged.toString())
         }
         val reflectionRecord = allItems.firstOrNull { it.kind == "study_workspace_reflection" && it.deletedAt == null }
-        if (reflectionRecord != null && store.read("reflection_wins").isBlank()) {
+        if (reflectionRecord != null) {
             runCatching {
                 val value = JSONObject(reflectionRecord.body)
                 reflectionWins = value.optString("wins")
