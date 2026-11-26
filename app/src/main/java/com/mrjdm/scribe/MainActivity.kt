@@ -72,7 +72,8 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { ScribeTheme { ScribeApp() } }
+        val incomingDocument = if (intent?.action == Intent.ACTION_VIEW) intent.data else null
+        setContent { ScribeTheme { ScribeApp(initialDocumentUri = incomingDocument) } }
     }
 }
 
@@ -81,7 +82,7 @@ private val Muted = Color(0xFF96938D)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
+private fun ScribeApp(initialDocumentUri: Uri? = null, vm: ScribeViewModel = viewModel()) {
     val context = LocalContext.current
     val isWide = LocalConfiguration.current.screenWidthDp >= 600
     val scope = rememberCoroutineScope()
@@ -95,6 +96,35 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
     var showHistory by remember { mutableStateOf<ScribeItem?>(null) }
     var showTrash by remember { mutableStateOf(false) }
     var integrityReport by remember { mutableStateOf<String?>(null) }
+    var incomingPdf by remember { mutableStateOf<ScribeItem?>(null) }
+    var incomingDocumentError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(initialDocumentUri) {
+        val uri = initialDocumentUri ?: return@LaunchedEffect
+        val mime = context.contentResolver.getType(uri).orEmpty()
+        if (mime !in setOf("application/pdf", "application/x-pdf")) {
+            incomingDocumentError = "Scribe currently opens PDF documents from other apps. This file is $mime."
+            return@LaunchedEffect
+        }
+        val copied = withContext(Dispatchers.IO) {
+            runCatching {
+                val directory = File(context.cacheDir, "incoming-documents").apply { mkdirs() }
+                val target = File(directory, "shared_${System.currentTimeMillis()}.pdf")
+                val input = context.contentResolver.openInputStream(uri) ?: error("The shared document is no longer accessible.")
+                input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
+                check(target.isFile && target.length() > 0L) { "The shared PDF was empty." }
+                target
+            }.getOrNull()
+        }
+        if (copied != null) {
+            incomingPdf = ScribeItem(
+                id = -1L, kind = "block",
+                title = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.ifBlank { "Shared PDF" } ?: "Shared PDF",
+                uri = copied.absolutePath, tags = "type:pdf"
+            )
+        } else {
+            incomingDocumentError = "Scribe couldn't read this shared PDF. Try downloading it in WhatsApp first, then open it again."
+        }
+    }
     val current = stack.lastOrNull()
     val children by vm.children(current?.id).collectAsState(initial = emptyList())
     val bookmarks by vm.bookmarks.collectAsState(initial = emptyList())
@@ -375,6 +405,17 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             }
             }
         }
+    }
+
+    incomingPdf?.let { shared -> PdfViewerDialog(shared, onDismiss = { incomingPdf = null }) }
+    incomingDocumentError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { incomingDocumentError = null },
+            title = { Text("Couldn't open document") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { incomingDocumentError = null }) { Text("OK", color = Gold) } },
+            containerColor = Color(0xFF202125)
+        )
     }
 
     integrityReport?.let { report ->
