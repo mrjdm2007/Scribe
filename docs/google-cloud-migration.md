@@ -84,6 +84,17 @@ The deployed endpoint is:
 https://asia-south1-<FIREBASE_PROJECT_ID>.cloudfunctions.net/studyAssistant
 ```
 
+### Persistent AI conversation API
+
+The authenticated `studyConversations` endpoint stores chat history inside the signed-in user's private Firestore namespace:
+
+- `GET /studyConversations` returns the latest 30 conversation summaries.
+- `GET /studyConversations?id=<conversation_id>` returns one conversation and its messages.
+- `POST /studyConversations` appends one message. Send `message.role` as `user` or `assistant`, `message.content`, and optionally `conversationId`, `mode`, and `activeDocumentId`. Omit `conversationId` to create a new conversation.
+- `DELETE /studyConversations?id=<conversation_id>` deletes only that user's conversation.
+
+Each conversation retains the newest 80 messages; message content is limited to 4,000 characters. The endpoint validates the mode and ID, verifies the Firebase ID token, and never accepts a user ID from the request body. The endpoint is implemented in the backend foundation; native Android/macOS clients still need integration before users see synced history in the apps.
+
 ### Saved study artifact API
 
 The `studyArtifacts` endpoint accepts the same Firebase ID-token bearer authentication:
