@@ -70,7 +70,7 @@ internal class ScribeFirebaseClient(
         try {
             connection.requestMethod = method
             connection.connectTimeout = 20_000
-            connection.readTimeout = 45_000
+            connection.readTimeout = 120_000
             connection.setRequestProperty("Content-Type", "application/json")
             if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
             if (body != null) {
@@ -131,6 +131,20 @@ internal class ScribeFirebaseClient(
             syncWithToken(tokens.idToken, tokens.refreshToken, projectId)
         }
 
+    private fun attachmentRequest(project: String, token: String, method: String, id: String, body: JSONObject? = null): JSONObject {
+        val url = "https://asia-south1-$project.cloudfunctions.net/studyAttachments" +
+            if (method == "GET") "?id=" + java.net.URLEncoder.encode(id, "UTF-8") else ""
+        return request(url, method, body?.toString(), token)
+    }
+
+    private fun uploadAttachment(project: String, token: String, id: String, file: File): JSONObject {
+        require(file.length() <= 20L * 1024L * 1024L) { "Attachments larger than 20 MB stay local." }
+        val mime = java.net.URLConnection.guessContentTypeFromName(file.name) ?: "application/octet-stream"
+        val body = JSONObject().put("id", id).put("name", file.name).put("contentType", mime)
+            .put("base64", android.util.Base64.encodeToString(file.readBytes(), android.util.Base64.NO_WRAP))
+        return attachmentRequest(project, token, "POST", id, body)
+    }
+
     suspend fun studyAssistant(question: String, mode: String, noteContext: JSONArray): JSONObject =
         withContext(Dispatchers.IO) {
             val saved = ScribeFirebaseSession.read(context) ?: error("Connect a Firebase account in Settings before using Scribe Intelligence.")
@@ -164,12 +178,14 @@ internal class ScribeFirebaseClient(
         fun tagged(tags: String, id: String): String =
             (tags.split(";").filter { it.isNotBlank() && !it.startsWith("firebase_id:") } + "firebase_id:$id").joinToString(";")
         fun restoreAttachment(payload: JSONObject, id: String, currentUri: String): String {
-            if (currentUri.isNotBlank() && File(currentUri).isFile) return currentUri
-            val encoded = payload.optString("attachmentBase64")
-            if (encoded.isBlank()) return currentUri
+            val attachmentId = payload.optString("attachmentId")
+            if (attachmentId.isBlank()) return currentUri
             return runCatching {
+                val response = attachmentRequest(targetProjectId, idToken, "GET", attachmentId)
+                val encoded = response.optString("base64")
+                if (encoded.isBlank()) return@runCatching currentUri
                 val folder = File(context.filesDir, "attachments").apply { mkdirs() }
-                val name = payload.optString("attachmentName", "attachment").substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
+                val name = response.optString("name", "attachment").substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
                 val target = File(folder, "firebase_${id}_${name}")
                 target.writeBytes(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
                 target.absolutePath
@@ -263,9 +279,18 @@ internal class ScribeFirebaseClient(
                 .put("parentFirebaseId", parentFirebase ?: JSONObject.NULL).put("history", history)
             if (item.uri.isNotBlank()) {
                 val file = File(item.uri)
-                if (file.isFile && file.length() <= 400_000L) {
-                    payload.put("attachmentName", file.name)
-                    payload.put("attachmentBase64", android.util.Base64.encodeToString(file.readBytes(), android.util.Base64.NO_WRAP))
+                if (file.isFile && file.length() <= 20L * 1024L * 1024L) {
+                    val fingerprint = "${file.length()}_${file.lastModified()}"
+                    val storedFingerprint = item.tags.split(";").firstOrNull { it.startsWith("firebase_attachment_fingerprint:") }
+                        ?.substringAfter("firebase_attachment_fingerprint:")
+                    if (storedFingerprint != fingerprint) {
+                        uploadAttachment(targetProjectId, idToken, id, file)
+                        val updatedTags = item.tags.split(";").filter {
+                            it.isNotBlank() && !it.startsWith("firebase_attachment_fingerprint:")
+                        } + "firebase_attachment_fingerprint:$fingerprint"
+                        dao.update(item.copy(tags = updatedTags.joinToString(";")))
+                    }
+                    payload.put("attachmentId", id).put("attachmentName", file.name).put("attachmentFingerprint", fingerprint)
                 } else if (file.isFile) payload.put("attachmentOmitted", true)
             }
             records.put(JSONObject().put("id", id).put("updatedAt", item.updatedAt).put("payload", payload))
