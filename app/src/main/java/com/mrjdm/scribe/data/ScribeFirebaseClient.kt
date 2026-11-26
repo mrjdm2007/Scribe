@@ -231,7 +231,8 @@ internal class ScribeFirebaseClient(
                         val restoredUri = restoreAttachment(payload, id, current.uri, current.tags)
                         val baseTags = if (remoteRecordIsNewer) payload.optString("tags", current.tags) else current.tags
                         val cleanTags = baseTags.split(";").filter {
-                            it.isNotBlank() && !it.startsWith("firebase_attachment_fingerprint:")
+                            it.isNotBlank() && !it.startsWith("firebase_id:") &&
+                                !it.startsWith("firebase_attachment_fingerprint:")
                         }
                         val nextTags = (cleanTags + listOf("firebase_id:$id") +
                             remoteFingerprint.takeIf { it.isNotBlank() }?.let { "firebase_attachment_fingerprint:$it" }.orEmpty())
