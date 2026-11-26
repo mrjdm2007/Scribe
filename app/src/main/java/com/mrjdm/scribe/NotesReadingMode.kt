@@ -49,10 +49,10 @@ fun NotesReadingMode(
     var bookmarked by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     val headings = remember(markdown) {
-        mutableStateOf(markdown.lines().mapNotNull { line ->
+        markdown.lines().mapNotNull { line ->
             val match = Regex("^#{1,3}\\s+(.+)$").find(line.trim())
             match?.groupValues?.get(1)?.trim()
-        })
+        }
     }
     val context = LocalContext.current
     var readerWebView by remember { mutableStateOf<WebView?>(null) }
