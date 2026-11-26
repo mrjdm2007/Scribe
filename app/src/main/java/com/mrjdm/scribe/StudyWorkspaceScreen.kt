@@ -27,7 +27,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-private data class WorkspaceTask(val id: String, val title: String, val done: Boolean = false, val notes: String = "")
+private val WorkspaceGold = androidx.compose.ui.graphics.Color(0xFFD5B98C)\nprivate val WorkspaceMuted = androidx.compose.ui.graphics.Color(0xFF96938D)\n\nprivate data class WorkspaceTask(val id: String, val title: String, val done: Boolean = false, val notes: String = "")
 private data class WorkspaceExam(val id: String, val title: String, val subject: String, val date: String, val notes: String, val tasks: List<WorkspaceTask>)
 private data class WorkspaceFocus(val id: String, val subject: String, val topic: String, val minutes: Int, val planned: Int, val interruptions: Int, val date: String)
 private data class WorkspaceFolder(val id: String, val name: String)
@@ -87,7 +87,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
             val foldersJson = JSONArray(store.read("folders"))
             for (i in 0 until foldersJson.length()) { val o = foldersJson.getJSONObject(i); folders.add(WorkspaceFolder(o.optString("id"), o.optString("name"))) }
             val links = JSONObject(store.read("bookmark_folder_links"))
-            folderLinks = links.keys().asSequence().associate { it.toLongOrNull() ?: 0L to links.optString(it) }.filterKeys { it > 0L }
+            folderLinks = links.keys().asSequence().associate { (it.toLongOrNull() ?: 0L) to links.optString(it) }.filterKeys { it > 0L }
         }
         notificationEnabled = store.bool("notifications_enabled", false)
         interval = store.int("notification_interval", 1).coerceIn(1, 4)
@@ -136,7 +136,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Text("STUDY WORKSPACE", color = Gold, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+        Text("STUDY WORKSPACE", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
         Text("Build a steadier study rhythm.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(14.dp))
         ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 0.dp, containerColor = androidx.compose.ui.graphics.Color.Transparent) {
@@ -158,8 +158,8 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp)) {
                             Text(exam.title, fontWeight = FontWeight.SemiBold)
-                            Text("${exam.subject} · ${exam.date}", color = Muted, fontSize = 12.sp)
-                            Text("${exam.tasks.count { it.done }} of ${exam.tasks.size} syllabus items completed", color = Muted, fontSize = 12.sp)
+                            Text("${exam.subject} · ${exam.date}", color = WorkspaceMuted, fontSize = 12.sp)
+                            Text("${exam.tasks.count { it.done }} of ${exam.tasks.size} syllabus items completed", color = WorkspaceMuted, fontSize = 12.sp)
                         }
                     }
                 }
@@ -168,14 +168,14 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
                 items(focus.takeLast(5).reversed(), key = { it.id }) { FocusRow(it) }
             }
             "Exams" -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Button(onClick = { showExamDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = androidx.compose.ui.graphics.Color.Black)) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Add exam") } }
+                item { Button(onClick = { showExamDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = WorkspaceGold, contentColor = androidx.compose.ui.graphics.Color.Black)) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Add exam") } }
                 if (exams.isEmpty()) item { WorkspaceEmpty("Plan your next exam", "Add a date, then build a checklist from the syllabus.") }
                 items(exams, key = { it.id }) { exam ->
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) { Text(exam.title, fontWeight = FontWeight.SemiBold); Text("${exam.subject} · ${exam.date}", color = Muted, fontSize = 12.sp) }
-                                IconButton(onClick = { exams.remove(exam); persistExams() }) { Icon(Icons.Rounded.DeleteOutline, "Delete exam", tint = Muted) }
+                                Column(Modifier.weight(1f)) { Text(exam.title, fontWeight = FontWeight.SemiBold); Text("${exam.subject} · ${exam.date}", color = WorkspaceMuted, fontSize = 12.sp) }
+                                IconButton(onClick = { exams.remove(exam); persistExams() }) { Icon(Icons.Rounded.DeleteOutline, "Delete exam", tint = WorkspaceMuted) }
                             }
                             exam.tasks.forEach { task ->
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -184,13 +184,13 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
                                         if (index >= 0) exams[index] = exam.copy(tasks = exam.tasks.map { if (it.id == task.id) it.copy(done = checked) else it })
                                         persistExams()
                                     })
-                                    Text(task.title, modifier = Modifier.weight(1f), color = if (task.done) Muted else MaterialTheme.colorScheme.onSurface)
+                                    Text(task.title, modifier = Modifier.weight(1f), color = if (task.done) WorkspaceMuted else MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                             var newTask by remember(exam.id) { mutableStateOf("") }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 OutlinedTextField(newTask, { newTask = it }, modifier = Modifier.weight(1f), placeholder = { Text("Add syllabus topic") }, singleLine = true)
-                                IconButton(onClick = { if (newTask.isNotBlank()) { val index = exams.indexOfFirst { it.id == exam.id }; if (index >= 0) exams[index] = exam.copy(tasks = exam.tasks + WorkspaceTask(UUID.randomUUID().toString(), newTask.trim())); newTask = ""; persistExams() } }) { Icon(Icons.Rounded.Add, "Add topic", tint = Gold) }
+                                IconButton(onClick = { if (newTask.isNotBlank()) { val index = exams.indexOfFirst { it.id == exam.id }; if (index >= 0) exams[index] = exam.copy(tasks = exam.tasks + WorkspaceTask(UUID.randomUUID().toString(), newTask.trim())); newTask = ""; persistExams() } }) { Icon(Icons.Rounded.Add, "Add topic", tint = WorkspaceGold) }
                             }
                         }
                     }
@@ -200,10 +200,10 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
                 item {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("FOCUS TIMER", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                            Text("FOCUS TIMER", color = WorkspaceMuted, fontSize = 10.sp, letterSpacing = 2.sp)
                             Text(String.format(Locale.US, "%02d:%02d", timerSeconds / 60, timerSeconds % 60), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Light)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { timerRunning = !timerRunning }, colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = androidx.compose.ui.graphics.Color.Black)) { Text(if (timerRunning) "Pause" else "Start") }
+                                Button(onClick = { timerRunning = !timerRunning }, colors = ButtonDefaults.buttonColors(containerColor = WorkspaceGold, contentColor = androidx.compose.ui.graphics.Color.Black)) { Text(if (timerRunning) "Pause" else "Start") }
                                 OutlinedButton(onClick = { timerRunning = false; if (timerSeconds >= 60) { focus.add(WorkspaceFocus(UUID.randomUUID().toString(), "Focus", "Timer session", timerSeconds / 60, timerSeconds / 60, 0, today)); persistFocus() }; timerSeconds = 0 }) { Text("Finish") }
                             }
                         }
@@ -218,7 +218,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
                 item { Row(verticalAlignment = Alignment.CenterVertically) { Text("Folders", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)); TextButton(onClick = { showFolderDialog = true }) { Icon(Icons.Rounded.CreateNewFolder, null); Text("New folder") } } }
                 items(folders, key = { it.id }) { folder ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Folder, null, tint = Gold)
+                        Icon(Icons.Rounded.Folder, null, tint = WorkspaceGold)
                         Text(folder.name, Modifier.weight(1f))
                         TextButton(onClick = { folders.remove(folder); folderLinks = folderLinks.filterValues { it != folder.id }; persistFolders() }) { Text("Remove") }
                     }
@@ -229,33 +229,33 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             Text(item.title, fontWeight = FontWeight.Medium)
-                            Text(item.kind.uppercase(Locale.ROOT), color = Muted, fontSize = 10.sp)
+                            Text(item.kind.uppercase(Locale.ROOT), color = WorkspaceMuted, fontSize = 10.sp)
                             var expanded by remember(item.id) { mutableStateOf(false) }
                             TextButton(onClick = { expanded = true }) { Text("Organise in folder") }
                             if (expanded) Row(Modifier.horizontalScroll(rememberScrollState())) {
                                 TextButton(onClick = { folderLinks = folderLinks - item.id; persistFolders(); expanded = false }) { Text("Unfiled") }
                                 folders.forEach { folder -> TextButton(onClick = { folderLinks = folderLinks + (item.id to folder.id); persistFolders(); expanded = false }) { Text(folder.name) } }
                             }
-                            folderLinks[item.id]?.let { id -> Text(folders.firstOrNull { it.id == id }?.name ?: "Folder", color = Gold, fontSize = 11.sp) }
+                            folderLinks[item.id]?.let { id -> Text(folders.firstOrNull { it.id == id }?.name ?: "Folder", color = WorkspaceGold, fontSize = 11.sp) }
                         }
                     }
                 }
             }
             "Reflect" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("WEEKLY REFLECTION", color = Gold, fontSize = 10.sp, letterSpacing = 2.sp)
+                Text("WEEKLY REFLECTION", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp)
                 OutlinedTextField(reflectionWins, { reflectionWins = it; store.write("reflection_wins", it) }, modifier = Modifier.fillMaxWidth(), label = { Text("What went well?") }, minLines = 3)
                 OutlinedTextField(reflectionChallenges, { reflectionChallenges = it; store.write("reflection_challenges", it) }, modifier = Modifier.fillMaxWidth(), label = { Text("What was challenging?") }, minLines = 3)
                 OutlinedTextField(reflectionNext, { reflectionNext = it; store.write("reflection_next", it) }, modifier = Modifier.fillMaxWidth(), label = { Text("Priorities for next week") }, minLines = 3)
-                Text("Saved automatically on this device.", color = Muted, fontSize = 12.sp)
+                Text("Saved automatically on this device.", color = WorkspaceMuted, fontSize = 12.sp)
             }
             "Reminders" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("ANDROID LEARNING REMINDERS", color = Gold, fontSize = 10.sp, letterSpacing = 2.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · local scheduling", color = Muted, fontSize = 12.sp) }; Switch(notificationEnabled, { notificationEnabled = it; store.setBool("notifications_enabled", it) }) }
+                Text("ANDROID LEARNING REMINDERS", color = WorkspaceGold, fontSize = 10.sp, letterSpacing = 2.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Learning notifications", fontWeight = FontWeight.SemiBold); Text("Android only · local scheduling", color = WorkspaceMuted, fontSize = 12.sp) }; Switch(notificationEnabled, { notificationEnabled = it; store.setBool("notifications_enabled", it) }) }
                 Text("Reminder interval")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1, 2, 3, 4).forEach { h -> FilterChip(selected = interval == h, onClick = { interval = h; store.setInt("notification_interval", h) }, label = { Text("$h h") }) } }
                 OutlinedTextField(quietStart, { quietStart = it; store.write("quiet_start", it) }, label = { Text("Quiet hours start (HH:mm)") }, singleLine = true)
                 OutlinedTextField(quietEnd, { quietEnd = it; store.write("quiet_end", it) }, label = { Text("Quiet hours end (HH:mm)") }, singleLine = true)
-                Text("These preferences are saved locally. AI-generated topic tips and reliable background delivery require the Firebase service to be configured; periodic Android work is approximate, not exact to the minute.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("These preferences are saved locally. AI-generated topic tips and reliable background delivery require the Firebase service to be configured; periodic Android work is approximate, not exact to the minute.", color = WorkspaceMuted, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
     }
@@ -281,22 +281,22 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>) {
 @Composable
 private fun MetricTile(label: String, value: String, modifier: Modifier = Modifier) {
     Card(modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(10.dp)) { Text(label, color = Muted, fontSize = 9.sp, letterSpacing = 1.sp); Text(value, fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
+        Column(Modifier.padding(10.dp)) { Text(label, color = WorkspaceMuted, fontSize = 9.sp, letterSpacing = 1.sp); Text(value, fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
     }
 }
 @Composable private fun WorkspaceSectionTitle(value: String) { Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
 @Composable private fun WorkspaceEmpty(title: String, detail: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(Icons.Rounded.School, null, tint = Muted, modifier = Modifier.size(28.dp))
+        Icon(Icons.Rounded.School, null, tint = WorkspaceMuted, modifier = Modifier.size(28.dp))
         Text(title, fontWeight = FontWeight.Medium)
-        Text(detail, color = Muted, fontSize = 12.sp)
+        Text(detail, color = WorkspaceMuted, fontSize = 12.sp)
     }
 }
 @Composable private fun FocusRow(session: WorkspaceFocus) {
     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.Timer, null, tint = Gold)
+        Icon(Icons.Rounded.Timer, null, tint = WorkspaceGold)
         Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) { Text(session.subject, fontWeight = FontWeight.Medium); Text(session.topic.ifBlank { "Study session" }, color = Muted, fontSize = 12.sp) }
-        Text("${session.minutes} min", color = Gold, fontWeight = FontWeight.SemiBold)
+        Column(Modifier.weight(1f)) { Text(session.subject, fontWeight = FontWeight.Medium); Text(session.topic.ifBlank { "Study session" }, color = WorkspaceMuted, fontSize = 12.sp) }
+        Text("${session.minutes} min", color = WorkspaceGold, fontWeight = FontWeight.SemiBold)
     }
 }
