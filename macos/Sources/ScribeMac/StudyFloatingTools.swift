@@ -256,7 +256,7 @@ private struct ReaderWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ web: WKWebView, context: Context) {
-        context.coordinator._progress = $progress
+        context.coordinator.updateProgressBinding($progress)
         context.coordinator.webView = web
         if context.coordinator.lastHTML != html {
             context.coordinator.lastHTML = html
@@ -299,6 +299,7 @@ private struct ReaderWebView: NSViewRepresentable {
         var lastHTML = ""
         var jumpObserver: NSObjectProtocol?
         init(progress: Binding<Double>) { _progress = progress }
+        func updateProgressBinding(_ binding: Binding<Double>) { _progress = binding }
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if let value = message.body as? Double { DispatchQueue.main.async { self.progress = min(1, max(0, value)) } }
         }
