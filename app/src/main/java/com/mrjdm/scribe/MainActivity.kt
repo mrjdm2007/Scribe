@@ -518,7 +518,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     if (bookmarks.isEmpty()) EmptyState("Nothing saved yet", "Bookmark a page or note to keep it close.")
                 }
                 "Study" -> FlashcardsScreen(vm)
-                "Workspace" -> StudyWorkspaceScreen(bookmarks)
+                "Workspace" -> StudyWorkspaceScreen(bookmarks, vm)
                 "Tools" -> AcademicToolsHub(vm)
                 else -> {
                     ScreenHeading("Settings", "Your Scribe workspace")
