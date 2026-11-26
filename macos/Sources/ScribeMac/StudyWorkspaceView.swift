@@ -67,6 +67,9 @@ struct StudyWorkspaceView: View {
         }
         .padding(26)
         .onAppear(perform: load)
+        .onChange(of: reflectionWins) { _ in saveReflection() }
+        .onChange(of: reflectionChallenges) { _ in saveReflection() }
+        .onChange(of: reflectionNext) { _ in saveReflection() }
         .sheet(isPresented: $showingExamForm) { examForm }
         .sheet(isPresented: $showingFolderForm) { folderForm }
     }
@@ -251,14 +254,53 @@ struct StudyWorkspaceView: View {
         Int(item.tags.range(of: #"minutes:\d+"#, options: .regularExpression).map { String(item.tags[$0].dropFirst(8)) } ?? "") ?? 0
     }
     private func load() {
-        exams = (try? JSONDecoder().decode([WorkspaceExamRecord].self, from: Data(examsData.utf8))) ?? []
-        folders = (try? JSONDecoder().decode([WorkspaceBookmarkFolder].self, from: Data(foldersData.utf8))) ?? []
-        folderLinks = (try? JSONDecoder().decode([String: String].self, from: Data(folderLinksData.utf8))) ?? [:]
+        let examBody = store.items.first { $0.kind == "study_workspace_exams" && $0.deletedAt == nil }?.body
+        let bookmarkBody = store.items.first { $0.kind == "study_workspace_bookmarks" && $0.deletedAt == nil }?.body
+        let reflectionBody = store.items.first { $0.kind == "study_workspace_reflection" && $0.deletedAt == nil }?.body
+        exams = (try? JSONDecoder().decode([WorkspaceExamRecord].self, from: Data((examBody ?? examsData).utf8))) ?? []
+        if let bookmarkBody, let object = try? JSONSerialization.jsonObject(with: Data(bookmarkBody.utf8)) as? [String: Any] {
+            let folderData = (try? JSONSerialization.data(withJSONObject: object["folders"] ?? [])) ?? Data("[]".utf8)
+            let linksData = (try? JSONSerialization.data(withJSONObject: object["links"] ?? [:])) ?? Data("{}".utf8)
+            folders = (try? JSONDecoder().decode([WorkspaceBookmarkFolder].self, from: folderData)) ?? []
+            folderLinks = (try? JSONDecoder().decode([String: String].self, from: linksData)) ?? [:]
+        } else {
+            folders = (try? JSONDecoder().decode([WorkspaceBookmarkFolder].self, from: Data(foldersData.utf8))) ?? []
+            folderLinks = (try? JSONDecoder().decode([String: String].self, from: Data(folderLinksData.utf8))) ?? [:]
+        }
+        if let reflectionBody, let object = try? JSONSerialization.jsonObject(with: Data(reflectionBody.utf8)) as? [String: String] {
+            reflectionWins = object["wins"] ?? reflectionWins
+            reflectionChallenges = object["challenges"] ?? reflectionChallenges
+            reflectionNext = object["nextWeek"] ?? reflectionNext
+        }
     }
-    private func saveExams() { if let data = try? JSONEncoder().encode(exams) { examsData = String(decoding: data, as: UTF8.self) } }
+    private func saveRecord(kind: String, title: String, body: String) {
+        if let existing = store.items.first(where: { $0.kind == kind && $0.title == title && $0.deletedAt == nil }) {
+            store.update(existing, body: body)
+        } else {
+            store.create(kind: kind, title: title, body: body, tags: "workspace", switchToLibrary: false)
+        }
+    }
+    private func saveExams() {
+        if let data = try? JSONEncoder().encode(exams) {
+            let value = String(decoding: data, as: UTF8.self)
+            examsData = value
+            saveRecord(kind: "study_workspace_exams", title: "Exam planner", body: value)
+        }
+    }
     private func saveFolders() {
         if let data = try? JSONEncoder().encode(folders) { foldersData = String(decoding: data, as: UTF8.self) }
         if let data = try? JSONEncoder().encode(folderLinks) { folderLinksData = String(decoding: data, as: UTF8.self) }
+        let folderObjects = folders.map { ["id": $0.id.uuidString, "name": $0.name] }
+        let object: [String: Any] = ["folders": folderObjects, "links": folderLinks]
+        if let data = try? JSONSerialization.data(withJSONObject: object), let value = String(data: data, encoding: .utf8) {
+            saveRecord(kind: "study_workspace_bookmarks", title: "Bookmark folders", body: value)
+        }
+    }
+    private func saveReflection() {
+        let object = ["wins": reflectionWins, "challenges": reflectionChallenges, "nextWeek": reflectionNext]
+        if let data = try? JSONSerialization.data(withJSONObject: object), let value = String(data: data, encoding: .utf8) {
+            saveRecord(kind: "study_workspace_reflection", title: "Weekly reflection", body: value)
+        }
     }
 }
 
