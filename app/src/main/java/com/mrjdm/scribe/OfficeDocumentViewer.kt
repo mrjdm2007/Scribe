@@ -398,12 +398,17 @@ private fun readXlsx(zip: ZipFile): List<OfficeSheet> {
         var cellType = ""
         var cellValue = ""
         var formula = ""
+        var sourceRow = 0
         parserFor(zip, path) { parser ->
             var event = parser.eventType
             while (event != XmlPullParser.END_DOCUMENT && rows.size < 500) {
                 when (event) {
                     XmlPullParser.START_TAG -> when (parser.name) {
-                        "row" -> cells = sortedMapOf()
+                        "row" -> {
+                            cells = sortedMapOf()
+                            sourceRow = parser.getAttributeValue(null, "r")?.toIntOrNull()?.coerceAtLeast(1)
+                                ?: (rows.size + 1)
+                        }
                         "c" -> {
                             cellRef = parser.getAttributeValue(null, "r") ?: ""
                             cellType = parser.getAttributeValue(null, "t") ?: ""
@@ -420,15 +425,22 @@ private fun readXlsx(zip: ZipFile): List<OfficeSheet> {
                             val displayed = when (cellType) {
                                 "s" -> sharedStrings.getOrNull(cellValue.toIntOrNull() ?: -1) ?: cellValue
                                 "inlineStr" -> cellValue
+                                "b" -> if (cellValue == "1") "TRUE" else if (cellValue == "0") "FALSE" else cellValue
                                 else -> cellValue.ifBlank { if (formula.isNotBlank()) "=$formula" else "" }
                             }
-                            // Keep a bounded number of columns, but never collapse later columns
-                            // onto the same final cell (which would silently overwrite data).
+                            // The grid is intentionally bounded to A–CV. Never shift a
+                            // later column into the visible range because that changes meaning.
                             if (column in 0..99) cells[column] = displayed
                         }
-                        "row" -> if (cells.isNotEmpty()) {
-                            val max = cells.lastKey()
-                            rows += (0..max).map { cells[it].orEmpty() }
+                        "row" -> {
+                            // Keep original worksheet row positions. Sparse sheets often contain
+                            // blank rows; dropping them makes every later value appear on the wrong row.
+                            val targetIndex = (sourceRow - 1).coerceAtMost(499)
+                            while (rows.size < targetIndex) rows += emptyList()
+                            if (rows.size < 500) {
+                                val max = cells.keys.lastOrNull()
+                                rows += if (max == null) emptyList() else (0..max).map { cells[it].orEmpty() }
+                            }
                         }
                     }
                 }
