@@ -796,8 +796,8 @@ public enum ScribeTool: String, CaseIterable, Identifiable, Hashable { case libr
         }
         persist()
         var uploaded = 0
-        for start in stride(from: 0, to: records.count, by: 100) {
-            let batch = Array(records[start..<min(start + 100, records.count)])
+        for start in stride(from: 0, to: records.count, by: 20) {
+            let batch = Array(records[start..<min(start + 20, records.count)])
             let result = try await ScribeFirebaseClient.requestLibrary(projectId: projectId, idToken: idToken,
                 method: "POST", body: ["records": batch])
             uploaded += result["saved"] as? Int ?? 0
