@@ -156,6 +156,26 @@ internal class ScribeFirebaseClient(
                 "POST", body.toString(), tokens.idToken)
         }
 
+    suspend fun saveConversationTurn(conversationId: String?, mode: String, userMessage: String, assistantMessage: String): String =
+        withContext(Dispatchers.IO) {
+            val saved = ScribeFirebaseSession.read(context) ?: error("Connect Firebase to save conversation history.")
+            val tokens = refresh(saved)
+            ScribeFirebaseSession.save(context, saved.apiKey, saved.projectId, saved.email, tokens.refreshToken)
+            val endpoint = "https://asia-south1-${saved.projectId}.cloudfunctions.net/studyConversations"
+            fun post(id: String?, role: String, content: String): JSONObject {
+                val body = JSONObject()
+                    .put("mode", mode)
+                    .put("message", JSONObject().put("role", role).put("content", content))
+                if (!id.isNullOrBlank()) body.put("conversationId", id)
+                return request(endpoint, "POST", body.toString(), tokens.idToken)
+            }
+            val userResult = post(conversationId, "user", userMessage.take(4000))
+            val id = userResult.optString("conversation_id").takeIf { it.isNotBlank() }
+                ?: error("Firebase did not return a conversation ID.")
+            post(id, "assistant", assistantMessage.take(4000))
+            id
+        }
+
     suspend fun syncSaved(): String = withContext(Dispatchers.IO) {
         val saved = ScribeFirebaseSession.read(context) ?: error("No Firebase account is connected.")
         val tokens = refresh(saved)
