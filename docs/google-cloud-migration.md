@@ -64,6 +64,13 @@ Both native apps use Firebase Authentication REST endpoints and authenticated Cl
    ```
 6. On Android and macOS, open **Settings → Firebase cloud sync**, enter the Web API key and Project ID, then create an account or sign in with the same Firebase account on both devices.
 
+For deployment from GitHub Actions, add these repository secrets under **Settings → Secrets and variables → Actions**:
+
+- `FIREBASE_PROJECT_ID`: your Firebase project ID.
+- `FIREBASE_SERVICE_ACCOUNT`: the JSON contents of a dedicated Google Cloud service account key with the narrow deployment roles required for Cloud Functions, Firebase Rules, Cloud Build and service-account use.
+
+Then open **Actions → Deploy Scribe Firebase backend → Run workflow**. The workflow deploys Firestore rules, Storage rules and all Cloud Functions. Never commit the service-account JSON or paste it into source files or chat. You can instead deploy locally with Firebase CLI after `firebase login`, using the command above.
+
 The function URLs use the `asia-south1` region. The Android library worker syncs periodically while online; macOS syncs periodically while the app is open. Sync remains local-first and does not delete local records when a cloud request fails.
 
 Attachments up to 20 MB are uploaded through the authenticated `studyAttachments` function into Firebase Storage. Larger attachments remain local and should be copied using the full Scribe backup workflow until larger-file support is added.
