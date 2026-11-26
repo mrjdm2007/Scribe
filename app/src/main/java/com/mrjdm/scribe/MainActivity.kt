@@ -345,7 +345,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
             ) {
                 listOf("Library", "Saved", "Study", "AI", "Workspace", "Tools", "Settings").forEach { label ->
                     val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "AI" -> Icons.Rounded.AutoAwesome; "Workspace" -> Icons.Rounded.Insights; else -> Icons.Rounded.Settings }
-                    NavigationBarItem(selected = tab == label, onClick = { haptic.performHapticFeedback(HapticFeedbackType.ContextClick); tab = label; stack = emptyList() },
+                    NavigationBarItem(selected = tab == label, onClick = { haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap); tab = label; stack = emptyList() },
                         icon = { Icon(icon, null) }, label = { Text(label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Gold, selectedTextColor = Gold, indicatorColor = Color(0xFF33302A), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
@@ -361,7 +361,7 @@ private fun ScribeApp(vm: ScribeViewModel = viewModel()) {
                     Spacer(Modifier.height(12.dp))
                     listOf("Library", "Saved", "Study", "AI", "Workspace", "Tools", "Settings").forEach { label ->
                         val icon = when(label) { "Library" -> Icons.Rounded.AutoStories; "Saved" -> Icons.Rounded.Bookmark; "Tools" -> Icons.Rounded.Functions; "Study" -> Icons.Rounded.School; "Workspace" -> Icons.Rounded.Insights; else -> Icons.Rounded.Settings }
-                        NavigationRailItem(selected = tab == label, onClick = { haptic.performHapticFeedback(HapticFeedbackType.ContextClick); tab = label; stack = emptyList() }, icon = { Icon(icon, null) }, label = { Text(label, fontSize = 10.sp) })
+                        NavigationRailItem(selected = tab == label, onClick = { haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap); tab = label; stack = emptyList() }, icon = { Icon(icon, null) }, label = { Text(label, fontSize = 10.sp) })
                     }
                 }
             }
@@ -723,14 +723,14 @@ private fun TopicNotebook(
 
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.ContextClick); onBack() }) { Icon(Icons.Rounded.ArrowBack, null) }
+            IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap); onBack() }) { Icon(Icons.Rounded.ArrowBack, null) }
             Column(Modifier.weight(1f)) {
                 Text("TOPIC NOTEBOOK", color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Text(topic.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
             Text(saveStatus, color = Muted, fontSize = 10.sp)
             TextButton(onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
                 scope.launch {
                     saveStatus = "Saving…"
                     runCatching { vm.saveNow(liveTopic, noteValue.text) }
@@ -742,7 +742,7 @@ private fun TopicNotebook(
                 Spacer(Modifier.width(4.dp))
                 Text("Save")
             }
-            IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.ContextClick); showReadingMode = true }) { Icon(Icons.Rounded.MenuBook, "Open reading mode", tint = Gold) }
+            IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap); showReadingMode = true }) { Icon(Icons.Rounded.MenuBook, "Open reading mode", tint = Gold) }
             val noteWords = noteValue.text.trim().split(Regex("\\s+")).count { it.isNotBlank() }
             Column(horizontalAlignment = Alignment.End) {
                 Text("$noteWords words", color = Muted, fontSize = 10.sp)
@@ -830,7 +830,7 @@ private fun TopicNotebook(
             TextButton(onClick = { noteValue = noteValue.wrapSelection("| ", " |  |"); vm.update(liveTopic, body = noteValue.text) }) { Text("Table") }
             TextButton(onClick = { showLatexPreview = !showLatexPreview }) { Text(if (showLatexPreview) "Edit" else "Preview") }
             Box {
-                TextButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.ContextClick); showTemplateMenu = true }) { Text("Templates") }
+                TextButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap); showTemplateMenu = true }) { Text("Templates") }
                 DropdownMenu(expanded = showTemplateMenu, onDismissRequest = { showTemplateMenu = false }) {
                     listOf(
                         "Lecture notes" to "# Lecture notes\n\n## Key concepts\n- \n\n## Examples\n- \n\n## Questions\n- [ ] ",
@@ -845,7 +845,7 @@ private fun TopicNotebook(
                     }
                 }
             }
-            TextButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.ContextClick); wordGoalDraft = if (wordGoal > 0) wordGoal.toString() else "500"; showWordGoalDialog = true }) { Text("Word goal") }
+            TextButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap); wordGoalDraft = if (wordGoal > 0) wordGoal.toString() else "500"; showWordGoalDialog = true }) { Text("Word goal") }
         }
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
