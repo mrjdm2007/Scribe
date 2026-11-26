@@ -56,7 +56,7 @@ fun NotesReadingMode(
     }
     val context = LocalContext.current
     var readerWebView by remember { mutableStateOf<WebView?>(null) }
-    val safeTitle = JSONObject.quote(title)
+    val safeTitle = JSONObject.quote(title).replace("<", "\\u003C")
     val safeMarkdown = JSONObject.quote(markdown).replace("<", "\\u003C")
 
     Dialog(
