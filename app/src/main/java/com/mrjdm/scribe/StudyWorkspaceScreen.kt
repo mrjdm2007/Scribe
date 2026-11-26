@@ -145,6 +145,14 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
 
     LaunchedEffect(allItems, loaded) {
         if (!loaded) return@LaunchedEffect
+        val goalRecord = allItems.firstOrNull { it.kind == "study_workspace_daily_goal" && it.deletedAt == null }
+        if (store.read("daily_goal_minutes").isBlank() && goalRecord != null) {
+            runCatching {
+                val minutes = JSONObject(goalRecord.body).optInt("minutes", 120).coerceIn(30, 600)
+                dailyGoalMinutes = minutes
+                store.setInt("daily_goal_minutes", minutes)
+            }
+        }
         val examRecord = allItems.firstOrNull { it.kind == "study_workspace_exams" && it.deletedAt == null }
         if (store.read("exams").isBlank() && examRecord != null) {
             runCatching {
@@ -346,6 +354,7 @@ fun StudyWorkspaceScreen(bookmarks: List<ScribeItem>, vm: com.mrjdm.scribe.data.
                         }
                     }
                 }
+                item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf(15, 25, 50, 90).forEach { minutes -> OutlinedButton(onClick = { focusMinutes = minutes.toString(); showFocusDialog = true }) { Text("${minutes}m") } } } }
                 item { Button(onClick = { showFocusDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("Log a completed session") } }
                 item { WorkspaceSectionTitle("Session history") }
                 if (focus.isEmpty()) item { WorkspaceEmpty("Your focus history will appear here", "Track time spent on each subject and topic.") }
