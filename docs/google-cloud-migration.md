@@ -66,7 +66,7 @@ Both native apps use Firebase Authentication REST endpoints and authenticated Cl
 
 The function URLs use the `asia-south1` region. The Android library worker syncs periodically while online; macOS syncs periodically while the app is open. Sync remains local-first and does not delete local records when a cloud request fails.
 
-The app currently embeds small attachments in the Firestore record payload only for backward-compatible small records; new attachment uploads use the authenticated `studyAttachments` function and Firebase Storage, with a 20 MB per-file limit. Larger attachments remain local and should be copied using the full Scribe backup workflow until larger-file support is added.
+Attachments up to 20 MB are uploaded through the authenticated `studyAttachments` function into Firebase Storage. Larger attachments remain local and should be copied using the full Scribe backup workflow until larger-file support is added.
 
 ## Google Cloud project setup
 
