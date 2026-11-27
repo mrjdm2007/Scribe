@@ -1,0 +1,11 @@
+{
+  "name": "Scribe — Study workspace",
+  "short_name": "Scribe",
+  "description": "A considered space for academic thinking.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#111214",
+  "theme_color": "#111214",
+  "icons": [{ "src": "./scribe.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
